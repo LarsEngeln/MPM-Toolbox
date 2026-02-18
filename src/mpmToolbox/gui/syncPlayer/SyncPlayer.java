@@ -308,7 +308,7 @@ public class SyncPlayer extends WebPanel {
         if (selectThis != null)
             this.performanceChooser.setSelectedItem(selectThis);
         else                                                        // if the previously selected item could not be found in the newly assembled list
-            this.performanceChooser.setSelectedIndex(0);            // select item 0 by default
+            this.performanceChooser.setSelectedIndex(this.performanceChooser.getItemCount() - 1);            // select most recent item by default
     }
 
     /**
