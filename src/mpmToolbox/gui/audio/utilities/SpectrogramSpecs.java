@@ -54,6 +54,7 @@ public class SpectrogramSpecs extends WebPanel {
         this.windowFunctionChooser.addItem("Hann");
         this.windowFunctionChooser.addItem("Triangle");
         this.windowFunctionChooser.addItem("Welch");
+        this.windowFunctionChooser.addItem("BlackmannHarris");
         this.windowFunctionChooser.addItem("Inverse Hamming");
         this.windowFunctionChooser.addItem("Inverse Hann");
         this.windowFunctionChooser.addItem("Inverse Triangle");
@@ -165,6 +166,9 @@ public class SpectrogramSpecs extends WebPanel {
             case "Welch":
                 windowFunction = new WindowFunction.Welch(windowLength);
                 break;
+            case "BlackmannHarris":
+                windowFunction = new BlackmanHarris(windowLength);
+                break;
             case "Inverse Hamming":
                 windowFunction = new WindowFunction.InverseWindowFunction(new WindowFunction.Hamming(windowLength));
                 break;
@@ -190,4 +194,33 @@ public class SpectrogramSpecs extends WebPanel {
 
 //            parent.getRootPane().setCursor(Cursor.getDefaultCursor());  // change mouse cursor back to default
     }
+
+    public static class BlackmanHarris extends WindowFunction {
+        public BlackmanHarris(int length) {
+            super(coefficients(length));
+        }
+
+        private static float[] coefficients(int length) {
+            float[] coefficients = new float[length];
+            int lengthMinus1 = length - 1;
+            if (lengthMinus1 == 0) {
+                coefficients[0] = 1.0F;
+            } else {
+                float a0 = 0.4243801F;
+                float a1 = 0.4973406F;
+                float a2 = 0.0782793F;
+                for(int n = 0; n < length; ++n) {
+                    double pi_n = (2.0 * Math.PI * (double)n);
+                    coefficients[n] = (float)(a0 - a1 * Math.cos(pi_n / (double)lengthMinus1) + a2 * Math.cos(2.0 * pi_n / (double)lengthMinus1));
+                }
+            }
+
+            return coefficients;
+        }
+
+        public String toString() {
+            return "BlackmanHarris{length=" + this.getLength() + '}';
+        }
+    }
 }
+
