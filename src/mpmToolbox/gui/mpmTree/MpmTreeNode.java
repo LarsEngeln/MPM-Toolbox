@@ -290,7 +290,7 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
             case temporalSpread:
                 OrnamentDef.TemporalSpread temporalSpread = (OrnamentDef.TemporalSpread) this.getUserObject();
                 this.name = "temporalSpread [" + temporalSpread.frameStart + ", " + temporalSpread.getFrameLength() + "]";
-                switch (temporalSpread.frameDomain) {
+                switch (temporalSpread.frameStart.getDomain()) {
                     case Milliseconds:
                         this.name = this.name.concat(" ms");
                         break;
