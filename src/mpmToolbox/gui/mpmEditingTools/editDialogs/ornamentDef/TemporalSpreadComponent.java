@@ -7,6 +7,7 @@ import com.alee.laf.label.WebLabel;
 import com.alee.laf.panel.WebPanel;
 import com.alee.laf.spinner.WebSpinner;
 import com.alee.laf.text.WebTextField;
+import meico.mpm.elements.TemporalValue;
 import meico.mpm.elements.styles.defs.OrnamentDef;
 import meico.supplementary.KeyValue;
 import mpmToolbox.gui.Settings;
@@ -30,7 +31,7 @@ public class TemporalSpreadComponent extends WebPanel {
     private final WebLabel noteOffShiftLabel = new WebLabel("NoteOff Shift");
     private final WebComboBox noteOffShift = new WebComboBox(new NoteOffShiftItem[]{new NoteOffShiftItem(OrnamentDef.TemporalSpread.NoteOffShift.False), new NoteOffShiftItem(OrnamentDef.TemporalSpread.NoteOffShift.True), new NoteOffShiftItem(OrnamentDef.TemporalSpread.NoteOffShift.Monophonic)}, 0);   // "false" is selected by default
     private final WebLabel timeDomainLabel = new WebLabel("Time Domain");
-    private final WebComboBox timeDomain = new WebComboBox(new TimeDomainItem[]{new TimeDomainItem(OrnamentDef.TemporalSpread.FrameDomain.Ticks), new TimeDomainItem(OrnamentDef.TemporalSpread.FrameDomain.Milliseconds)}, 0);
+    private final WebComboBox timeDomain = new WebComboBox(new TimeDomainItem[]{new TimeDomainItem(TemporalValue.Domain.Ticks), new TimeDomainItem(TemporalValue.Domain.Milliseconds)}, 0);
     private final WebLabel frameStartLabel = new WebLabel("Frame Start");
     private final WebSpinner frameStart = new WebSpinner(new SpinnerNumberModel(0.0, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, 1.0));
     private final WebLabel frameLengthLabel = new WebLabel("Frame Length");
@@ -138,7 +139,7 @@ public class TemporalSpreadComponent extends WebPanel {
      * input the time.unit value
      * @param timeDomain
      */
-    public void setTimeDomain(OrnamentDef.TemporalSpread.FrameDomain timeDomain) {
+    public void setTimeDomain(TemporalValue.Domain timeDomain) {
         for (int i = 0; i < this.timeDomain.getItemCount(); ++i) {
             if (((TimeDomainItem) this.timeDomain.getItemAt(i)).getKey().equals(timeDomain)) {
                 this.timeDomain.setSelectedIndex(i);
@@ -151,9 +152,9 @@ public class TemporalSpreadComponent extends WebPanel {
      * returns the value of the time domain combobox
      * @return if null, Ticks will be returned, instead
      */
-    public OrnamentDef.TemporalSpread.FrameDomain getTimeDomain() {
+    public TemporalValue.Domain getTimeDomain() {
         if (this.timeDomain.getSelectedItem() == null)
-            return OrnamentDef.TemporalSpread.FrameDomain.Ticks;
+            return TemporalValue.Domain.Ticks;
 
         return ((TimeDomainItem) this.timeDomain.getSelectedItem()).getKey();
     }
@@ -297,12 +298,12 @@ public class TemporalSpreadComponent extends WebPanel {
      * Items for the time.unit chooser.
      * @author Axel Berndt
      */
-    private static class TimeDomainItem extends KeyValue<OrnamentDef.TemporalSpread.FrameDomain, String> {
+    private static class TimeDomainItem extends KeyValue<TemporalValue.Domain, String> {
         /**
          * This constructor creates a time.unit chooser item (frame domain, String) pair out of a non-null frame domain.
          * @param frameDomain
          */
-        public TimeDomainItem(@NotNull OrnamentDef.TemporalSpread.FrameDomain frameDomain) {
+        public TimeDomainItem(@NotNull TemporalValue.Domain frameDomain) {
             super(frameDomain, "");
             switch (frameDomain) {
                 case Ticks:
@@ -324,10 +325,10 @@ public class TemporalSpreadComponent extends WebPanel {
             super(null, string);
             switch (string.trim().toLowerCase()) {
                 case "ticks":
-                    this.setKey(OrnamentDef.TemporalSpread.FrameDomain.Ticks);
+                    this.setKey(TemporalValue.Domain.Ticks);
                     break;
                 case "milliseconds":
-                    this.setKey(OrnamentDef.TemporalSpread.FrameDomain.Milliseconds);
+                    this.setKey(TemporalValue.Domain.Milliseconds);
                     break;
                 default:
                     this.setKey(null);
