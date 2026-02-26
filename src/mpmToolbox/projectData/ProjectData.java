@@ -65,8 +65,8 @@ public class ProjectData {
      * @param mei
      */
     public ProjectData(Mei mei) {
-        Mei instructiveMei = mei.instructify();
-        KeyValue<List<Msm>, List<Mpm>> msmMpm = instructiveMei.exportMsmMpm(720);
+        Mei expandedMei = mei.expandOrnaments();
+        KeyValue<List<Msm>, List<Mpm>> msmMpm = expandedMei.exportMsmMpm(720);
         this.msm = msmMpm.getKey().get(0);
         this.msmPreprocessing();
         this.setMpm(msmMpm.getValue().get(0));
