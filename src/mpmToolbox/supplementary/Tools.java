@@ -76,8 +76,10 @@ public class Tools {
         // for debugging information replace the null argument by System.out
         new FileDrop(null, component.getRootPane(), true, files -> {    // this is the fileDrop listener
 //        new FileDrop(null, component.getRootPane(), false, files -> {   // this is the fileDrop listener TODO: use this to re-enable repositioning of GUI elements, but file drop will not work on those elements
-            for (File file : files) {                                   // for each file that has been dropped
-                app.loadFile(file);                                     // load the file in teh application
+            java.util.List<File> sorted = new java.util.ArrayList<>(java.util.Arrays.asList(files));
+            sorted.sort((a, b) -> extensionPriority(a) - extensionPriority(b));
+            for (File file : sorted) {                                  // for each file that has been dropped (sorted by extension priority)
+                app.loadFile(file);                                     // load the file in the application
             }
             app.getFrame().toFront();                                   // after the file drop force this window to have the focus
         });
@@ -283,6 +285,32 @@ public class Tools {
         diamond.closePath();
 
         return diamond;
+    }
+
+    /**
+     * Returns a sort priority for a file based on its extension.
+     * Lower values are processed first.
+     * Order: .mpr, .mei, .msm, .mpm, .xml, .wav, .mp3, .mid, .midi, everything else, .csv last.
+     * @param file
+     * @return priority index
+     */
+    private static int extensionPriority(File file) {
+        int index = file.getName().lastIndexOf('.');
+        if (index < 0)
+            return Integer.MAX_VALUE;
+        switch (file.getName().substring(index).toLowerCase()) {
+            case ".mpr":  return 0;
+            case ".mei":  return 1;
+            case ".msm":  return 2;
+            case ".mpm":  return 3;
+            case ".xml":  return 4;
+            case ".wav":  return 5;
+            case ".mp3":  return 6;
+            case ".mid":  return 9;
+            case ".midi": return 10;
+            case ".csv":  return 20;
+            default:      return 12;
+        }
     }
 
 }
