@@ -44,6 +44,7 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
     private final WaveformPanel waveform;
     private final SpectrogramPanel spectrogram;
     private final TempoMapPanel tempoMap;
+    private final AnnotationPanel annotation;
 
     private int channelNumber = -1;                                 // index of the waveform/channel to be rendered to image; -1 means all channels
     private long leftmostSample = -1;                                // index of the first sample to be rendered to image
@@ -82,6 +83,7 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         this.waveform = new WaveformPanel(this);
         this.spectrogram = new SpectrogramPanel(this);
         this.tempoMap = new TempoMapPanel(this);
+        this.annotation = new AnnotationPanel(this);
 
         this.setComponent(this.audioPanel);
         this.setClosable(false);
@@ -356,6 +358,7 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         this.splitPane.setContinuousLayout(true);                                        // when the divider is moved the content is continuously redrawn
         this.splitPane.add(this.waveform);
         this.splitPane.add(this.spectrogram);
+        this.splitPane.add(this.annotation);
         this.splitPane.add(this.tempoMap);
 
         GridBagLayout gridBagLayout = (GridBagLayout) this.audioPanel.getLayout();
@@ -397,12 +400,21 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
     }
 
     /**
+     * a getter for the annotation panel
+     * @return
+     */
+    public AnnotationPanel getAnnotationPanel() {
+        return this.annotation;
+    }
+
+    /**
      * The sequence at which the child components update their visualizations is important.
      * This method takes care of it.
      */
     protected void repaintAllComponents() {
         this.waveform.repaint();
         this.spectrogram.repaint();
+        this.annotation.repaint();
         this.tempoMap.repaint();
     }
 
@@ -440,7 +452,7 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         if (this.mouseCursor == null)
             this.mouseCursor = new CursorPositions(this);
 
-        if (this.getWaveformPanel().mouseInThisPanel() || this.getSpectrogramPanel().mouseInThisPanel()) {
+        if (this.getWaveformPanel().mouseInThisPanel() || this.getSpectrogramPanel().mouseInThisPanel() || this.getAnnotationPanel().mouseInThisPanel()) {
             this.mouseCursor.setAudioX(e.getX());
             return;
         }
