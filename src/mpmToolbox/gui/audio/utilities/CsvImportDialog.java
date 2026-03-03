@@ -36,17 +36,24 @@ import java.util.ArrayList;
 public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     private boolean ok = false;
 
-    // the current AnnotationData – either parsed from CSV or an existing one passed in for editing
+    // the current AnnotationData, either parsed from CSV or an existing one passed in for editing
     private AnnotationData annotationData;
 
-    // per-column UI controls (indices match annotationData columns)
-    private WebComboBox[] typeChoosers;
-    private WebComboBox[] unitChoosers;
+    // per-column UI controls (indices match annotationData lines)
+    private WebComboBox[]  typeChoosers;
+    private WebComboBox[]  unitChoosers;
+    private WebTextField[] nameFields;
+
+    // config panel, replaced when columns change
+    private WebPanel configPanel;
 
     // target selection (replace existing vs. create new)
     private WebComboBox  targetChooser;
     private WebTextField newNameField;
     private final ArrayList<AnnotationData> existingData;
+
+    // preview table model, updated when columns are deleted
+    private DefaultTableModel tableModel;
 
     private static final String NEW_ENTRY = "<New annotation>";
 
@@ -150,7 +157,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             name = name.substring(0, name.lastIndexOf('.')); // strip file extension for default name
         AnnotationData data = new AnnotationData(name);
 
-        // add lines with smart defaults
+        // add lines with defaults
         for (int c = 0; c < colCount; c++) {
             String colName = (headerRow != null && c < headerRow.length) ? headerRow[c] : ("Column " + (c + 1));
             AnnotationLine.Type type;
@@ -168,10 +175,12 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             data.addLine(new AnnotationLine(colName, type, unit));
         }
 
-        // add rows – distribute each cell value into its column's AnnotationLine
+        // add rows, distribute each cell value into its column's AnnotationLine
+        int maxRowCount = 0;
         for (String[] row : parsed) {
             double[] values = new double[colCount];
             boolean valid = true;
+            maxRowCount = Math.max(maxRowCount, row.length);
             for (int c = 0; c < row.length; c++) {
                 try {
                     values[c] = Double.parseDouble(row[c].trim());      // TODO: parseDouble if CURVE & MARKS, may extend with TEXT later
@@ -183,6 +192,12 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             if (valid) {
                 for (int c = 0; c < colCount; c++)
                     data.getLine(c).addValue(values[c]);
+            }
+        }
+        if(maxRowCount < colCount){
+            // if there are more header columns than value columns, delete all leftover columns/lines
+            for(int c = maxRowCount; c < colCount; c++) {
+                data.getLines().remove(c);
             }
         }
 
@@ -226,7 +241,6 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         GridBagLayout targetLayout = (GridBagLayout) targetPanel.getLayout();
 
         WebLabel targetLabel = new WebLabel("Import as:");
-        //targetLabel.setFontSizeAndStyle(12, Font.BOLD);
         targetLabel.setFontStyle(Font.BOLD);
         targetLabel.setPadding(2, 4, 2, 8);
         Tools.addComponentToGridBagLayout(targetPanel, targetLayout, targetLabel, 0, 0, 1, 1, 0.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.LINE_START);
@@ -237,7 +251,6 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             targetItems[i + 1] = this.existingData.get(i).getName();
 
         this.targetChooser = new WebComboBox(targetItems);
-        // pre-select if we were given an existing object that is in the list
         for (int i = 0; i < this.existingData.size(); i++) {
             if (this.existingData.get(i) == this.annotationData) {
                 this.targetChooser.setSelectedIndex(i + 1);
@@ -251,68 +264,43 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         this.newNameField.setVisible(this.targetChooser.getSelectedIndex() == 0);
         Tools.addComponentToGridBagLayout(targetPanel, targetLayout, this.newNameField, 2, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
 
-        this.targetChooser.addActionListener(e -> this.newNameField.setVisible(this.targetChooser.getSelectedIndex() == 0));
-
         Tools.addComponentToGridBagLayout(this, mainLayout, targetPanel, 0, row++, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.LINE_START);
 
-        // --- Column configuration: side-by-side, each col = name / type / unit stacked ---
-        int colCount = this.annotationData.getLineCount();
-        this.typeChoosers = new WebComboBox[colCount];
-        this.unitChoosers = new WebComboBox[colCount];
+        // --- Column configuration panel (rebuilt dynamically) ---
+        this.configPanel = new WebPanel(new GridBagLayout());
+        this.configPanel.setPadding(Settings.paddingInDialogs);
+        this.rebuildConfigPanel();
+        Tools.addComponentToGridBagLayout(this, mainLayout, this.configPanel, 0, row++, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.LINE_START);
 
-        WebPanel configPanel = new WebPanel(new GridBagLayout());
-        configPanel.setPadding(Settings.paddingInDialogs);
-        GridBagLayout configLayout = (GridBagLayout) configPanel.getLayout();
-
-        for (int col = 0; col < colCount; col++) {
-            AnnotationLine colMeta = this.annotationData.getLine(col);
-
-            WebPanel colPanel = new WebPanel(new GridBagLayout());
-            colPanel.setPadding(0, col > 0 ? Settings.paddingInDialogs : 0, 0, 0);
-            GridBagLayout colLayout = (GridBagLayout) colPanel.getLayout();
-
-            WebLabel nameLabel = new WebLabel(colMeta.getName());
-            nameLabel.setFontSizeAndStyle(12, Font.BOLD);
-            nameLabel.setHorizontalAlignment(WebLabel.CENTER);
-            nameLabel.setPadding(2, 4, 4, 4);
-            Tools.addComponentToGridBagLayout(colPanel, colLayout, nameLabel, 0, 0, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
-
-            this.typeChoosers[col] = new WebComboBox(TYPES);
-            this.typeChoosers[col].setSelectedItem(colMeta.getType());
-            Tools.addComponentToGridBagLayout(colPanel, colLayout, this.typeChoosers[col], 0, 1, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
-
-            this.unitChoosers[col] = new WebComboBox(UNITS);
-            this.unitChoosers[col].setSelectedItem(colMeta.getUnit());
-            Tools.addComponentToGridBagLayout(colPanel, colLayout, this.unitChoosers[col], 0, 2, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
-
-            Tools.addComponentToGridBagLayout(configPanel, configLayout, colPanel, col, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.PAGE_START);
-        }
-
-        Tools.addComponentToGridBagLayout(this, mainLayout, configPanel, 0, row++, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.LINE_START);
+        // targetChooser: when an existing AnnotationData is selected, mirror its lines into the config
+        this.targetChooser.addActionListener(e -> {
+            this.newNameField.setVisible(this.targetChooser.getSelectedIndex() == 0);
+            int idx = this.targetChooser.getSelectedIndex();
+            if (idx > 0) {
+                // clone lines from the selected existing AnnotationData into annotationData
+                AnnotationData selected = this.existingData.get(idx - 1);
+                // keep the raw values of annotationData but adopt the line metadata
+                for (int c = 0; c < Math.min(this.annotationData.getLineCount(), selected.getLineCount()); c++) {
+                    AnnotationLine src = selected.getLine(c);
+                    AnnotationLine dst = this.annotationData.getLine(c);
+                    dst.setName(src.getName());
+                    dst.setType(src.getType());
+                    dst.setUnit(src.getUnit());
+                }
+            }
+            this.rebuildConfigPanel();
+            this.rebuildPreviewTable();
+            this.revalidate();
+            this.repaint();
+        });
 
         // --- Preview table ---
-        int previewCount = Math.min(10, this.annotationData.getRowCount());
-        String[] tableColNames = new String[colCount];
-        for (int c = 0; c < colCount; c++)
-            tableColNames[c] = this.annotationData.getLine(c).getName();
-
-        DefaultTableModel tableModel = new DefaultTableModel(tableColNames, 0) {
+        this.tableModel = new DefaultTableModel(this.buildTableColumnNames(), 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
-        for (int r = 0; r < previewCount; r++) {
-            Object[] rowData = new Object[colCount];
-            for (int c = 0; c < colCount; c++)
-                rowData[c] = this.annotationData.getLine(c).getValue(r);
-            tableModel.addRow(rowData);
-        }
-        if (this.annotationData.getRowCount() > previewCount) {
-            Object[] ellipsis = new Object[colCount];
-            ellipsis[0] = "... (" + this.annotationData.getRowCount() + " rows total)";
-            for (int c = 1; c < colCount; c++) ellipsis[c] = "...";
-            tableModel.addRow(ellipsis);
-        }
+        this.fillPreviewRows();
 
-        WebTable previewTable = new WebTable(tableModel);
+        WebTable previewTable = new WebTable(this.tableModel);
         previewTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         WebScrollPane scrollPane = new WebScrollPane(previewTable);
         scrollPane.setPreferredSize(new Dimension(500, 180));
@@ -342,6 +330,116 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         Tools.addComponentToGridBagLayout(okPanel, okLayout, cancelButton, 1, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         Tools.addComponentToGridBagLayout(this, mainLayout, okPanel, 0, row, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.LINE_START);
+    }
+
+    /**
+     * (Re)builds the column-configuration sub-panel in-place.
+     * Each column gets a rename field, type chooser, unit chooser, and a delete button.
+     */
+    private void rebuildConfigPanel() {
+        this.configPanel.removeAll();
+        GridBagLayout layout = (GridBagLayout) this.configPanel.getLayout();
+
+        int colCount = this.annotationData.getLineCount();
+        this.typeChoosers = new WebComboBox[colCount];
+        this.unitChoosers = new WebComboBox[colCount];
+        this.nameFields   = new WebTextField[colCount];
+
+        for (int col = 0; col < colCount; col++) {
+            final int colIdx = col;
+            AnnotationLine line = this.annotationData.getLine(col);
+
+            WebPanel colPanel = new WebPanel(new GridBagLayout());
+            colPanel.setPadding(0, col > 0 ? Settings.paddingInDialogs : 0, 0, 0);
+            GridBagLayout colLayout = (GridBagLayout) colPanel.getLayout();
+
+            // editable name field
+            this.nameFields[col] = new WebTextField(line.getName());
+            this.nameFields[col].setHorizontalAlignment(WebTextField.CENTER);
+            this.nameFields[col].setToolTipText("Column name");
+            this.nameFields[col].setFontStyle(Font.BOLD);
+            Tools.addComponentToGridBagLayout(colPanel, colLayout, this.nameFields[col], 0, 0, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
+
+            // type chooser
+            this.typeChoosers[col] = new WebComboBox(TYPES);
+            this.typeChoosers[col].setSelectedItem(line.getType());
+            Tools.addComponentToGridBagLayout(colPanel, colLayout, this.typeChoosers[col], 0, 1, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
+
+            // unit chooser
+            this.unitChoosers[col] = new WebComboBox(UNITS);
+            this.unitChoosers[col].setSelectedItem(line.getUnit());
+            Tools.addComponentToGridBagLayout(colPanel, colLayout, this.unitChoosers[col], 0, 2, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
+
+            // delete button
+            WebButton deleteBtn = new WebButton("remove");
+            deleteBtn.setToolTipText("Remove this column");
+            deleteBtn.setFontStyle(Font.BOLD);
+            deleteBtn.setPadding(1, 4, 1, 4);
+            deleteBtn.addActionListener(ae -> {
+                this.applyNamesTypesUnits();            // persist current UI state before removing
+                this.annotationData.removeLine(colIdx);
+                this.rebuildConfigPanel();
+                this.rebuildPreviewTable();
+                this.configPanel.revalidate();
+                this.configPanel.repaint();
+            });
+            Tools.addComponentToGridBagLayout(colPanel, colLayout, deleteBtn, 0, 3, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
+
+            Tools.addComponentToGridBagLayout(this.configPanel, layout, colPanel, col, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.PAGE_START);
+        }
+    }
+
+    /**
+     * Write current UI name/type/unit values back into the AnnotationData lines.
+     * Called before structural changes (delete) so no edits are lost.
+     */
+    private void applyNamesTypesUnits() {
+        int colCount = Math.min(this.annotationData.getLineCount(), this.nameFields.length);
+        for (int c = 0; c < colCount; c++) {
+            String n = this.nameFields[c].getText().trim();
+            this.annotationData.getLine(c).setName(n.isEmpty() ? ("Column " + (c + 1)) : n);
+            this.annotationData.getLine(c).setType((AnnotationLine.Type) this.typeChoosers[c].getSelectedItem());
+            this.annotationData.getLine(c).setUnit((AnnotationLine.Unit) this.unitChoosers[c].getSelectedItem());
+        }
+    }
+
+    /** Build the column-name array for the preview table from the current annotationData lines. */
+    private String[] buildTableColumnNames() {
+        int colCount = this.annotationData.getLineCount();
+        String[] names = new String[colCount];
+        for (int c = 0; c < colCount; c++)
+            names[c] = this.annotationData.getLine(c).getName();
+        return names;
+    }
+
+    /** Fill (or refill) the preview table model from the current annotationData. */
+    private void fillPreviewRows() {
+        this.tableModel.setRowCount(0);
+        int colCount = this.annotationData.getLineCount();
+        // update column identifiers
+        this.tableModel.setColumnCount(0);
+        for (String name : this.buildTableColumnNames())
+            this.tableModel.addColumn(name);
+
+        int previewCount = Math.min(10, this.annotationData.getRowCount());
+        for (int r = 0; r < previewCount; r++) {
+            Object[] rowData = new Object[colCount];
+            for (int c = 0; c < colCount; c++)
+                rowData[c] = this.annotationData.getLine(c).getValue(r);
+            this.tableModel.addRow(rowData);
+        }
+        if (this.annotationData.getRowCount() > previewCount) {
+            Object[] ellipsis = new Object[colCount];
+            ellipsis[0] = "... (" + this.annotationData.getRowCount() + " rows total)";
+            for (int c = 1; c < colCount; c++) ellipsis[c] = "...";
+            this.tableModel.addRow(ellipsis);
+        }
+    }
+
+    /** Rebuild the preview table (column headers + rows) after a structural change. */
+    private void rebuildPreviewTable() {
+        if (this.tableModel != null)
+            this.fillPreviewRows();
     }
 
     /**
@@ -396,11 +494,8 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         if (this.annotationData.isEmpty())
             return null;
 
-        // apply UI choices back onto the annotationData columns
-        for (int c = 0; c < this.annotationData.getLineCount(); c++) {
-            this.annotationData.getLine(c).setType((AnnotationLine.Type) this.typeChoosers[c].getSelectedItem());
-            this.annotationData.getLine(c).setUnit((AnnotationLine.Unit) this.unitChoosers[c].getSelectedItem());
-        }
+        // apply current UI state (names, types, units) back onto the AnnotationData lines
+        this.applyNamesTypesUnits();
 
         // determine name
         AnnotationData target = this.getTargetAnnotationData();
