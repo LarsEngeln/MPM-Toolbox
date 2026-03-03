@@ -17,6 +17,7 @@ import mpmToolbox.projectData.ProjectData;
 import mpmToolbox.gui.audio.AnnotationData;
 import mpmToolbox.gui.audio.AnnotationPanel;
 import mpmToolbox.gui.audio.AudioDocumentData;
+import mpmToolbox.gui.audio.utilities.CsvImportDialog;
 import mpmToolbox.gui.mpmTree.MpmDockableFrame;
 import mpmToolbox.gui.mpmTree.MpmTree;
 import mpmToolbox.gui.msmTree.MsmTree;
@@ -357,6 +358,37 @@ public class ProjectPane extends WebDockablePane {
         Audio audio = this.getAudio().get(index);
         this.syncPlayer.removeAudio(audio);
         this.data.removeAudio(index);
+    }
+
+    /**
+     * Load annotation data from a CSV file into the AnnotationPanel.
+     * Opens a dialog to let the user configure column types and units.
+     * @param file the CSV file
+     */
+    public void loadAnnotationCsv(File file) {
+        AnnotationPanel annotationPanel = this.audioFrame.getAnnotationPanel();
+        CsvImportDialog dialog = new CsvImportDialog(file, annotationPanel.getAnnotations());
+        if (!dialog.showDialog())
+            return;
+
+        AnnotationData built = dialog.buildAnnotationData();
+        if (built == null) {
+            System.err.println("No valid annotation data found in " + file.getAbsolutePath());
+            return;
+        }
+
+        System.out.println("Loaded " + built.getEntries().size() + " annotation entries from " + file.getAbsolutePath());
+
+        AnnotationData target = dialog.getTargetAnnotationData();
+        if (target != null) {
+            target.replaceEntries(built.getEntries());
+            annotationPanel.setActiveData(target);
+        } else {
+            annotationPanel.addAnnotationData(built);
+        }
+
+        // switch to the Audio tab
+        this.tabs.setSelected(this.audioFrame);
     }
 
     /**
