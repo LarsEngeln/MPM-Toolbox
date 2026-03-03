@@ -351,6 +351,8 @@ public class Audio extends meico.audio.Audio {
         System.out.println("\nComputing CQT spectrogram (window: " + windowFunction + ", hop size: " + hopSize + ", min freq: " + minFrequency + ", max freq: " + maxFrequency + ", bins per semitone: " + binsPerSemitone + ").");
 
         int numSamples = this.getAudio().length / (2 * this.getChannels());
+        int estimatedFrames = Math.max(1, numSamples / hopSize);
+        int progressUpdateInterval = Math.max(1, estimatedFrames / 100);    // update progress bar at most ~100 times to reduce EDT overhead
         progressBar.setMaximum(numSamples);
         SwingUtilities.invokeLater(() -> progressBar.setText("Initializing Signal Processing Pipeline ..."));
 
@@ -360,16 +362,18 @@ public class Audio extends meico.audio.Audio {
                 new Mapping<AudioBuffer>(AudioBufferFunctions.createMapFunction(windowFunction)),
                 new ConstantQTransform(minFrequency, maxFrequency, 12 * binsPerSemitone),
                 new AbstractSignalProcessor<LogFrequencySpectrum, ArrayList<LogFrequencySpectrum>>("specID") {  // aggregate the CQTs to a spectrum with id "specID" (needed to access it in the results)
-                    private final ArrayList<LogFrequencySpectrum> spectrogram = new ArrayList<>();
+                    private final ArrayList<LogFrequencySpectrum> spectrogram = new ArrayList<>(estimatedFrames);
 
                     @Override
                     protected ArrayList<LogFrequencySpectrum> processNext(LogFrequencySpectrum input) throws IOException {
                         this.spectrogram.add(input);
-                        SwingUtilities.invokeLater(() -> {
+                        if (this.spectrogram.size() % progressUpdateInterval == 0) {    // throttle progress bar updates to reduce EDT overhead
                             int state = this.spectrogram.size() * hopSize;
-                            progressBar.setProgress(state);
-                            progressBar.setText((numSamples - state) + " samples left");
-                        });
+                            SwingUtilities.invokeLater(() -> {
+                                progressBar.setProgress(state);
+                                progressBar.setText((numSamples - state) + " samples left");
+                            });
+                        }
                         return this.spectrogram;
                     }
                 }
