@@ -2,8 +2,10 @@ package mpmToolbox.gui.audio;
 
 import com.alee.laf.menu.WebCheckBoxMenuItem;
 import com.alee.laf.menu.WebMenu;
+import com.alee.laf.menu.WebMenuItem;
 import com.alee.laf.menu.WebPopupMenu;
 import mpmToolbox.gui.Settings;
+import mpmToolbox.gui.audio.utilities.CsvImportDialog;
 import mpmToolbox.supplementary.Tools;
 
 import java.awt.*;
@@ -262,13 +264,35 @@ public class AnnotationPanel extends PianoRollPanel {
         if (!all.isEmpty()) {
             WebMenu annotationMenu = new WebMenu("Annotations");
             for (AnnotationData data : all) {
-                WebCheckBoxMenuItem item = new WebCheckBoxMenuItem(data.getName(), data.isVisible());
-                item.addActionListener(ae -> {
+                // sub-menu per annotation dataset
+                WebMenu dataMenu = new WebMenu(data.getName());
+
+                // visibility toggle
+                WebCheckBoxMenuItem visItem = new WebCheckBoxMenuItem("visible", data.isVisible());
+                visItem.addActionListener(ae -> {
                     data.setVisible(!data.isVisible());
                     this.updateNoDataLabel();
                     this.repaint();
                 });
-                annotationMenu.add(item);
+                dataMenu.add(visItem);
+
+                // edit
+                WebMenuItem editItem = new WebMenuItem("edit");
+                editItem.addActionListener(ae -> {
+                    CsvImportDialog dialog = new CsvImportDialog(data, this.parent.getAnnotations());
+                    if (!dialog.showDialog()) return;
+                    AnnotationData built = dialog.buildAnnotationData();
+                    if (built == null) return;
+                    AnnotationData target = dialog.getTargetAnnotationData();
+                    if (target != null && target != data)
+                        this.parent.replaceAnnotation(target, built);
+                    // if target == data or target == null the edits are already applied in-place
+                    this.updateNoDataLabel();
+                    this.repaint();
+                });
+                dataMenu.add(editItem);
+
+                annotationMenu.add(dataMenu);
             }
             menu.addSeparator();
             menu.add(annotationMenu);
