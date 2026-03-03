@@ -58,6 +58,15 @@ public class AnnotationData {
             this.lines.set(index, line);
     }
 
+    /**
+     * Remove the line at the given index.
+     * @param index column index to remove
+     */
+    public void removeLine(int index) {
+        if (index >= 0 && index < this.lines.size())
+            this.lines.remove(index);
+    }
+
     /** Get the number of columns. */
     public int getLineCount() { return this.lines.size(); }
 
