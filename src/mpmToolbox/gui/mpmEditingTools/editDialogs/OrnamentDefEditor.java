@@ -87,8 +87,9 @@ public class OrnamentDefEditor extends EditDialog<OrnamentDef> {
                 this.temporalSpreadButton.setSelected(true);
                 this.temporalSpreadPanel.setId(def.getTemporalSpread().getId());
                 this.temporalSpreadPanel.setNoteOffShift(def.getTemporalSpread().noteOffShift);
-                this.temporalSpreadPanel.setTimeDomain(def.getTemporalSpread().frameStart.getDomain());
+                this.temporalSpreadPanel.setFrameStartDomain(def.getTemporalSpread().frameStart.getDomain());
                 this.temporalSpreadPanel.setFrameStart(def.getTemporalSpread().frameStart.getValue());
+                this.temporalSpreadPanel.setFrameLengthDomain(def.getTemporalSpread().getFrameLengthDomain());
                 this.temporalSpreadPanel.setFrameLength(def.getTemporalSpread().getFrameLength());
                 this.temporalSpreadPanel.setIntensity(def.getTemporalSpread().intensity);
             }
@@ -126,8 +127,9 @@ public class OrnamentDefEditor extends EditDialog<OrnamentDef> {
         if (this.temporalSpreadButton.isSelected()) {           // create the temporalSpread element
             OrnamentDef.TemporalSpread temporalSpread = new OrnamentDef.TemporalSpread();
             temporalSpread.frameStart.setValue(this.temporalSpreadPanel.getFrameStart());
+            temporalSpread.frameStart.setDomain(this.temporalSpreadPanel.getFrameStartDomain());
             temporalSpread.setFrameLength(this.temporalSpreadPanel.getFrameLength());
-            temporalSpread.frameStart.setDomain(this.temporalSpreadPanel.getTimeDomain());
+            temporalSpread.setFrameLengthDomain(this.temporalSpreadPanel.getFrameLengthDomain());
             temporalSpread.intensity = this.temporalSpreadPanel.getIntensity();
             temporalSpread.noteOffShift = this.temporalSpreadPanel.getNoteOffShift();
             String tsId = this.temporalSpreadPanel.getId();

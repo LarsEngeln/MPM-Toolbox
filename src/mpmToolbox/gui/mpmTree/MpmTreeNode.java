@@ -8,6 +8,7 @@ import com.alee.laf.tree.TreeNodeParameters;
 import com.alee.laf.tree.UniqueNode;
 import meico.mei.Helper;
 import meico.mpm.elements.*;
+import meico.mpm.elements.TemporalValue;
 import meico.mpm.elements.maps.GenericMap;
 import meico.mpm.elements.maps.ImprecisionMap;
 import meico.mpm.elements.metadata.Author;
@@ -289,16 +290,8 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
 
             case temporalSpread:
                 OrnamentDef.TemporalSpread temporalSpread = (OrnamentDef.TemporalSpread) this.getUserObject();
-                this.name = "temporalSpread [" + temporalSpread.frameStart + ", " + temporalSpread.getFrameLength() + "]";
-                switch (temporalSpread.frameStart.getDomain()) {
-                    case Milliseconds:
-                        this.name = this.name.concat(" ms");
-                        break;
-                    case Ticks:
-                    default:
-                        this.name = this.name.concat(" ticks");
-                        break;
-                }
+
+                this.name = "temporalSpread [" + temporalSpread.frameStart.toString() + ", " + temporalSpread.frameLength.toString() + "]";
                 switch (temporalSpread.noteOffShift) {
                     case True:
                     case False:

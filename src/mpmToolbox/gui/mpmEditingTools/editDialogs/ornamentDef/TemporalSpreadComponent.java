@@ -17,6 +17,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
+import java.time.temporal.Temporal;
 import java.util.UUID;
 
 /**
@@ -30,12 +31,12 @@ public class TemporalSpreadComponent extends WebPanel {
     private final WebLabel idLabel= new WebLabel("ID (optional)");
     private final WebLabel noteOffShiftLabel = new WebLabel("NoteOff Shift");
     private final WebComboBox noteOffShift = new WebComboBox(new NoteOffShiftItem[]{new NoteOffShiftItem(OrnamentDef.TemporalSpread.NoteOffShift.False), new NoteOffShiftItem(OrnamentDef.TemporalSpread.NoteOffShift.True), new NoteOffShiftItem(OrnamentDef.TemporalSpread.NoteOffShift.Monophonic)}, 0);   // "false" is selected by default
-    private final WebLabel timeDomainLabel = new WebLabel("Time Domain");
-    private final WebComboBox timeDomain = new WebComboBox(new TimeDomainItem[]{new TimeDomainItem(TemporalValue.Domain.Ticks), new TimeDomainItem(TemporalValue.Domain.Milliseconds)}, 0);
     private final WebLabel frameStartLabel = new WebLabel("Frame Start");
     private final WebSpinner frameStart = new WebSpinner(new SpinnerNumberModel(0.0, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, 1.0));
+    private final WebComboBox frameStartDomain = new WebComboBox(new TimeDomainItem[]{new TimeDomainItem(TemporalValue.Domain.Ticks), new TimeDomainItem(TemporalValue.Domain.Milliseconds), new TimeDomainItem(TemporalValue.Domain.Relative)}, 0);
     private final WebLabel frameLengthLabel = new WebLabel("Frame Length");
     private final WebSpinner frameLength = new WebSpinner(new SpinnerNumberModel(0.0, 0.0, Double.POSITIVE_INFINITY, 1.0));
+    private final WebComboBox frameLengthDomain = new WebComboBox(new TimeDomainItem[]{new TimeDomainItem(TemporalValue.Domain.Ticks), new TimeDomainItem(TemporalValue.Domain.Milliseconds), new TimeDomainItem(TemporalValue.Domain.Relative)}, 0);
     private final WebLabel intensityLabel = new WebLabel("Intensity");
     private final WebSpinner intensity = new WebSpinner(new SpinnerNumberModel(1.0, 0.0, Double.POSITIVE_INFINITY, 0.1));
 
@@ -60,47 +61,44 @@ public class TemporalSpreadComponent extends WebPanel {
         Tools.addComponentToGridBagLayout(this, layout, this.frameStartLabel, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.frameStart.setMinimumWidth(this.SPINNER_WIDTH);
         this.frameStart.setMaximumWidth(this.SPINNER_WIDTH);
-        Tools.addComponentToGridBagLayout(this, layout, this.frameStart, 1, 0, 1, 1, 20.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameStart, 1, 0, 1, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        this.frameStartDomain.setMaximumWidth(this.SPINNER_WIDTH);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameStartDomain, 2, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         // frame.length
-        this.frameLengthLabel.setHorizontalAlignment(WebLabel.LEFT);
-        this.frameLengthLabel.setPadding(0, Settings.paddingInDialogs, 0, 0);
-        Tools.addComponentToGridBagLayout(this, layout, this.frameLengthLabel, 3, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        this.frameLengthLabel.setHorizontalAlignment(WebLabel.RIGHT);
+        this.frameLengthLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameLengthLabel, 0, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.frameLength.setMinimumWidth(this.SPINNER_WIDTH);
         this.frameLength.setMaximumWidth(this.SPINNER_WIDTH);
-        Tools.addComponentToGridBagLayout(this, layout, this.frameLength, 2, 0, 1, 1, 20.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
-
-        // time domain / frame domain / time.unit
-        this.timeDomainLabel.setHorizontalAlignment(WebLabel.RIGHT);
-        this.timeDomainLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
-        Tools.addComponentToGridBagLayout(this, layout, this.timeDomainLabel, 0, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
-        this.timeDomain.setMaximumWidth(this.SPINNER_WIDTH);
-        Tools.addComponentToGridBagLayout(this, layout, this.timeDomain, 1, 1, 1, 1, 20.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameLength, 1, 1, 1, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        this.frameLengthDomain.setMaximumWidth(this.SPINNER_WIDTH);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameLengthDomain, 2, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         // intensity
-        this.intensityLabel.setHorizontalAlignment(WebLabel.LEFT);
-        this.intensityLabel.setPadding(0, Settings.paddingInDialogs, 0, 0);
-        Tools.addComponentToGridBagLayout(this, layout, this.intensityLabel, 3, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        this.intensityLabel.setHorizontalAlignment(WebLabel.RIGHT);
+        this.intensityLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
+        Tools.addComponentToGridBagLayout(this, layout, this.intensityLabel, 0, 2, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.intensity.setMinimumWidth(this.SPINNER_WIDTH);
         this.intensity.setMaximumWidth(this.SPINNER_WIDTH);
-        Tools.addComponentToGridBagLayout(this, layout, this.intensity, 2, 1, 1, 1, 20.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.intensity, 1, 2, 1, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         // noteoff.shift
         this.noteOffShiftLabel.setHorizontalAlignment(WebLabel.RIGHT);
         this.noteOffShiftLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
-        Tools.addComponentToGridBagLayout(this, layout, this.noteOffShiftLabel, 0, 2, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
-        Tools.addComponentToGridBagLayout(this, layout, this.noteOffShift, 1, 2, 2, 1, 20.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.noteOffShiftLabel, 0, 3, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.noteOffShift, 1, 3, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         // id input
         this.idLabel.setHorizontalAlignment(WebLabel.RIGHT);
         this.idLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
-        Tools.addComponentToGridBagLayout(this, layout, this.idLabel, 0, 3, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.idLabel, 0, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.id.setMaximumWidth(this.getFontMetrics(this.id.getFont()).stringWidth("wwwwwwwwwww"));
         this.id.setMinimumWidth(this.getFontMetrics(this.id.getFont()).stringWidth("wwwwwwwwwww"));
-        Tools.addComponentToGridBagLayout(this, layout, this.id, 1, 3, 2, 1, 20.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.id, 1, 4, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.generateId.setHorizontalAlignment(WebButton.CENTER);
         this.generateId.addActionListener(actionEvent -> this.id.setText(UUID.randomUUID().toString()));
-        Tools.addComponentToGridBagLayout(this, layout, this.generateId, 3, 3, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.generateId, 3, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
     }
 
     /**
@@ -136,27 +134,51 @@ public class TemporalSpreadComponent extends WebPanel {
     }
 
     /**
-     * input the time.unit value
-     * @param timeDomain
+     * input the frame start domain
+     * @param domain
      */
-    public void setTimeDomain(TemporalValue.Domain timeDomain) {
-        for (int i = 0; i < this.timeDomain.getItemCount(); ++i) {
-            if (((TimeDomainItem) this.timeDomain.getItemAt(i)).getKey().equals(timeDomain)) {
-                this.timeDomain.setSelectedIndex(i);
+    public void setFrameStartDomain(TemporalValue.Domain domain) {
+        for (int i = 0; i < this.frameStartDomain.getItemCount(); ++i) {
+            if (((TimeDomainItem) this.frameStartDomain.getItemAt(i)).getKey().equals(domain)) {
+                this.frameStartDomain.setSelectedIndex(i);
                 break;
             }
         }
     }
 
     /**
-     * returns the value of the time domain combobox
+     * returns the value of the frame start domain combobox
      * @return if null, Ticks will be returned, instead
      */
-    public TemporalValue.Domain getTimeDomain() {
-        if (this.timeDomain.getSelectedItem() == null)
+    public TemporalValue.Domain getFrameStartDomain() {
+        if (this.frameStartDomain.getSelectedItem() == null)
             return TemporalValue.Domain.Ticks;
 
-        return ((TimeDomainItem) this.timeDomain.getSelectedItem()).getKey();
+        return ((TimeDomainItem) this.frameStartDomain.getSelectedItem()).getKey();
+    }
+
+    /**
+     * input the frame length domain
+     * @param domain
+     */
+    public void setFrameLengthDomain(TemporalValue.Domain domain) {
+        for (int i = 0; i < this.frameLengthDomain.getItemCount(); ++i) {
+            if (((TimeDomainItem) this.frameLengthDomain.getItemAt(i)).getKey().equals(domain)) {
+                this.frameLengthDomain.setSelectedIndex(i);
+                break;
+            }
+        }
+    }
+
+    /**
+     * returns the value of the frame length domain combobox
+     * @return if null, Ticks will be returned, instead
+     */
+    public TemporalValue.Domain getFrameLengthDomain() {
+        if (this.frameLengthDomain.getSelectedItem() == null)
+            return TemporalValue.Domain.Ticks;
+
+        return ((TimeDomainItem) this.frameLengthDomain.getSelectedItem()).getKey();
     }
 
     /**
@@ -226,12 +248,12 @@ public class TemporalSpreadComponent extends WebPanel {
         this.idLabel.setEnabled(enabled);
         this.noteOffShiftLabel.setEnabled(enabled);
         this.noteOffShift.setEnabled(enabled);
-        this.timeDomainLabel.setEnabled(enabled);
-        this.timeDomain.setEnabled(enabled);
         this.frameStartLabel.setEnabled(enabled);
         this.frameStart.setEnabled(enabled);
+        this.frameStartDomain.setEnabled(enabled);
         this.frameLengthLabel.setEnabled(enabled);
         this.frameLength.setEnabled(enabled);
+        this.frameLengthDomain.setEnabled(enabled);
         this.intensityLabel.setEnabled(enabled);
         this.intensity.setEnabled(enabled);
     }
@@ -305,16 +327,7 @@ public class TemporalSpreadComponent extends WebPanel {
          */
         public TimeDomainItem(@NotNull TemporalValue.Domain frameDomain) {
             super(frameDomain, "");
-            switch (frameDomain) {
-                case Ticks:
-                    this.setValue("ticks");
-                    break;
-                case Milliseconds:
-                    this.setValue("milliseconds");
-                    break;
-                default:
-                    this.setValue("unknown");
-            }
+            this.setValue(TemporalValue.toDomainName(frameDomain));
         }
 
         /**
@@ -323,16 +336,7 @@ public class TemporalSpreadComponent extends WebPanel {
          */
         public TimeDomainItem(String string) {
             super(null, string);
-            switch (string.trim().toLowerCase()) {
-                case "ticks":
-                    this.setKey(TemporalValue.Domain.Ticks);
-                    break;
-                case "milliseconds":
-                    this.setKey(TemporalValue.Domain.Milliseconds);
-                    break;
-                default:
-                    this.setKey(null);
-            }
+            this.setKey(TemporalValue.fromDomainName(string));
         }
 
         /**
