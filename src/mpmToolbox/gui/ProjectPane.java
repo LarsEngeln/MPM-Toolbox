@@ -15,7 +15,6 @@ import meico.msm.Msm;
 import mpmToolbox.projectData.audio.Audio;
 import mpmToolbox.projectData.ProjectData;
 import mpmToolbox.gui.audio.AnnotationData;
-import mpmToolbox.gui.audio.AnnotationPanel;
 import mpmToolbox.gui.audio.AudioDocumentData;
 import mpmToolbox.gui.audio.utilities.CsvImportDialog;
 import mpmToolbox.gui.mpmTree.MpmDockableFrame;
@@ -372,8 +371,7 @@ public class ProjectPane extends WebDockablePane {
      * @param file the CSV file
      */
     public void loadAnnotationCsv(File file) {
-        AnnotationPanel annotationPanel = this.audioFrame.getAnnotationPanel();
-        CsvImportDialog dialog = new CsvImportDialog(file, annotationPanel.getAnnotations());
+        CsvImportDialog dialog = new CsvImportDialog(file, this.audioFrame.getAnnotations());
         if (!dialog.showDialog())
             return;
 
@@ -383,17 +381,14 @@ public class ProjectPane extends WebDockablePane {
             return;
         }
 
-        System.out.println("Loaded " + built.getEntries().size() + " annotation entries from " + file.getAbsolutePath());
+        System.out.println("Loaded " + built.getRowCount() + " rows from " + file.getAbsolutePath());
 
         AnnotationData target = dialog.getTargetAnnotationData();
-        if (target != null) {
-            target.replaceEntries(built.getEntries());
-            annotationPanel.setActiveData(target);
-        } else {
-            annotationPanel.addAnnotationData(built);
-        }
+        if (target != null)
+            this.audioFrame.replaceAnnotation(target, built);
+        else
+            this.audioFrame.addAnnotation(built);
 
-        // switch to the Audio tab
         this.tabs.setSelected(this.audioFrame);
     }
 
