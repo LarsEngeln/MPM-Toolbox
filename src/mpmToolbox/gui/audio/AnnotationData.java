@@ -4,7 +4,7 @@ import java.util.ArrayList;
 
 /**
  * Holds annotation data, typically loaded from a CSV file.
- * An AnnotationData consists of any number of AnnotationLine objects – one per CSV column –
+ * An AnnotationData consists of any number of AnnotationLine objects
  * each carrying its own values, type and unit.
  * @author Lars Engeln
  */

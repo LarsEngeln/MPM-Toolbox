@@ -170,10 +170,9 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
 
         // add rows – distribute each cell value into its column's AnnotationLine
         for (String[] row : parsed) {
-            if (row.length < colCount) continue;
             double[] values = new double[colCount];
             boolean valid = true;
-            for (int c = 0; c < colCount; c++) {
+            for (int c = 0; c < row.length; c++) {
                 try {
                     values[c] = Double.parseDouble(row[c].trim());      // TODO: parseDouble if CURVE & MARKS, may extend with TEXT later
                 } catch (NumberFormatException e) {
