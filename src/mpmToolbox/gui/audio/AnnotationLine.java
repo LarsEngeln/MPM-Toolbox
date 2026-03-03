@@ -9,7 +9,9 @@ import java.util.ArrayList;
  */
 public class AnnotationLine {
 
-    /** The role a column plays in the data. */
+    /**
+     * The role a column plays in the data.
+     */
     public enum Type {
         TIME("time"),
         CURVE("curve"),
@@ -20,7 +22,9 @@ public class AnnotationLine {
         @Override public String toString() { return this.label; }
     }
 
-    /** The physical unit of the values in a column. */
+    /**
+     * The unit of the values in a column.
+     */
     public enum Unit {
         SECONDS("seconds"),
         MILLISECONDS("milliseconds"),
@@ -31,7 +35,11 @@ public class AnnotationLine {
         Unit(String label) { this.label = label; }
         @Override public String toString() { return this.label; }
 
-        /** Convert a value in this unit to milliseconds. Returns the value unchanged if already ms. */
+        /**
+         * Convert a value in this unit to milliseconds. Returns the value unchanged if already ms.
+         * @param value
+         * @return
+         */
         public double toMilliseconds(double value) {
             return (this == SECONDS) ? value * 1000.0 : value;
         }

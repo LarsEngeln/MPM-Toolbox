@@ -13,7 +13,7 @@ import java.util.ArrayList;
 
 /**
  * Visualizes one or more AnnotationData objects as line graphs, aligned with the other audio panels.
- * Renders directly from AnnotationLine values – no intermediate AnnotationEntry objects.
+ * Renders directly from AnnotationLine values, no intermediate AnnotationEntry objects.
  * @author Lars Engeln
  */
 public class AnnotationPanel extends PianoRollPanel {
