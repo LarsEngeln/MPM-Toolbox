@@ -315,6 +315,8 @@ public class ProjectPane extends WebDockablePane {
     public void addScorePdf(File pdf) {
         for (ScorePage scorePage : this.data.addScorePdf(pdf))
             this.scoreFrame.addScorePage(scorePage.getFile());
+        // switch to the Score tab
+        this.tabs.setSelected(this.scoreFrame);
     }
 
     /**
@@ -345,6 +347,10 @@ public class ProjectPane extends WebDockablePane {
     public boolean addAudio(Audio audio) {
         if (this.data.addAudio(audio)) {
             this.syncPlayer.addAudio(audio);
+            // switch to the Audio tab
+            this.tabs.setSelected(this.audioFrame);
+            // select the newly added audio in the SyncPlayer (last entry)
+            this.syncPlayer.getAudioChooser().setSelectedIndex(this.syncPlayer.getAudioChooser().getItemCount() - 1);
             return true;
         }
         return false;
