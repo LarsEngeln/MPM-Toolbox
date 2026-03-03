@@ -32,6 +32,7 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.util.ArrayList;
 
 /**
  * A custom DocumentData object for the audio analysis component.
@@ -45,6 +46,8 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
     private final SpectrogramPanel spectrogram;
     private final TempoMapPanel tempoMap;
     private final AnnotationPanel annotation;
+
+    private final ArrayList<AnnotationData> annotations = new ArrayList<>();  // all loaded annotation datasets
 
     private int channelNumber = -1;                                 // index of the waveform/channel to be rendered to image; -1 means all channels
     private long leftmostSample = -1;                                // index of the first sample to be rendered to image
@@ -84,6 +87,9 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         this.spectrogram = new SpectrogramPanel(this);
         this.tempoMap = new TempoMapPanel(this);
         this.annotation = new AnnotationPanel(this);
+
+        // add test annotation data
+        this.annotations.add(buildTestAnnotation());
 
         this.setComponent(this.audioPanel);
         this.setClosable(false);
@@ -405,6 +411,61 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
      */
     public AnnotationPanel getAnnotationPanel() {
         return this.annotation;
+    }
+
+    /**
+     * Build test annotation data (sinusoidal curve over 30 seconds).
+     * @return test AnnotationData
+     */
+    private static AnnotationData buildTestAnnotation() {
+        AnnotationData data = new AnnotationData("Test Annotation");
+        AnnotationLine timeLine  = new AnnotationLine("time",  AnnotationLine.Type.TIME,  AnnotationLine.Unit.MILLISECONDS);
+        AnnotationLine valueLine = new AnnotationLine("value", AnnotationLine.Type.CURVE, AnnotationLine.Unit.HZ);
+        for (int i = 0; i < 300; i++) {
+            double ms    = i * 100.0;
+            double value = 0.5 + 0.4 * Math.sin(ms / 1000.0 * Math.PI) + 0.1 * Math.sin(ms / 300.0 * Math.PI);
+            timeLine.addValue(ms);
+            valueLine.addValue(value);
+        }
+        data.addLine(timeLine);
+        data.addLine(valueLine);
+        return data;
+    }
+
+    /**
+     * Returns all annotation datasets held by this audio frame.
+     * @return the list of AnnotationData objects
+     */
+    public ArrayList<AnnotationData> getAnnotations() {
+        return this.annotations;
+    }
+
+    /**
+     * Add an annotation dataset and refresh the panel.
+     * @param data the AnnotationData to add
+     */
+    public void addAnnotation(AnnotationData data) {
+        if (data == null) return;
+        this.annotations.add(data);
+        this.annotation.updateNoDataLabel();
+        this.annotation.repaint();
+    }
+
+    /**
+     * Replace the rows of an existing annotation dataset and refresh the panel.
+     * @param target   the existing dataset to update
+     * @param newData  the new data (rows and columns are copied from this)
+     */
+    public void replaceAnnotation(AnnotationData target, AnnotationData newData) {
+        if (target == null || newData == null) return;
+        // replace all lines (carries both metadata and values)
+        for (int i = 0; i < Math.min(target.getLineCount(), newData.getLineCount()); i++)
+            target.setLine(i, newData.getLine(i));
+        // if newData has more lines, append them
+        for (int i = target.getLineCount(); i < newData.getLineCount(); i++)
+            target.addLine(newData.getLine(i));
+        this.annotation.updateNoDataLabel();
+        this.annotation.repaint();
     }
 
     /**
