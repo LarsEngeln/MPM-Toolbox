@@ -15,7 +15,8 @@ public class AnnotationLine {
     public enum Type {
         TIME("time"),
         CURVE("curve"),
-        MARKS("marks");
+        MARKS("marks"),
+        TEXT("text");
 
         private final String label;
         Type(String label) { this.label = label; }

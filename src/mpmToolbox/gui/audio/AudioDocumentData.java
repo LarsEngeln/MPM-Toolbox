@@ -45,13 +45,14 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
     private final WaveformPanel waveform;
     private final SpectrogramPanel spectrogram;
     private final TempoMapPanel tempoMap;
-    private final AnnotationPanel annotation;
 
     private final ArrayList<AnnotationData> annotations = new ArrayList<>();  // all loaded annotation datasets
 
-    private int channelNumber = -1;                                 // index of the waveform/channel to be rendered to image; -1 means all channels
-    private long leftmostSample = -1;                                // index of the first sample to be rendered to image
-    private long rightmostSample = -1;                               // index of the last sample to be rendered to image
+    private int channelNumber = -1;                                     // index of the waveform/channel to be rendered to image; -1 means all channels
+    private long leftmostSample = -1;                                   // index of the first sample to be rendered to image
+    private long rightmostSample = -1;                                  // index of the last sample to be rendered to image
+    private long leftmostMillisecond = -1;                              // the millisecond of the leftmost sample
+    private long rightmostMillisecond = -1;                             // the millisecond of the rightmost sample
     private double leftmostTick = 0.0;
     private double rightmostTick;
 
@@ -86,10 +87,6 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         this.waveform = new WaveformPanel(this);
         this.spectrogram = new SpectrogramPanel(this);
         this.tempoMap = new TempoMapPanel(this);
-        this.annotation = new AnnotationPanel(this);
-
-        // add test annotation data
-        this.annotations.add(buildTestAnnotation());
 
         this.setComponent(this.audioPanel);
         this.setClosable(false);
@@ -364,7 +361,6 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         this.splitPane.setContinuousLayout(true);                                        // when the divider is moved the content is continuously redrawn
         this.splitPane.add(this.waveform);
         this.splitPane.add(this.spectrogram);
-        this.splitPane.add(this.annotation);
         this.splitPane.add(this.tempoMap);
 
         GridBagLayout gridBagLayout = (GridBagLayout) this.audioPanel.getLayout();
@@ -405,32 +401,6 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         return this.tempoMap;
     }
 
-    /**
-     * a getter for the annotation panel
-     * @return
-     */
-    public AnnotationPanel getAnnotationPanel() {
-        return this.annotation;
-    }
-
-    /**
-     * Build test annotation data (sinusoidal curve over 30 seconds).
-     * @return test AnnotationData
-     */
-    private static AnnotationData buildTestAnnotation() {
-        AnnotationData data = new AnnotationData("Test Annotation");
-        AnnotationLine timeLine  = new AnnotationLine("time",  AnnotationLine.Type.TIME,  AnnotationLine.Unit.MILLISECONDS);
-        AnnotationLine valueLine = new AnnotationLine("value", AnnotationLine.Type.CURVE, AnnotationLine.Unit.HZ);
-        for (int i = 0; i < 300; i++) {
-            double ms    = i * 100.0;
-            double value = 0.5 + 0.4 * Math.sin(ms / 1000.0 * Math.PI) + 0.1 * Math.sin(ms / 300.0 * Math.PI);
-            timeLine.addValue(ms);
-            valueLine.addValue(value);
-        }
-        data.addLine(timeLine);
-        data.addLine(valueLine);
-        return data;
-    }
 
     /**
      * Returns all annotation datasets held by this audio frame.
@@ -447,8 +417,6 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
     public void addAnnotation(AnnotationData data) {
         if (data == null) return;
         this.annotations.add(data);
-        this.annotation.updateNoDataLabel();
-        this.annotation.repaint();
     }
 
     /**
@@ -464,8 +432,6 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         // if newData has more lines, append them
         for (int i = target.getLineCount(); i < newData.getLineCount(); i++)
             target.addLine(newData.getLine(i));
-        this.annotation.updateNoDataLabel();
-        this.annotation.repaint();
     }
 
     /**
@@ -475,7 +441,6 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
     protected void repaintAllComponents() {
         this.waveform.repaint();
         this.spectrogram.repaint();
-        this.annotation.repaint();
         this.tempoMap.repaint();
     }
 
@@ -513,7 +478,7 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         if (this.mouseCursor == null)
             this.mouseCursor = new CursorPositions(this);
 
-        if (this.getWaveformPanel().mouseInThisPanel() || this.getSpectrogramPanel().mouseInThisPanel() || this.getAnnotationPanel().mouseInThisPanel()) {
+        if (this.getWaveformPanel().mouseInThisPanel() || this.getSpectrogramPanel().mouseInThisPanel()) {
             this.mouseCursor.setAudioX(e.getX());
             return;
         }
@@ -657,6 +622,15 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
      */
     public void setLeftmostSample(long leftmostSample) {
         this.leftmostSample = leftmostSample;
+        this.leftmostMillisecond = (long) ((this.leftmostSample / (double) this.getAudio().getFrameRate()) * 1000.0);
+    }
+
+    /**
+     * a getter for the millisecond of the leftmost sample to be displayed
+     * @return
+     */
+    public long getLeftmostMillisecond() {
+        return this.leftmostMillisecond;
     }
 
     /**
@@ -673,6 +647,15 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
      */
     public void setRightmostSample(long rightmostSample) {
         this.rightmostSample = rightmostSample;
+        this.rightmostMillisecond = (long) ((this.rightmostSample / (double) this.getAudio().getFrameRate()) * 1000.0);
+    }
+
+    /**
+     * a getter for the millisecond of the rightmost sample to be displayed
+     * @return
+     */
+    public long getRightmostMillisecond() {
+        return this.rightmostMillisecond;
     }
 
     /**
