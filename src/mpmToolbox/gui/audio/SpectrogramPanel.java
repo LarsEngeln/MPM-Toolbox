@@ -5,6 +5,7 @@ import com.alee.laf.menu.WebMenuItem;
 import com.alee.laf.menu.WebPopupMenu;
 import mpmToolbox.projectData.audio.SpectrogramImage;
 import mpmToolbox.gui.audio.utilities.SpectrogramSpecs;
+import mpmToolbox.supplementary.Tools;
 
 import java.awt.*;
 import java.awt.event.ComponentEvent;
@@ -64,12 +65,17 @@ public class SpectrogramPanel extends PianoRollPanel {
         this.drawPianoRoll(g2);
         this.drawPlaybackCursor(g2);
 
+        this.paintAnnotations(g2, spectrogramImage.getMinFrequency(), spectrogramImage.getMaxFrequency());
+
         if (this.drawMouseCursor(g2)) {                 // draw the mouse cursor
             // print info text
             // TODO compute and display frequency of mouse y position
 //            g2.setColor(Color.LIGHT_GRAY);
 //            double relativeYPos = (double)(this.getHeight() - this.mousePosition.y) / this.getHeight();
 //            g2.drawString("Frequency: " + spectrogramImage.getFrequency(relativeYPos) + " Hz", 2, Settings.getDefaultFontSize());
+            long sampleIndex = this.parent.getMouseCursor().getSample();
+            double millisec = Tools.round(((double) sampleIndex / this.parent.getAudio().getFrameRate()) * 1000.0, 2);
+            this.paintAnnotationMouseInfo(g2, millisec);
         }
     }
 
