@@ -57,9 +57,8 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
 
     private static final String NEW_ENTRY = "<New annotation>";
 
-    // UI representations of the enums (for combo boxes)
+    // UI representations of the type enum (for combo boxes)
     private static final AnnotationLine.Type[] TYPES = AnnotationLine.Type.values();
-    private static final AnnotationLine.Unit[] UNITS = AnnotationLine.Unit.values();
 
     /**
      * Constructor for CSV import: parse the file and let the user configure columns.
@@ -101,7 +100,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         this.initKeyboardShortcuts();
         this.buildGui();
         this.pack();
-        this.setMinimumSize(new Dimension(520, 340));
+        this.setMinimumSize(new Dimension(520, 420));
         this.setLocationRelativeTo(null);
     }
 
@@ -303,7 +302,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         WebTable previewTable = new WebTable(this.tableModel);
         previewTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         WebScrollPane scrollPane = new WebScrollPane(previewTable);
-        scrollPane.setPreferredSize(new Dimension(500, 180));
+        scrollPane.setPreferredSize(new Dimension(500, 226));
 
         WebPanel tablePanel = new WebPanel(new BorderLayout());
         tablePanel.setPadding(Settings.paddingInDialogs);
@@ -366,15 +365,31 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             Tools.addComponentToGridBagLayout(colPanel, colLayout, this.typeChoosers[col], 0, 1, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
 
             // unit chooser
-            this.unitChoosers[col] = new WebComboBox(UNITS);
-            this.unitChoosers[col].setSelectedItem(line.getUnit());
+            AnnotationLine.Unit[] validUnits = AnnotationLine.getValidUnits(line.getType());
+            this.unitChoosers[col] = new WebComboBox(validUnits);
+            if (line.getUnit() != null) this.unitChoosers[col].setSelectedItem(line.getUnit());
+            this.unitChoosers[col].setVisible(validUnits.length > 0);
             Tools.addComponentToGridBagLayout(colPanel, colLayout, this.unitChoosers[col], 0, 2, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
+
+            // when the type changes, set the unit chooser with the valid units
+            final WebComboBox unitChooser = this.unitChoosers[col];
+            this.typeChoosers[col].addActionListener(ae -> {
+                AnnotationLine.Type selectedType = (AnnotationLine.Type) this.typeChoosers[colIdx].getSelectedItem();
+                AnnotationLine.Unit[] newUnits = AnnotationLine.getValidUnits(selectedType);
+                unitChooser.removeAllItems();
+                for (AnnotationLine.Unit u : newUnits) unitChooser.addItem(u);
+                unitChooser.setVisible(newUnits.length > 0);
+                if (newUnits.length > 0) {
+                    AnnotationLine.Unit def = AnnotationLine.getDefaultUnit(selectedType);
+                    unitChooser.setSelectedItem(def != null ? def : newUnits[0]);
+                }
+            });
 
             // delete button
             WebButton deleteBtn = new WebButton("remove");
             deleteBtn.setToolTipText("Remove this column");
             deleteBtn.setFontStyle(Font.BOLD);
-            deleteBtn.setPadding(1, 4, 1, 4);
+            deleteBtn.setPadding(2, 4, 2, 4);
             deleteBtn.addActionListener(ae -> {
                 this.applyNamesTypesUnits();            // persist current UI state before removing
                 this.annotationData.removeLine(colIdx);
@@ -398,8 +413,14 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         for (int c = 0; c < colCount; c++) {
             String n = this.nameFields[c].getText().trim();
             this.annotationData.getLine(c).setName(n.isEmpty() ? ("Column " + (c + 1)) : n);
-            this.annotationData.getLine(c).setType((AnnotationLine.Type) this.typeChoosers[c].getSelectedItem());
-            this.annotationData.getLine(c).setUnit((AnnotationLine.Unit) this.unitChoosers[c].getSelectedItem());
+            AnnotationLine.Type selectedType = (AnnotationLine.Type) this.typeChoosers[c].getSelectedItem();
+            this.annotationData.getLine(c).setType(selectedType);
+            // only set unit when the chooser is visible (TEXT type has no units)
+            if (this.unitChoosers[c].isVisible()) {
+                AnnotationLine.Unit selectedUnit = (AnnotationLine.Unit) this.unitChoosers[c].getSelectedItem();
+                if (selectedUnit != null)
+                    this.annotationData.getLine(c).setUnit(selectedUnit);
+            }
         }
     }
 
