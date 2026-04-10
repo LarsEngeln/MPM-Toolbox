@@ -12,6 +12,7 @@ import meico.mpm.elements.TemporalValue;
 import meico.mpm.elements.styles.defs.OrnamentDef;
 import meico.supplementary.KeyValue;
 import mpmToolbox.gui.Settings;
+import mpmToolbox.gui.mpmEditingTools.editDialogs.visualizers.TemporalSpreadVisualizer;
 import mpmToolbox.supplementary.Tools;
 
 import javax.swing.*;
@@ -54,7 +55,15 @@ public class TemporalSpreadComponent extends WebPanel {
         this.setBorder(BorderFactory.createCompoundBorder(new LineBorder(this.getBackground(), Settings.paddingInDialogs/2), new EmptyBorder(Settings.paddingInDialogs, Settings.paddingInDialogs, Settings.paddingInDialogs, Settings.paddingInDialogs)));
         this.setBackground(Tools.brighter(this.getBackground(), 0.07));
 
-        // TODO visualizer
+        // visualizer
+        TemporalSpreadVisualizer visualizer = new TemporalSpreadVisualizer();
+        Tools.addComponentToGridBagLayout(this, layout, visualizer, 0, 0, 4, 1, 1.0, 4.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
+
+        // wire all inputs to update the visualizer
+        this.frameStart.addChangeListener(e -> visualizer.setFrameStart(((Number) this.frameStart.getValue()).doubleValue()));
+        this.frameLength.addChangeListener(e -> visualizer.setFrameLength(((Number) this.frameLength.getValue()).doubleValue()));
+        this.intensity.addChangeListener(e -> visualizer.setIntensity(((Number) this.intensity.getValue()).doubleValue()));
+        this.placement.addItemListener(e -> visualizer.setAtEnd(this.placement.isSelected()));
 
         // frame.start
         this.frameStartLabel.setHorizontalAlignment(WebLabel.RIGHT);
