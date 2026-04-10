@@ -7,6 +7,7 @@ import com.alee.laf.label.WebLabel;
 import com.alee.laf.panel.WebPanel;
 import com.alee.laf.spinner.WebSpinner;
 import com.alee.laf.text.WebTextField;
+import com.alee.extended.button.WebSwitch;
 import meico.mpm.elements.TemporalValue;
 import meico.mpm.elements.styles.defs.OrnamentDef;
 import meico.supplementary.KeyValue;
@@ -17,7 +18,6 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
-import java.time.temporal.Temporal;
 import java.util.UUID;
 
 /**
@@ -39,6 +39,7 @@ public class TemporalSpreadComponent extends WebPanel {
     private final WebComboBox frameLengthDomain = new WebComboBox(new TimeDomainItem[]{new TimeDomainItem(TemporalValue.Domain.Ticks), new TimeDomainItem(TemporalValue.Domain.Milliseconds), new TimeDomainItem(TemporalValue.Domain.Relative)}, 0);
     private final WebLabel intensityLabel = new WebLabel("Intensity");
     private final WebSpinner intensity = new WebSpinner(new SpinnerNumberModel(1.0, 0.0, Double.POSITIVE_INFINITY, 0.1));
+    private final WebSwitch placement = new WebSwitch(false);  // false = atStart, true = atEnd
 
 
     /**
@@ -58,47 +59,56 @@ public class TemporalSpreadComponent extends WebPanel {
         // frame.start
         this.frameStartLabel.setHorizontalAlignment(WebLabel.RIGHT);
         this.frameStartLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
-        Tools.addComponentToGridBagLayout(this, layout, this.frameStartLabel, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameStartLabel, 0, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.frameStart.setMinimumWidth(this.SPINNER_WIDTH);
         this.frameStart.setMaximumWidth(this.SPINNER_WIDTH);
-        Tools.addComponentToGridBagLayout(this, layout, this.frameStart, 1, 0, 1, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameStart, 1, 1, 1, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.frameStartDomain.setMaximumWidth(this.SPINNER_WIDTH);
-        Tools.addComponentToGridBagLayout(this, layout, this.frameStartDomain, 2, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameStartDomain, 2, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         // frame.length
         this.frameLengthLabel.setHorizontalAlignment(WebLabel.RIGHT);
         this.frameLengthLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
-        Tools.addComponentToGridBagLayout(this, layout, this.frameLengthLabel, 0, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameLengthLabel, 0, 2, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.frameLength.setMinimumWidth(this.SPINNER_WIDTH);
         this.frameLength.setMaximumWidth(this.SPINNER_WIDTH);
-        Tools.addComponentToGridBagLayout(this, layout, this.frameLength, 1, 1, 1, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameLength, 1, 2, 1, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.frameLengthDomain.setMaximumWidth(this.SPINNER_WIDTH);
-        Tools.addComponentToGridBagLayout(this, layout, this.frameLengthDomain, 2, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.frameLengthDomain, 2, 2, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         // intensity
         this.intensityLabel.setHorizontalAlignment(WebLabel.RIGHT);
         this.intensityLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
-        Tools.addComponentToGridBagLayout(this, layout, this.intensityLabel, 0, 2, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.intensityLabel, 0, 3, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.intensity.setMinimumWidth(this.SPINNER_WIDTH);
         this.intensity.setMaximumWidth(this.SPINNER_WIDTH);
-        Tools.addComponentToGridBagLayout(this, layout, this.intensity, 1, 2, 1, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.intensity, 1, 3, 1, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         // noteoff.shift
         this.noteOffShiftLabel.setHorizontalAlignment(WebLabel.RIGHT);
         this.noteOffShiftLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
-        Tools.addComponentToGridBagLayout(this, layout, this.noteOffShiftLabel, 0, 3, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
-        Tools.addComponentToGridBagLayout(this, layout, this.noteOffShift, 1, 3, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.noteOffShiftLabel, 0, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.noteOffShift, 1, 4, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+
+        // placement (atStart / atEnd)
+        WebLabel placementLabel = new WebLabel("Placement");
+        placementLabel.setHorizontalAlignment(WebLabel.RIGHT);
+        placementLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
+        Tools.addComponentToGridBagLayout(this, layout, placementLabel, 0, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        this.placement.setSwitchComponents(new WebLabel("atStart", WebLabel.CENTER), new WebLabel("atEnd", WebLabel.CENTER));
+        this.placement.setToolTip("atStart: ornament spreads from the note's start\natEnd: ornament is anchored at the note's end, frameStart measured backwards");
+        Tools.addComponentToGridBagLayout(this, layout, this.placement, 1, 5, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         // id input
         this.idLabel.setHorizontalAlignment(WebLabel.RIGHT);
         this.idLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
-        Tools.addComponentToGridBagLayout(this, layout, this.idLabel, 0, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.idLabel, 0, 6, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.id.setMaximumWidth(this.getFontMetrics(this.id.getFont()).stringWidth("wwwwwwwwwww"));
         this.id.setMinimumWidth(this.getFontMetrics(this.id.getFont()).stringWidth("wwwwwwwwwww"));
-        Tools.addComponentToGridBagLayout(this, layout, this.id, 1, 4, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.id, 1, 6, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         this.generateId.setHorizontalAlignment(WebButton.CENTER);
         this.generateId.addActionListener(actionEvent -> this.id.setText(UUID.randomUUID().toString()));
-        Tools.addComponentToGridBagLayout(this, layout, this.generateId, 3, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, this.generateId, 3, 6, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
     }
 
     /**
@@ -222,6 +232,22 @@ public class TemporalSpreadComponent extends WebPanel {
     }
 
     /**
+     * set the atEnd value
+     * @param value true if the ornament is anchored at the end of the principal note
+     */
+    public void setAtEnd(boolean value) {
+        this.placement.setSelected(value);
+    }
+
+    /**
+     * get the atEnd value
+     * @return true if the ornament is anchored at the end of the principal note
+     */
+    public boolean getAtEnd() {
+        return this.placement.isSelected();
+    }
+
+    /**
      * get the id
      * @return
      */
@@ -248,6 +274,7 @@ public class TemporalSpreadComponent extends WebPanel {
         this.idLabel.setEnabled(enabled);
         this.noteOffShiftLabel.setEnabled(enabled);
         this.noteOffShift.setEnabled(enabled);
+        this.placement.setEnabled(enabled);
         this.frameStartLabel.setEnabled(enabled);
         this.frameStart.setEnabled(enabled);
         this.frameStartDomain.setEnabled(enabled);
