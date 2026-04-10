@@ -46,6 +46,50 @@ public class AnnotationLine {
         }
     }
 
+    /** Units valid for time-like types (TIME, MARKS). */
+    private static final Unit[] TIME_UNITS  = { Unit.SECONDS, Unit.MILLISECONDS };
+    /** Units valid for curve/value types (CURVE). */
+    private static final Unit[] CURVE_UNITS = { Unit.HZ, Unit.PERCENT };
+    /** TEXT columns carry no meaningful unit. */
+    private static final Unit[] TEXT_UNITS  = {};
+
+    /**
+     * Returns the set of {@link Unit} values that are valid for the given {@link Type}.
+     * <ul>
+     *   <li>TIME / MARKS → SECONDS, MILLISECONDS</li>
+     *   <li>CURVE        → HZ, PERCENT</li>
+     *   <li>TEXT         → (none)</li>
+     * </ul>
+     * @param type the column type
+     * @return array of valid units; never {@code null}
+     */
+    public static Unit[] getValidUnits(Type type) {
+        if (type == null) return TIME_UNITS;
+        switch (type) {
+            case TIME:
+            case MARKS:  return TIME_UNITS;
+            case CURVE:  return CURVE_UNITS;
+            case TEXT:   return TEXT_UNITS;
+            default:     return TIME_UNITS;
+        }
+    }
+
+    /**
+     * Returns the default {@link Unit} for the given {@link Type}.
+     * @param type the column type
+     * @return a sensible default unit
+     */
+    public static Unit getDefaultUnit(Type type) {
+        if (type == null) return Unit.SECONDS;
+        switch (type) {
+            case TIME:
+            case MARKS:  return Unit.SECONDS;
+            case CURVE:  return Unit.HZ;
+            case TEXT:   return null;
+            default:     return Unit.SECONDS;
+        }
+    }
+
     private String           name;
     private Type             type;
     private Unit             unit;
@@ -54,13 +98,22 @@ public class AnnotationLine {
     /**
      * constructor
      * @param name display name of the column
-     * @param type the role this column plays (TIME, CURVE, MARKS)
-     * @param unit the physical unit of the values
+     * @param type the role this column plays (TIME, CURVE, MARKS, TEXT)
+     * @param unit the physical unit of the values; if null or invalid for the given type, a default is chosen
      */
     public AnnotationLine(String name, Type type, Unit unit) {
         this.name = (name != null && !name.isEmpty()) ? name : "Column";
         this.type = (type != null) ? type : Type.CURVE;
-        this.unit = (unit != null) ? unit : Unit.SECONDS;
+        // ensure the unit is valid for the chosen type
+        this.unit = isUnitValidForType(unit, this.type) ? unit : getDefaultUnit(this.type);
+    }
+
+    /** Returns true when {@code unit} is among the valid units for {@code type}. */
+    private static boolean isUnitValidForType(Unit unit, Type type) {
+        if (unit == null) return false;
+        for (Unit u : getValidUnits(type))
+            if (u == unit) return true;
+        return false;
     }
 
     /**
@@ -82,9 +135,15 @@ public class AnnotationLine {
     public Type getType()       { return this.type; }
     /**
      * set the type of this line. If the given type is null, the type remains unchanged.
+     * If the current unit is not valid for the new type, the unit is reset to the default for the new type.
      * @param t
      */
-    public void setType(Type t) { if(t == null) return; this.type = t; }
+    public void setType(Type t) {
+        if (t == null) return;
+        this.type = t;
+        if (!isUnitValidForType(this.unit, this.type))
+            this.unit = getDefaultUnit(this.type);
+    }
 
     /**
      * return the unit of the values in this line
