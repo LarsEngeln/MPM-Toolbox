@@ -1457,6 +1457,16 @@ public class MpmEditingTools {
         // create and fill the default style
         OrnamentationStyle ornamentationStyle = (OrnamentationStyle) header.addStyleDef(Mpm.ORNAMENTATION_STYLE, styleName);
         ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("arpeggio"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("tremolo"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("trill"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("grace unacc"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("grace acc"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("upper mordent"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("lower mordent"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("upper turn"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("lower turn"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("upper turn delayed"));
+        ornamentationStyle.addDef(OrnamentDef.createDefaultOrnamentDef("lower turn delayed"));
 
         mpmTree.reloadNode(styleCollectionNode);
 
