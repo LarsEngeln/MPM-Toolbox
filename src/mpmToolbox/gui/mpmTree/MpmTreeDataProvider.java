@@ -265,6 +265,14 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
                 break;
 
             case ornament:
+                Element ornamentElt = (Element) parent.getUserObject();
+                for (int i = 0; i < ornamentElt.getChildCount(); ++i) {
+                    nu.xom.Node child = ornamentElt.getChild(i);
+                    if (child instanceof Element && ((Element) child).getLocalName().equals("note"))
+                        childNodes.add(new MpmTreeNode((Element) child, this.project));
+                }
+                break;
+            case ornamentNote:
                 break;
 
             case rubatoMap:
