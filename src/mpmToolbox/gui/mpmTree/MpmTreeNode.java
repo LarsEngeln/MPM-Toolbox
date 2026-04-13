@@ -166,6 +166,13 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
                 case "ornament":
                     this.type = MpmNodeType.ornament;
                     break;
+                case "note":
+                    Element parentElt = (Element) ((Element) object).getParent();
+                    if (parentElt != null && parentElt.getLocalName().equals("ornament"))
+                        this.type = MpmNodeType.ornamentNote;
+                    else
+                        this.type = MpmNodeType.xmlElement;
+                    break;
                 case "rubato":
                     this.type = MpmNodeType.rubato;
                     break;
@@ -413,6 +420,17 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
                     this.name = "ornament " + nameRef.getValue();
                 break;
             }
+            case ornamentNote: {
+                Element noteElt = (Element) this.getUserObject();
+                Attribute pitch = noteElt.getAttribute("pitchname");
+                Attribute octave = noteElt.getAttribute("octave");
+                Attribute duration = noteElt.getAttribute("duration");
+                this.name = "note";
+                if (pitch != null)  this.name += " " + pitch.getValue();
+                if (octave != null) this.name += ", oct=" + octave.getValue();
+                if (duration != null) this.name += ", dur=" + duration.getValue();
+                break;
+            }
             case rubatoMap:
                 this.name = "rubatoMap";
                 break;
@@ -621,6 +639,7 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
             case distributionCorrelatedBrownianNoise:
             case distributionCorrelatedCompensatingTriangle:
             case ornament:
+            case ornamentNote:
             case rubato:
             case tempo:
             case style:
@@ -925,6 +944,7 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
         accentuationPattern,
         ornamentationMap,
         ornament,
+        ornamentNote,
         rubatoMap,
         rubato,
         tempoMap,
