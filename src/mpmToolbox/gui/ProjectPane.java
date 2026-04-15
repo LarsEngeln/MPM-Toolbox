@@ -36,6 +36,8 @@ import javax.sound.midi.MidiUnavailableException;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 
 /**
@@ -116,6 +118,7 @@ public class ProjectPane extends WebDockablePane {
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
         this.makeGUI();
+        this.loadAnnotationsFromProject();
     }
 
     /**
@@ -386,6 +389,9 @@ public class ProjectPane extends WebDockablePane {
             return;
         }
 
+        // remember the source file so the annotation can be persisted in the .mpr project file
+        built.setFile(file);
+
         System.out.println("Loaded " + built.getRowCount() + " rows from " + file.getAbsolutePath());
 
         AnnotationData target = dialog.getTargetAnnotationData();
@@ -402,17 +408,87 @@ public class ProjectPane extends WebDockablePane {
      * @return
      */
     public boolean saveProject() {
-        return this.data.saveProject();
+        return this.saveProjectAs(this.getFile());
     }
 
     /**
-     * This saves the project in an .mpr file, basically an xml file which stores relative paths to all other project files.
+     * This saves the project in an .mpr file, basically an xml file which stores relative paths to all other
+     * project files, including any loaded CSV annotation datasets.
      * If the MSM or MPM file was not existent in the file system, they will be created in the directory.
      * @param file
      * @return
      */
     public boolean saveProjectAs(File file) {
-        return this.data.saveProjectAs(file);
+        if (!this.data.saveProjectAs(file))
+            return false;
+
+        // append <annotations> block with all CSV annotation datasets that have a known source file
+        ArrayList<AnnotationData> annotations = this.audioFrame.getAnnotations();
+        if (!annotations.isEmpty()) {
+            Path basePath = Paths.get(file.getParent());
+            Element annotationsElt = new Element("annotations");
+            boolean hasAny = false;
+            for (AnnotationData ad : annotations) {
+                Element elt = ad.toXml(basePath);
+                if (elt != null) {
+                    annotationsElt.appendChild(elt);
+                    hasAny = true;
+                }
+            }
+            if (hasAny) {
+                this.data.getXml().getRootElement().appendChild(annotationsElt);
+                return this.data.getXml().writeFile();
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Reload all CSV annotation datasets that were saved in the .mpr project file.
+     * Called once from the file-based constructor after makeGUI().
+     */
+    private void loadAnnotationsFromProject() {
+        if (this.data.getXml() == null) return;
+        Element root = this.data.getXml().getRootElement();
+        if (root == null) return;
+        Element annotationsElt = root.getFirstChildElement("annotations");
+        if (annotationsElt == null) return;
+
+        String basePath = this.data.getFile().getParent() + File.separator;
+        Elements annotationElts = annotationsElt.getChildElements("annotation");
+        boolean anyLoaded = false;
+
+        for (int i = 0; i < annotationElts.size(); i++) {
+            Element elt     = annotationElts.get(i);
+            String  relFile = elt.getAttributeValue("file");
+            if (relFile == null || relFile.isEmpty()) continue;
+
+            File csvFile = new File(Tools.uniformPath(basePath + relFile));
+            if (!csvFile.exists()) {
+                System.err.println("[ProjectPane] CSV annotation file not found, skipping: " + csvFile.getAbsolutePath());
+                continue;
+            }
+
+            AnnotationData annotationData = CsvImportDialog.parseFile(csvFile);
+            if (annotationData.isEmpty()) {
+                System.err.println("[ProjectPane] No data in CSV annotation file: " + csvFile.getAbsolutePath());
+                continue;
+            }
+
+            // restore name, visibility and per-column settings from the project XML
+            AnnotationData.applyXmlSettings(annotationData, elt);
+            annotationData.setFile(csvFile);
+            this.audioFrame.addAnnotation(annotationData);
+            anyLoaded = true;
+        }
+
+        if (anyLoaded) {
+            this.tabs.setSelected(this.audioFrame);
+            //this.audioFrame.repaintAllComponents();
+        }
+    }
+
     /**
      * Refresh both the MSM and MPM trees to reflect a changed measure display mode.
      * Instead of rebuilding the entire tree (which loses expansion state) or reloading
