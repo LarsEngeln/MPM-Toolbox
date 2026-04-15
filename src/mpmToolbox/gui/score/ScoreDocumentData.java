@@ -230,6 +230,15 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
         menuItem.setToolTipText("add or place performance data");
         interactionModePopup.add(menuItem);
 
+        menuItem = new WebMenuItem("Select / Edit");
+        menuItem.addActionListener(actionEvent -> {
+            this.currentInteractionMode = InteractionMode.selectEdit;
+            this.interactionMode.setText("Select / Edit");
+            this.interactionMode.setForeground(Color.ORANGE);
+        });
+        menuItem.setToolTipText("select and drag annotation anchors to reposition them");
+        interactionModePopup.add(menuItem);
+
         this.interactionMode.setPopupMenu(interactionModePopup);
         this.interactionMode.setPopupMenuWay(PopupMenuWay.aboveEnd);
         this.currentInteractionMode = InteractionMode.panAndZoom;
@@ -330,6 +339,7 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
     public enum InteractionMode {
         panAndZoom,
         markNotes,
-        editPerformance
+        editPerformance,
+        selectEdit
     }
 }
