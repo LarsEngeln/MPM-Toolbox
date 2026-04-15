@@ -57,6 +57,18 @@ public class Settings {
     public static RecentOpened recentOpened = new RecentOpened(10);     // this is the list of the last 10 recently opened files
 
     /**
+     * Controls how measure/bar numbers are displayed in the MSM and MPM trees.
+     */
+    public enum MeasureDisplayMode {
+        NONE,           // no measure information shown (default)
+        PREFIX,         // measure number shown as a prefix, e.g. "[42] quarter note C4"
+        MEASURE_NODE    // elements are grouped under synthetic measure nodes
+    }
+
+    /** Current display mode for bar numbers in the trees. */
+    public static MeasureDisplayMode measureDisplayMode = MeasureDisplayMode.NONE;
+
+    /**
      * read the settings file mpmToolbox.cfg
      * @throws IOException
      */
@@ -120,6 +132,13 @@ public class Settings {
                     if (recent.exists())
                         recentOpenedFiles.add(recent);
                     break;
+                case "measureDisplayMode":
+                    try {
+                        Settings.measureDisplayMode = MeasureDisplayMode.valueOf(line);
+                    } catch (IllegalArgumentException ignored) {
+                        Settings.measureDisplayMode = MeasureDisplayMode.NONE;
+                    }
+                    break;
                 default:
                     break;
             }
@@ -147,6 +166,7 @@ public class Settings {
 //                + "\n\n# symbolFont\n" + Settings.symbolFontPath
                 + "\n\n# soundbank\n" + ((Settings.soundbank == null) ? "default" : Settings.soundbank.getAbsolutePath())
                 + "\n\n# recentOpened\n" + Settings.recentOpened.toString()
+                + "\n\n# measureDisplayMode\n" + Settings.measureDisplayMode.name()
                 +"\n";
 
         PrintWriter writer;

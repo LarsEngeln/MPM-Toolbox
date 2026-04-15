@@ -17,6 +17,8 @@ import meico.mpm.elements.metadata.RelatedResource;
 import meico.mpm.elements.styles.*;
 import meico.mpm.elements.styles.defs.*;
 import mpmToolbox.projectData.ProjectData;
+import mpmToolbox.gui.MeasureNumberLookup;
+import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.mpmEditingTools.MpmEditingTools;
 import nu.xom.Attribute;
 import nu.xom.Element;
@@ -177,6 +179,8 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
                 default:
                     this.type = MpmNodeType.xmlElement;
             }
+        } else if (object.getClass().equals(mpmToolbox.gui.mpmTree.MpmMeasureGroup.class)) {
+            this.type = MpmNodeType.measure;
         } else {
             this.type = MpmNodeType.unknown;
         }
@@ -454,6 +458,10 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
                 this.name = "<html><font size=\"-2\" color=\"silver\">&lt;/&gt;</font>  " + ((Element)this.getUserObject()).getLocalName() + "</html>";
                 break;
 
+            case measure:
+                this.name = "<html>Measure <b>" + ((MpmMeasureGroup) this.getUserObject()).measureNumber + "</b></html>";
+                break;
+
             case unknown:
             default:
                 this.name = "unknown object of type " + getUserObject().getClass().getCanonicalName();
@@ -474,10 +482,26 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
             case ornament:
             case rubato:
             case style:
-            case tempo:
-                this.name = "<html>" + this.name + "&nbsp;&nbsp;&nbsp;"
+            case tempo: {
+                // optionally prepend a [measure] prefix
+                String measurePrefix = "";
+                if (Settings.measureDisplayMode == Settings.MeasureDisplayMode.PREFIX && this.project.getMsm() != null) {
+                    Element elt     = (Element) this.getUserObject();
+                    String  dateStr = Helper.getAttributeValue("date", elt);
+                    if (!dateStr.isEmpty()) {
+                        Performance perf   = this.getPerformance();
+                        int         ppq    = (perf != null) ? perf.getPulsesPerQuarter() : this.project.getMsm().getPPQ();
+                        double      ticks  = MeasureNumberLookup.getMsmTickDate(elt, this.project.getMsm(), ppq);
+                        Element     tsMap  = MeasureNumberLookup.getTimeSignatureMap(this.project.getMsm());
+                        int         mNum   = MeasureNumberLookup.getMeasureNumber(ticks, tsMap, this.project.getMsm().getPPQ());
+                        measurePrefix = "[" + mNum + "]&nbsp;";
+                    }
+                }
+                this.name = "<html>" + measurePrefix + this.name + "&nbsp;&nbsp;&nbsp;"
                         + (this.project.getScore().contains((Element) this.getUserObject()) ? "<font color=\"aqua\">&#9679;</font>" : "")   // indicate whether the note is associated with a pixel position in an autograph image
                         + "</html>";
+                break;
+            }
         }
     }
 
@@ -640,6 +664,8 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
 
             case unknown:
                 return this.getUserObject().getClass().getCanonicalName();
+            case measure:
+                return "Measure " + ((MpmMeasureGroup) this.getUserObject()).measureNumber;
         }
 
         int i = s.indexOf(">") + 1;                         // get the index of the first ">"
@@ -695,6 +721,8 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
      * @param mpmTree the MpmTree instance that this node belongs to
      */
     public WebPopupMenu getContextMenu(@NotNull MpmTree mpmTree) {
+        if (this.type == MpmNodeType.measure)
+            return new WebPopupMenu();  // no context menu for synthetic measure nodes
         return MpmEditingTools.makeMpmTreeContextMenu(this, mpmTree);
     }
 
@@ -704,6 +732,8 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
      * @param mpmTree
      */
     public void openEditorDialog(@NotNull MpmTree mpmTree) {
+        if (this.type == MpmNodeType.measure)
+            return;  // no editor for synthetic measure nodes
         MpmEditingTools.quickOpenEditor(this, mpmTree);
     }
 
@@ -937,6 +967,7 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
         tempoMap,
         tempo,
         style,
+        measure,
         xmlElement,
         unknown
     }

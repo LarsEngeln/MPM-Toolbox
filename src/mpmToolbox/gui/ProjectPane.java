@@ -19,11 +19,16 @@ import mpmToolbox.projectData.ProjectData;
 import mpmToolbox.gui.audio.AudioDocumentData;
 import mpmToolbox.gui.mpmTree.MpmDockableFrame;
 import mpmToolbox.gui.mpmTree.MpmTree;
+import mpmToolbox.gui.mpmTree.MpmTreeNode;
 import mpmToolbox.gui.msmTree.MsmTree;
+import mpmToolbox.gui.msmTree.MsmTreeNode;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.gui.score.ScoreDocumentData;
 import mpmToolbox.projectData.score.ScorePage;
 import mpmToolbox.gui.syncPlayer.SyncPlayer;
+import mpmToolbox.supplementary.Tools;
+import nu.xom.Element;
+import nu.xom.Elements;
 import nu.xom.ParsingException;
 import org.xml.sax.SAXException;
 
@@ -375,5 +380,73 @@ public class ProjectPane extends WebDockablePane {
      */
     public boolean saveProjectAs(File file) {
         return this.data.saveProjectAs(file);
+    /**
+     * Refresh both the MSM and MPM trees to reflect a changed measure display mode.
+     * Instead of rebuilding the entire tree (which loses expansion state) or reloading
+     * the root (which can double-insert nodes due to ExTreeModel event ordering), we
+     * reload only the structural container nodes whose children change between modes.
+     */
+    public void refreshTreeDisplayMode() {
+        refreshMsmTreeDisplayMode();
+        MpmTree mpmTree = this.getMpmTree();
+        if (mpmTree != null)
+            refreshMpmTreeDisplayMode(mpmTree);
+    }
+
+    /** Walk the MSM tree and reload every score node (and update note/rest/lyrics labels). */
+    private void refreshMsmTreeDisplayMode() {
+        MsmTreeNode root = this.msmTree.getRootNode();
+        if (root != null)
+            refreshMsmSubtree(root);
+    }
+
+    private void refreshMsmSubtree(MsmTreeNode node) {
+        switch (node.getType()) {
+            case score:
+                // Reload children: flat notes ↔ measure groups depending on mode.
+                // reloadNode() preserves the expansion of 'score' itself.
+                this.msmTree.reloadNode(node);
+                return; // reloadNode already handles the whole subtree
+            case note:
+            case rest:
+            case lyrics:
+                // Only the label text changes (PREFIX mode) – no structural change.
+                this.msmTree.updateNode(node);
+                return;
+            default:
+                // Recurse into children (global, part, header, dated, measure, …)
+                for (int i = 0; i < node.getChildCount(); i++)
+                    refreshMsmSubtree((MsmTreeNode) node.getChildAt(i));
+        }
+    }
+
+    /** Walk the MPM tree and reload every dated-map node (and update map-entry labels). */
+    private void refreshMpmTreeDisplayMode(MpmTree mpmTree) {
+        MpmTreeNode root = mpmTree.getRootNode();
+        if (root != null)
+            refreshMpmSubtree(mpmTree, root);
+    }
+
+    private void refreshMpmSubtree(MpmTree mpmTree, MpmTreeNode node) {
+        switch (node.getType()) {
+            // Dated maps: children switch between flat entries and measure groups.
+            // reloadNode() replaces their children entirely, so no further recursion needed.
+            case articulationMap:
+            case asynchronyMap:
+            case dynamicsMap:
+            case genericMap:
+            case imprecisionMap:
+            case metricalAccentuationMap:
+            case ornamentationMap:
+            case rubatoMap:
+            case tempoMap:
+                mpmTree.reloadNode(node);
+                return;
+            default:
+                // For all other nodes (mpm, performance, global, part, dated, header,
+                // style collections, measure groups, etc.) recurse into loaded children.
+                for (int i = 0; i < node.getChildCount(); i++)
+                    refreshMpmSubtree(mpmTree, (MpmTreeNode) node.getChildAt(i));
+        }
     }
 }
