@@ -7,6 +7,7 @@ import com.alee.laf.tree.TreeNodeParameters;
 import com.alee.laf.tree.WebTreeCellRenderer;
 
 import javax.swing.*;
+import java.awt.*;
 
 /**
  * A custom tree cell renderer for MPM trees.
@@ -33,5 +34,18 @@ public class MpmTreeCellRenderer  extends WebTreeCellRenderer<MpmTreeNode, WebEx
     @Nullable
     protected Icon iconForValue (@NotNull final TreeNodeParameters<MpmTreeNode, WebExTree<MpmTreeNode>> parameters ) {
         return parameters.node().getNodeIcon(parameters);
+    }
+
+    /**
+     * prevents wrapping
+     */
+    @Override
+    public Dimension getPreferredSize() {
+        int savedW = getWidth();
+        int savedH = getHeight();
+        setSize(Short.MAX_VALUE, Short.MAX_VALUE);
+        Dimension d = super.getPreferredSize();
+        setSize(savedW, savedH);
+        return d;
     }
 }
