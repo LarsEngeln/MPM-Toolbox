@@ -142,7 +142,7 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
                 this.name = "sequencingMap";
                 break;
             case measure:
-                this.name = "<html>Measure <b>" + ((MsmMeasureElement)this.getUserObject()).measureNumber + "</b></html>";
+                this.name = "<html>-- <i>Measure <b>" + ((MsmMeasureElement)this.getUserObject()).measureNumber + "</b> --</i></html>";
                 break;
             case note: {
                 int ppq = this.project.getMsm().getPPQ();
@@ -208,7 +208,7 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
      * @return HTML prefix such as "[42]"
      */
     private String computeMeasurePrefix(Element scoreElement) {
-        if (Settings.measureDisplayMode != Settings.MeasureDisplayMode.PREFIX)
+        if (Settings.msmMeasureDisplayMode != Settings.MeasureDisplayMode.PREFIX)
             return "";
         if (this.project.getMsm() == null)
             return "";
@@ -318,7 +318,7 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
             return ((Attribute)this.getUserObject()).toXML();
 
         if (this.type == XmlNodeType.measure)
-            return "Measure " + ((MsmMeasureElement)this.getUserObject()).measureNumber;
+            return "Virtual Structure, that is not in MSM!";
 
         String s = ((Element)this.getUserObject()).toXML();
         int i = s.indexOf(">") + 1;                         // get the index of the first ">"

@@ -63,7 +63,7 @@ public class MsmTreeDataProvider extends AbstractExTreeDataProvider<MsmTreeNode>
 
         // In MEASURE_NODE mode group score children into synthetic measure nodes
         if (parent.getType() == MsmTreeNode.XmlNodeType.score
-                && Settings.measureDisplayMode == Settings.MeasureDisplayMode.MEASURE_NODE
+                && Settings.msmMeasureDisplayMode == Settings.MeasureDisplayMode.MEASURE_NODE
                 && this.project.getMsm() != null) {
 
             Element tsMap = MeasureNumberLookup.getTimeSignatureMap(this.project.getMsm());

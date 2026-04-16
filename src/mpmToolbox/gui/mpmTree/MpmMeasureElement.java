@@ -1,16 +1,16 @@
 package mpmToolbox.gui.mpmTree;
 
+import nu.xom.Attribute;
 import nu.xom.Element;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A wrapper that groups MPM map entries belonging to the same measure.
- * Used in {@link mpmToolbox.gui.Settings.MeasureDisplayMode#MEASURE_NODE} display mode.
+ * A virtual Element subclass that represents a measure node in the MPM tree.
  * @author Lars Engeln
  */
-public class MpmMeasureGroup {
+public class MpmMeasureElement extends Element {
     /** measure number */
     public final int measureNumber;
 
@@ -21,9 +21,11 @@ public class MpmMeasureGroup {
      * constructor
      * @param measureNumber measure number
      */
-    public MpmMeasureGroup(int measureNumber) {
+    public MpmMeasureElement(int measureNumber) {
+        super("measure");
         this.measureNumber = measureNumber;
         this.elements      = new ArrayList<>();
+        this.addAttribute(new Attribute("number", String.valueOf(measureNumber)));
     }
 }
 

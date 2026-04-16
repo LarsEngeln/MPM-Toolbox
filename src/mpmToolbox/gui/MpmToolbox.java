@@ -271,6 +271,10 @@ public class MpmToolbox {
         });
         edit.add(this.playStop);
 
+        WebMenuItem settingsItem = new WebMenuItem("Measure Display Option", 'm');
+        settingsItem.addActionListener(actionEvent -> new MeasureDisplayDialog(this.getFrame(), this.getProjectPane()));
+        edit.add(settingsItem);
+
         // help menu
         WebMenu help = new WebMenu("Help");
         help.setMnemonic('h');
@@ -295,15 +299,8 @@ public class MpmToolbox {
         });
         help.add(about);
 
-        // settings menu
-        WebMenu settings = new WebMenu("Settings");
-        settings.setMnemonic('s');
-        WebMenuItem settingsItem = new WebMenuItem("Measure Display", 'm');
-        settingsItem.addActionListener(actionEvent -> new SettingsDialog(this.getFrame(), this.getProjectPane()));
-        settings.add(settingsItem);
-
         // put them all together
-        return (new WebMenuBar()).add(file, edit, settings, help);
+        return (new WebMenuBar()).add(file, edit, help);
     }
 
     /**
