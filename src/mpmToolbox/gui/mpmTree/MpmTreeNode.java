@@ -17,6 +17,7 @@ import meico.mpm.elements.metadata.Metadata;
 import meico.mpm.elements.metadata.RelatedResource;
 import meico.mpm.elements.styles.*;
 import meico.mpm.elements.styles.defs.*;
+import mpmToolbox.gui.msmTree.MsmTreeNode;
 import mpmToolbox.projectData.ProjectData;
 import mpmToolbox.gui.MeasureNumberLookup;
 import mpmToolbox.gui.Settings;
@@ -187,7 +188,7 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
                 default:
                     this.type = MpmNodeType.xmlElement;
             }
-        } else if (object.getClass().equals(mpmToolbox.gui.mpmTree.MpmMeasureGroup.class)) {
+        } else if (object instanceof MpmMeasureElement) {
             this.type = MpmNodeType.measure;
         } else {
             this.type = MpmNodeType.unknown;
@@ -470,7 +471,7 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
                 break;
 
             case measure:
-                this.name = "<html>Measure <b>" + ((MpmMeasureGroup) this.getUserObject()).measureNumber + "</b></html>";
+                this.name = "<html><i>-- Measure <b>" + ((MpmMeasureElement) this.getUserObject()).measureNumber + "</b> --</i></html>";
                 break;
 
             case unknown:
@@ -496,7 +497,7 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
             case tempo: {
                 // optionally prepend a [measure] prefix
                 String measurePrefix = "";
-                if (Settings.measureDisplayMode == Settings.MeasureDisplayMode.PREFIX && this.project.getMsm() != null) {
+                if (Settings.mpmMeasureDisplayMode == Settings.MeasureDisplayMode.PREFIX && this.project.getMsm() != null) {
                     Element elt     = (Element) this.getUserObject();
                     String  dateStr = Helper.getAttributeValue("date", elt);
                     if (!dateStr.isEmpty()) {
@@ -677,7 +678,7 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
             case unknown:
                 return this.getUserObject().getClass().getCanonicalName();
             case measure:
-                return "Measure " + ((MpmMeasureGroup) this.getUserObject()).measureNumber;
+                return "Virtual Structure, that is not in MPM!";
         }
 
         int i = s.indexOf(">") + 1;                         // get the index of the first ">"

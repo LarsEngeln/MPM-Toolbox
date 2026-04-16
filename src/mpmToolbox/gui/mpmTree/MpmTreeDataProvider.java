@@ -38,24 +38,24 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
     }
 
     /**
-     * Build a list of MpmMeasureGroup nodes for a GenericMap, grouping its entries by measure.
+     * Build a list of MpmMeasureElement nodes for a GenericMap, grouping its entries by measure.
      * @param map     the MPM map
      * @param perfPpq the PPQ of the owning performance
      * @return ordered list of measure-group nodes
      */
     private List<MpmTreeNode> buildMeasureGroupNodes(GenericMap map, int perfPpq) {
-        ArrayList<MpmTreeNode>         nodes         = new ArrayList<>();
-        Element                        tsMap         = MeasureNumberLookup.getTimeSignatureMap(this.project.getMsm());
-        int                            msmPpq        = this.project.getMsm().getPPQ();
-        TreeMap<Integer, MpmMeasureGroup> groups     = new TreeMap<>();
+        ArrayList<MpmTreeNode>              nodes         = new ArrayList<>();
+        Element                             tsMap         = MeasureNumberLookup.getTimeSignatureMap(this.project.getMsm());
+        int                                 msmPpq        = this.project.getMsm().getPPQ();
+        TreeMap<Integer, MpmMeasureElement> groups        = new TreeMap<>();
 
         for (int i = 0; i < map.size(); ++i) {
             Element e       = map.getElement(i);
             double  ticks   = MeasureNumberLookup.getMsmTickDate(e, this.project.getMsm(), perfPpq);
             int     mNum    = MeasureNumberLookup.getMeasureNumber(ticks, tsMap, msmPpq);
-            groups.computeIfAbsent(mNum, MpmMeasureGroup::new).elements.add(e);
+            groups.computeIfAbsent(mNum, MpmMeasureElement::new).elements.add(e);
         }
-        for (MpmMeasureGroup group : groups.values())
+        for (MpmMeasureElement group : groups.values())
             nodes.add(new MpmTreeNode(group, this.project));
 
         return nodes;
@@ -328,8 +328,8 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
                 break;
 
             case measure:
-                MpmMeasureGroup measureGroup = (MpmMeasureGroup) parent.getUserObject();
-                for (Element e : measureGroup.elements)
+                MpmMeasureElement measure = (MpmMeasureElement) parent.getUserObject();
+                for (Element e : measure.elements)
                     childNodes.add(new MpmTreeNode(e, this.project));
                 break;
 
@@ -347,7 +347,7 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
     }
 
     private void addNodes(MpmTreeNode parent, ArrayList<MpmTreeNode> childNodes, GenericMap map) {
-        if (Settings.measureDisplayMode == Settings.MeasureDisplayMode.MEASURE_NODE && this.project.getMsm() != null)
+        if (Settings.mpmMeasureDisplayMode == Settings.MeasureDisplayMode.MEASURE_NODE && this.project.getMsm() != null)
             childNodes.addAll(this.buildMeasureGroupNodes(map, this.getPerfPpq(parent)));
         else
             for (int i = 0; i < map.size(); ++i)

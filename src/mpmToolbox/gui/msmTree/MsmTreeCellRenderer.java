@@ -22,7 +22,17 @@ public class MsmTreeCellRenderer extends WebTreeCellRenderer<MsmTreeNode, WebExT
     @Override
     @Nullable
     protected String textForValue(@NotNull final TreeNodeParameters<MsmTreeNode, WebExTree<MsmTreeNode>> parameters) {
-        return parameters.node().getText(parameters);
+        MsmTreeNode node = parameters.node();
+        // For measure nodes, prepend an expand/collapse indicator to the label
+        if (node.getType() == MsmTreeNode.XmlNodeType.measure && node.getChildCount() > 0) {
+            String arrow = parameters.isExpanded() ? "&#9660;" : "&#9654;";  // ▼ or ▶
+            String text = node.getText(parameters);
+            // insert the arrow symbol after the opening <html> tag
+            if (text.startsWith("<html>"))
+                return "<html><font color=\"silver\">" + arrow + "</font>&nbsp;" + text.substring(6);
+            return "<html><font color=\"silver\">" + arrow + "</font>&nbsp;" + text + "</html>";
+        }
+        return node.getText(parameters);
     }
 
     /**

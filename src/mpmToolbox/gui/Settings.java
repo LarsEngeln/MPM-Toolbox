@@ -68,8 +68,11 @@ public class Settings {
         MEASURE_NODE    // elements are grouped under synthetic measure nodes
     }
 
-    /** Current display mode for bar numbers in the trees. */
-    public static MeasureDisplayMode measureDisplayMode = MeasureDisplayMode.NONE;
+    /** Current display mode for bar numbers in the MSM tree. */
+    public static MeasureDisplayMode msmMeasureDisplayMode = MeasureDisplayMode.NONE;
+
+    /** Current display mode for bar numbers in the MPM tree. */
+    public static MeasureDisplayMode mpmMeasureDisplayMode = MeasureDisplayMode.NONE;
 
     /**
      * read the settings file mpmToolbox.cfg
@@ -135,11 +138,28 @@ public class Settings {
                     if (recent.exists())
                         recentOpenedFiles.add(recent);
                     break;
-                case "measureDisplayMode":
+                case "measureDisplayMode":          // legacy: apply to both trees
                     try {
-                        Settings.measureDisplayMode = MeasureDisplayMode.valueOf(line);
+                        MeasureDisplayMode mode = MeasureDisplayMode.valueOf(line);
+                        Settings.msmMeasureDisplayMode = mode;
+                        Settings.mpmMeasureDisplayMode = mode;
                     } catch (IllegalArgumentException ignored) {
-                        Settings.measureDisplayMode = MeasureDisplayMode.NONE;
+                        Settings.msmMeasureDisplayMode = MeasureDisplayMode.NONE;
+                        Settings.mpmMeasureDisplayMode = MeasureDisplayMode.NONE;
+                    }
+                    break;
+                case "msmMeasureDisplayMode":
+                    try {
+                        Settings.msmMeasureDisplayMode = MeasureDisplayMode.valueOf(line);
+                    } catch (IllegalArgumentException ignored) {
+                        Settings.msmMeasureDisplayMode = MeasureDisplayMode.NONE;
+                    }
+                    break;
+                case "mpmMeasureDisplayMode":
+                    try {
+                        Settings.mpmMeasureDisplayMode = MeasureDisplayMode.valueOf(line);
+                    } catch (IllegalArgumentException ignored) {
+                        Settings.mpmMeasureDisplayMode = MeasureDisplayMode.NONE;
                     }
                     break;
                 default:
@@ -169,7 +189,8 @@ public class Settings {
 //                + "\n\n# symbolFont\n" + Settings.symbolFontPath
                 + "\n\n# soundbank\n" + ((Settings.soundbank == null) ? "default" : Settings.soundbank.getAbsolutePath())
                 + "\n\n# recentOpened\n" + Settings.recentOpened.toString()
-                + "\n\n# measureDisplayMode\n" + Settings.measureDisplayMode.name()
+                + "\n\n# msmMeasureDisplayMode\n" + Settings.msmMeasureDisplayMode.name()
+                + "\n\n# mpmMeasureDisplayMode\n" + Settings.mpmMeasureDisplayMode.name()
                 +"\n";
 
         PrintWriter writer;

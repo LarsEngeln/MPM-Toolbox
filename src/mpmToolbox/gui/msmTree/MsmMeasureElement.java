@@ -7,14 +7,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A synthetic {@link Element} subclass that represents a measure node in the MSM tree.
- * Because {@link MsmTreeNode} stores user objects as {@link nu.xom.Node},
- * this class extends {@link Element} so it can be stored there directly.
- * Used in {@link mpmToolbox.gui.Settings.MeasureDisplayMode#MEASURE_NODE} display mode.
- * @author Axel Berndt
+ * A virtual ELement subclass that represents a measure node in the MSM tree.
+ * @author Lars Engeln
  */
 public class MsmMeasureElement extends Element {
-    /** 1-based measure number */
+    /** measure number */
     public final int measureNumber;
 
     /** The score child elements (notes, rests, …) that fall into this measure */
@@ -22,7 +19,7 @@ public class MsmMeasureElement extends Element {
 
     /**
      * constructor
-     * @param measureNumber 1-based measure number
+     * @param measureNumber measure number
      */
     public MsmMeasureElement(int measureNumber) {
         super("measure");
