@@ -181,6 +181,8 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             boolean valid = true;
             maxRowCount = Math.max(maxRowCount, row.length);
             for (int c = 0; c < row.length; c++) {
+                if(row[c].trim().equals(""))
+                    continue;
                 try {
                     values[c] = Double.parseDouble(row[c].trim());      // TODO: parseDouble if CURVE & MARKS, may extend with TEXT later
                 } catch (NumberFormatException e) {
