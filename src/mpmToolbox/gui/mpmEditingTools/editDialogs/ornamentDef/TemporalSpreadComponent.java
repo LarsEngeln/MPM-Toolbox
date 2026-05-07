@@ -40,7 +40,7 @@ public class TemporalSpreadComponent extends WebPanel {
     private final WebComboBox frameLengthDomain = new WebComboBox(new TimeDomainItem[]{new TimeDomainItem(TemporalValue.Domain.Ticks), new TimeDomainItem(TemporalValue.Domain.Milliseconds), new TimeDomainItem(TemporalValue.Domain.Relative)}, 0);
     private final WebLabel intensityLabel = new WebLabel("Intensity");
     private final WebSpinner intensity = new WebSpinner(new SpinnerNumberModel(1.0, 0.0, Double.POSITIVE_INFINITY, 0.1));
-    private final WebSwitch placement = new WebSwitch(false);  // false = atStart, true = atEnd
+    private final WebSwitch alignment = new WebSwitch(false);  // false = at start, true = at end
 
 
     /**
@@ -63,7 +63,7 @@ public class TemporalSpreadComponent extends WebPanel {
         this.frameStart.addChangeListener(e -> visualizer.setFrameStart(((Number) this.frameStart.getValue()).doubleValue()));
         this.frameLength.addChangeListener(e -> visualizer.setFrameLength(((Number) this.frameLength.getValue()).doubleValue()));
         this.intensity.addChangeListener(e -> visualizer.setIntensity(((Number) this.intensity.getValue()).doubleValue()));
-        this.placement.addItemListener(e -> visualizer.setAtEnd(this.placement.isSelected()));
+        this.alignment.addItemListener(e -> visualizer.setAtEnd(this.alignment.isSelected()));
 
         // frame.start
         this.frameStartLabel.setHorizontalAlignment(WebLabel.RIGHT);
@@ -99,14 +99,14 @@ public class TemporalSpreadComponent extends WebPanel {
         Tools.addComponentToGridBagLayout(this, layout, this.noteOffShiftLabel, 0, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
         Tools.addComponentToGridBagLayout(this, layout, this.noteOffShift, 1, 4, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
-        // placement (atStart / atEnd)
-        WebLabel placementLabel = new WebLabel("Placement");
-        placementLabel.setHorizontalAlignment(WebLabel.RIGHT);
-        placementLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
-        Tools.addComponentToGridBagLayout(this, layout, placementLabel, 0, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
-        this.placement.setSwitchComponents(new WebLabel("atStart", WebLabel.CENTER), new WebLabel("atEnd", WebLabel.CENTER));
-        this.placement.setToolTip("atStart: ornament spreads from the note's start\natEnd: ornament is anchored at the note's end, frameStart measured backwards");
-        Tools.addComponentToGridBagLayout(this, layout, this.placement, 1, 5, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        // alignment (at start / at end)
+        WebLabel alignmentLabel = new WebLabel("Alignment");
+        alignmentLabel.setHorizontalAlignment(WebLabel.RIGHT);
+        alignmentLabel.setPadding(0, 0, 0, Settings.paddingInDialogs);
+        Tools.addComponentToGridBagLayout(this, layout, alignmentLabel, 0, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        this.alignment.setSwitchComponents(new WebLabel("at start", WebLabel.CENTER), new WebLabel("at end", WebLabel.CENTER));
+        this.alignment.setToolTip("atStart: ornament spreads from the note's start\nat end: ornament is anchored at the note's end, frameStart measured backwards");
+        Tools.addComponentToGridBagLayout(this, layout, this.alignment, 1, 5, 2, 1, 4.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
 
         // id input
         this.idLabel.setHorizontalAlignment(WebLabel.RIGHT);
@@ -245,7 +245,7 @@ public class TemporalSpreadComponent extends WebPanel {
      * @param value true if the ornament is anchored at the end of the principal note
      */
     public void setAtEnd(boolean value) {
-        this.placement.setSelected(value);
+        this.alignment.setSelected(value);
     }
 
     /**
@@ -253,7 +253,7 @@ public class TemporalSpreadComponent extends WebPanel {
      * @return true if the ornament is anchored at the end of the principal note
      */
     public boolean getAtEnd() {
-        return this.placement.isSelected();
+        return this.alignment.isSelected();
     }
 
     /**
@@ -283,7 +283,7 @@ public class TemporalSpreadComponent extends WebPanel {
         this.idLabel.setEnabled(enabled);
         this.noteOffShiftLabel.setEnabled(enabled);
         this.noteOffShift.setEnabled(enabled);
-        this.placement.setEnabled(enabled);
+        this.alignment.setEnabled(enabled);
         this.frameStartLabel.setEnabled(enabled);
         this.frameStart.setEnabled(enabled);
         this.frameStartDomain.setEnabled(enabled);
