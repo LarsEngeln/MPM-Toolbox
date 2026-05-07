@@ -133,7 +133,7 @@ public class OrnamentDefEditor extends EditDialog<OrnamentDef> {
             temporalSpread.setFrameLengthDomain(this.temporalSpreadPanel.getFrameLengthDomain());
             temporalSpread.intensity = this.temporalSpreadPanel.getIntensity();
             temporalSpread.noteOffShift = this.temporalSpreadPanel.getNoteOffShift();
-            temporalSpread.placement = this.temporalSpreadPanel.getAtEnd() ? "atEnd" : "atStart";
+            temporalSpread.alignment = this.temporalSpreadPanel.getAtEnd() ? "at end" : "at start";
             String tsId = this.temporalSpreadPanel.getId();
             if ((tsId != null) && !tsId.isEmpty())
                 temporalSpread.setId(tsId);
