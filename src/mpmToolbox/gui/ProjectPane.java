@@ -380,6 +380,7 @@ public class ProjectPane extends WebDockablePane {
      */
     public boolean saveProjectAs(File file) {
         return this.data.saveProjectAs(file);
+    }
     /**
      * Refresh both the MSM and MPM trees to reflect a changed measure display mode.
      * Instead of rebuilding the entire tree (which loses expansion state) or reloading
