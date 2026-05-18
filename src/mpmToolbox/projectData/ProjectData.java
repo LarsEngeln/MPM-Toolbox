@@ -10,6 +10,7 @@ import meico.xml.XmlBase;
 import mpmToolbox.projectData.audio.Audio;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.projectData.score.ScorePage;
+import mpmToolbox.projectData.SvgData;
 import mpmToolbox.supplementary.Tools;
 import nu.xom.*;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -38,6 +39,7 @@ public class ProjectData {
     private Mpm mpm = null;                                     // the MPM document
     private final Score score;                                  // the music sheets
     private final ArrayList<Audio> audio = new ArrayList<>();   // a list of audio recordings
+    private final ArrayList<SvgData> svgs = new ArrayList<>();  // a list of SVG overlays
 
     /**
      * constructor
@@ -102,6 +104,21 @@ public class ProjectData {
                 try {
                     this.addAudio(new Audio(projectAudioData, basePath, this.getMsm()));
                 } catch (UnsupportedAudioFileException | IOException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+
+        // load SVG overlays
+        Element svgsElt = this.xml.getRootElement().getFirstChildElement("svgs");
+        if (svgsElt != null) {
+            Elements svgElts = svgsElt.getChildElements("svg");
+            for (int i = 0; i < svgElts.size(); ++i) {
+                String localSvgPath = svgElts.get(i).getAttributeValue("file");
+                if (localSvgPath == null) continue;
+                try {
+                    this.addSvg(new SvgData(new File(Tools.uniformPath(basePath + localSvgPath))));
+                } catch (nu.xom.ParsingException | IOException ex) {
                     ex.printStackTrace();
                 }
             }
@@ -347,6 +364,37 @@ public class ProjectData {
         this.audio.remove(index);
     }
 
+    // ---- SVG ----
+
+    /**
+     * Access the list of SVG overlays.
+     * @return list of SvgData
+     */
+    public synchronized ArrayList<SvgData> getSvgs() {
+        return this.svgs;
+    }
+
+    /**
+     * Add an SVG overlay to the project.
+     * @param svg the SvgData to add
+     * @return true if added, false if already present or null
+     */
+    public synchronized boolean addSvg(SvgData svg) {
+        if (svg == null)
+            return false;
+        if (this.svgs.contains(svg))
+            return false;
+        return this.svgs.add(svg);
+    }
+
+    /**
+     * Remove the SVG overlay at the given index.
+     * @param index list index
+     */
+    public synchronized void removeSvg(int index) {
+        this.svgs.remove(index);
+    }
+
     /**
      * Save the project under its already defined filename. If it is not defined (in this.xml) it returns false.
      * @return
@@ -421,6 +469,18 @@ public class ProjectData {
 
                 Element audioElt = aud.toXml(Paths.get(file.getParent()));
                 audios.appendChild(audioElt);
+            }
+        }
+
+        // store SVG overlays
+        if (!this.svgs.isEmpty()) {
+            Element svgsElt = new Element("svgs");
+            root.appendChild(svgsElt);
+            for (SvgData svg : this.svgs) {
+                Element svgElt = new Element("svg");
+                Path relativeSvgPath = Paths.get(file.getParent()).relativize(svg.getFile().toPath());
+                svgElt.addAttribute(new Attribute("file", relativeSvgPath.toString()));
+                svgsElt.appendChild(svgElt);
             }
         }
 

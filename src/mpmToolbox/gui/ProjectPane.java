@@ -20,6 +20,8 @@ import mpmToolbox.gui.audio.AudioDocumentData;
 import mpmToolbox.gui.mpmTree.MpmDockableFrame;
 import mpmToolbox.gui.mpmTree.MpmTree;
 import mpmToolbox.gui.msmTree.MsmTree;
+import mpmToolbox.gui.svgTree.SvgDockableFrame;
+import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.gui.score.ScoreDocumentData;
 import mpmToolbox.projectData.score.ScorePage;
@@ -46,6 +48,7 @@ public class ProjectPane extends WebDockablePane {
 
     private final MsmTree msmTree;
     private final MpmDockableFrame mpmDockableFrame;
+    private final SvgDockableFrame svgDockableFrame;
     private final WebDockableFrame playerFrame = new WebDockableFrame("playerFrame", "Sync Player");
     private SyncPlayer syncPlayer = null;
     private ScoreDocumentData scoreFrame = null;
@@ -62,6 +65,7 @@ public class ProjectPane extends WebDockablePane {
         this.data = new ProjectData(msm);
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
+        this.svgDockableFrame = new SvgDockableFrame(this);
         this.makeGUI();
     }
 
@@ -76,6 +80,7 @@ public class ProjectPane extends WebDockablePane {
         this.data = new ProjectData(midi.exportMsm());
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
+        this.svgDockableFrame = new SvgDockableFrame(this);
         this.makeGUI();
     }
 
@@ -92,6 +97,7 @@ public class ProjectPane extends WebDockablePane {
         this.data = new ProjectData(mei);
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
+        this.svgDockableFrame = new SvgDockableFrame(this);
         this.makeGUI();
     }
 
@@ -110,6 +116,7 @@ public class ProjectPane extends WebDockablePane {
         this.data = new ProjectData(file);
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
+        this.svgDockableFrame = new SvgDockableFrame(this);
         this.makeGUI();
     }
 
@@ -133,6 +140,7 @@ public class ProjectPane extends WebDockablePane {
 
         this.addFrame(this.msmTree.getDockableFrame());                     // add the MSM tree to the UI
         this.addFrame(this.mpmDockableFrame);                               // the MPM tree is displayed in a dockable pane
+        this.addFrame(this.svgDockableFrame);                               // the SVG tree is displayed in a dockable pane
 
         // fill the content pane in the center
 //        this.tabs.openDocument(new DocumentData<>("TestTab", "Test Tab", new WebButton("Test")));
@@ -357,6 +365,35 @@ public class ProjectPane extends WebDockablePane {
         Audio audio = this.getAudio().get(index);
         this.syncPlayer.removeAudio(audio);
         this.data.removeAudio(index);
+    }
+
+    /**
+     * access the SVG dockable frame
+     * @return
+     */
+    public SvgDockableFrame getSvgDockableFrame() {
+        return this.svgDockableFrame;
+    }
+
+    /**
+     * Add an SVG overlay to the project.
+     * @param svg
+     */
+    public void addSvg(SvgData svg) {
+        if (this.data.addSvg(svg)) {
+            this.svgDockableFrame.addSvg(svg);
+            this.repaintScoreDisplay();
+        }
+    }
+
+    /**
+     * Remove an SVG overlay from the project.
+     * @param index
+     */
+    public void removeSvg(int index) {
+        this.data.removeSvg(index);
+        this.svgDockableFrame.removeSvg(index);
+        this.repaintScoreDisplay();
     }
 
     /**

@@ -16,6 +16,7 @@ import meico.mpm.Mpm;
 import meico.msm.Msm;
 import meico.xml.XmlBase;
 import mpmToolbox.Main;
+import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.audio.Audio;
 import mpmToolbox.supplementary.Tools;
 import nu.xom.ParsingException;
@@ -357,6 +358,7 @@ public class MpmToolbox {
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("MIDI", "mid", "midi"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Audio files", "wav", "mp3"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Images", "pdf", "jpg", "jpeg", "png", "gif", "bmp"));
+        fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("SVG", "svg"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Soundfonts", "dls", "sf2"));
 
         if (this.projectPane != null)
@@ -474,6 +476,17 @@ public class MpmToolbox {
                         System.err.println("No project loaded to add the PDF pages.");
                     else {
                         this.projectPane.addScorePdf(file);
+                    }
+                    break;
+                case ".svg":
+                    if (this.projectPane == null)
+                        System.err.println("No project loaded to add the SVG.");
+                    else {
+                        try {
+                            this.projectPane.addSvg(new SvgData(file));
+                        } catch (nu.xom.ParsingException ex) {
+                            ex.printStackTrace();
+                        }
                     }
                     break;
                 case ".dls":

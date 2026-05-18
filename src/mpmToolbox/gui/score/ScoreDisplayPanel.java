@@ -15,6 +15,9 @@ import mpmToolbox.gui.mpmTree.MpmTreeNode;
 import mpmToolbox.gui.msmEditingTools.MsmEditingTools;
 import mpmToolbox.gui.msmTree.MsmTree;
 import mpmToolbox.gui.msmTree.MsmTreeNode;
+import mpmToolbox.gui.svgTree.SvgDockableFrame;
+import mpmToolbox.gui.svgTree.SvgTree;
+import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.projectData.score.ScoreNode;
 import mpmToolbox.projectData.score.ScorePage;
@@ -163,8 +166,54 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         Graphics2D g2 = (Graphics2D)g;                              // make g a Graphics2D object so we can use its extended drawing features
         g2.transform(this.affineTransform);                         // do the transform on the graphics
 
+        // draw light gray background exactly the size of the score image
+        {
+            int imgW = this.scorePage.getImage().getWidth(this);
+            int imgH = this.scorePage.getImage().getHeight(this);
+            g2.setColor(new Color(210, 210, 210));
+            g2.fillRect(0, 0, imgW, imgH);
+        }
+
         if (!this.parent.hideScore)
             g2.drawImage(this.scorePage.getImage(), 0, 0, this);    // draw image
+
+        // draw SVG overlays
+        if (!this.parent.hideOverlay) {
+            java.util.ArrayList<SvgData> svgs = this.parent.parent.getProjectData().getSvgs();
+            if (!svgs.isEmpty()) {
+                int imgW = this.scorePage.getImage().getWidth(this);
+                int imgH = this.scorePage.getImage().getHeight(this);
+                if (imgW > 0 && imgH > 0) {
+                    for (SvgData svg : svgs) {
+                        Composite originalComposite = g2.getComposite();
+                        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.65f));
+                        svg.render(g2, imgW, imgH);
+                        g2.setComposite(originalComposite);
+                    }
+
+                    // draw highlight rectangles for the selected SVG element (tree → score)
+                    for (SvgData svg : svgs) {
+                        nu.xom.Element highlighted = svg.getHighlightedElement();
+                        if (highlighted == null)
+                            continue;
+                        String id = highlighted.getAttributeValue("id");
+                        if (id == null || id.isEmpty())
+                            continue;
+                        java.awt.geom.Rectangle2D bounds = svg.getBoundsInImageSpace(id, imgW, imgH);
+                        if (bounds == null || bounds.getWidth() <= 0 || bounds.getHeight() <= 0)
+                            continue;
+                        Composite savedComp = g2.getComposite();
+                        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.45f));
+                        g2.setColor(new Color(255, 200, 0));   // amber fill
+                        g2.fill(bounds);
+                        g2.setComposite(savedComp);
+                        g2.setColor(new Color(255, 160, 0));   // amber outline
+                        g2.setStroke(new BasicStroke(2.0f));
+                        g2.draw(bounds);
+                    }
+                }
+            }
+        }
 
         // draw the overlay information
         if (this.parent.hideOverlay)
@@ -553,8 +602,33 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         // it was a click into the score (mouseClicked() also fires) and the user might have selected something
         Element selectedElement = this.getOverlayElementAt(mouseEvent);         // get the overlay element that the mouse click selects
         if (selectedElement == null) {                                          // click was over nothing
-            this.parent.parent.getMsmTree().clearSelection();                   // deselect anything in the MSM tree
-            this.parent.parent.getMpmTree().clearSelection();                   // deselect anything in the MPM tree
+            // Score → SVG Tree: try to pick an SVG element at this position
+            Point mousePoint = this.mouse2PixelPosition(mouseEvent);
+            int imgW = this.scorePage.getImage().getWidth(this);
+            int imgH = this.scorePage.getImage().getHeight(this);
+            boolean svgHit = false;
+            if (imgW > 0 && imgH > 0) {
+                SvgDockableFrame svgFrame = this.parent.parent.getSvgDockableFrame();
+                java.util.ArrayList<SvgData> svgs = this.parent.parent.getProjectData().getSvgs();
+                for (SvgData svg : svgs) {
+                    nu.xom.Element picked = svg.pickElementAt(mousePoint.x, mousePoint.y, imgW, imgH);
+                    if (picked != null) {
+                        svg.setHighlightedElement(picked);
+                        // select in the SVG tree (activate the frame's tab for this SVG first)
+                        SvgTree svgTree = svgFrame.getTreeForSvg(svg);
+                        if (svgTree != null) {
+                            svgFrame.showTabForSvg(svg);
+                            svgTree.selectNodeForElement(picked);
+                        }
+                        svgHit = true;
+                        break;
+                    }
+                }
+            }
+            if (!svgHit) {
+                this.parent.parent.getMsmTree().clearSelection();               // deselect anything in the MSM tree
+                this.parent.parent.getMpmTree().clearSelection();               // deselect anything in the MPM tree
+            }
             this.repaint();
             return;
         }
