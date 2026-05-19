@@ -67,13 +67,13 @@ public class MpmToolbox {
             public void run() {
                 MpmToolbox self = MpmToolbox.this;
 
-                WebLookAndFeel.globalControlFont = new Font("Open Sans", Font.PLAIN, 20);
-                WebLookAndFeel.globalTextFont    = new Font("Open Sans", Font.PLAIN, 20);
-                WebLookAndFeel.globalMenuFont    = new Font("Open Sans", Font.PLAIN, 20);
-                WebLookAndFeel.globalWindowFont    = new Font("Open Sans", Font.PLAIN, 20);
-                WebLookAndFeel.globalMessageFont    = new Font("Open Sans", Font.PLAIN, 20);
-                WebLookAndFeel.globalMenuSmallFont    = new Font("Open Sans", Font.PLAIN, 20);
-                WebLookAndFeel.globalTooltipFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalControlFont = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalTextFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalMenuFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalWindowFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalMessageFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalMenuSmallFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalTooltipFont    = new Font("Open Sans", Font.PLAIN, 20);
 
                 WebLookAndFeel.install(WebDarkSkin.class);                                          // Install WebLaF as application L&F
 //                WebLookAndFeel.install(WebLightSkin.class);
