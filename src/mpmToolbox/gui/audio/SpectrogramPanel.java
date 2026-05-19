@@ -173,6 +173,8 @@ public class SpectrogramPanel extends PianoRollPanel {
         switch (e.getButton()) {
             case MouseEvent.BUTTON1:                    // left click
                 super.mouseClicked(e);                  // select a note
+                if (e.isAltDown())
+                    this.parent.getParent().getSyncPlayer().triggerPlayback(this.parent.getSampleIndex(e.getPoint().getX()));
                 break;
             case MouseEvent.BUTTON3:                    // right click = context menu
                 WebPopupMenu menu = this.getContextMenu(e);

@@ -67,6 +67,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     private Font performanceSymbolFont = WebLookAndFeel.globalWindowFont.deriveFont(Font.BOLD, (float) (72.0 * this.xWidth / Toolkit.getDefaultToolkit().getScreenResolution()));
 
     protected ScoreNode anchorNode = null;                                  // in some modes (edit performance mode) we track the nearest neighboring overlay node to the mouse position and store it in this variable
+    private Element draggedElement = null;                                  // in selectEdit mode: the element whose anchor is currently being dragged
+    private final Point2D.Double anchorDragOffset = new Point2D.Double(0, 0); // in selectEdit mode: pixel offset from click point to anchor centre (keeps the anchor from snapping its centre to the cursor)
 
     /**
      * constructor
@@ -255,6 +257,29 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 //                    g2.fill(ScoreDisplayPanel.drawDiamond(this.getMousePositionInImage().x, this.getMousePositionInImage().y, this.xWidth, this.xWidth));
                     break;
 
+                case selectEdit:
+                    // draw a selection ring around the nearest draggable anchor (hover feedback)
+                    if (this.anchorNode != null) {
+                        g2.setColor(Settings.editColorHighlighted);
+                        int r = this.xWidth / 2 + 4;
+                        g2.drawOval((int) this.anchorNode.getX() - r, (int) this.anchorNode.getY() - r, 2 * r, 2 * r);
+                    }
+                    // if dragging, draw the element preview at the mouse position with the original grab offset preserved
+                    if (this.draggedElement != null) {
+                        g2.setColor(Settings.editColor);
+                        // apply the grab offset so the anchor does not snap its centre to the cursor
+                        int px = (int) (this.getMousePositionInImage().x + this.anchorDragOffset.x);
+                        int py = (int) (this.getMousePositionInImage().y + this.anchorDragOffset.y);
+                        if (this.draggedElement.getLocalName().equals("note")) {
+                            g2.fillOval(px - this.xOffset, py - this.yOffset, this.xWidth, this.yWidth);
+                        } else if (this.draggedElement.getLocalName().equals("style")) {
+                            g2.fill(Tools.generateDiamondShape(px, py, this.xWidth, this.xWidth));
+                        } else {
+                            g2.fillRect(px - this.xOffset, py - this.xOffset, this.xWidth, this.xWidth);
+                        }
+                    }
+                    break;
+
                 default:
                     break;
             }
@@ -268,6 +293,10 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         for (Map.Entry<Element, ScoreNode> overlayElement : this.scorePage.getAllEntries().entrySet()) {    // go through all overlay elements on the score page
             Element element = overlayElement.getKey();                                                      // get the data of the overlay element
             ONGNode p = overlayElement.getValue();                                                          // get the ONGNode ()
+
+            // in selectEdit mode, the dragged element is drawn at the mouse position (see above), not at its stored position
+            if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit && element == this.draggedElement)
+                continue;
 
             if (element.getLocalName().equals("note")) {    // draw a note overlay
                 if (element == selectedMsmNode) {
@@ -798,6 +827,27 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     }
 
     /**
+     * In selectEdit mode: update anchorNode to the nearest overlay element only if the cursor is
+     * close enough to grab it. Also updates the mouse cursor accordingly.
+     * @param point2D the current mouse position in image coordinates
+     */
+    private void updateAnchorForSelectEdit(Point2D point2D) {
+        if (this.scorePage.isEmpty()) {
+            this.anchorNode = null;
+            this.setCursor(Cursor.getDefaultCursor());
+            return;
+        }
+        KeyValue<ONGNode, Double> nearest = this.scorePage.findNearestNeighborOf(point2D.getX(), point2D.getY());
+        if (nearest != null && (Math.sqrt(nearest.getValue()) * 2.0) <= this.xWidth) {
+            this.anchorNode = (ScoreNode) nearest.getKey();
+            this.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        } else {
+            this.anchorNode = null;
+            this.setCursor(Cursor.getDefaultCursor());
+        }
+    }
+
+    /**
      * convert the mouse position to the pixel position on the image
      * @param mouseEvent
      * @return
@@ -824,41 +874,28 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     public void mousePressed(MouseEvent mouseEvent) {
         this.requestFocusInWindow();    // obtain focus on mouse press
 
-//        switch (this.parent.currentInteractionMode) {
-//            case markNotes:
-//                if (mouseEvent.isControlDown())                                         // if CTRL is pressed we are in pan & zoom mode
-//                    break;                                                              // done
-//                switch (mouseEvent.getButton()) {
-////                    case MouseEvent.BUTTON1:                                            // left click
-////                        this.noteAnnotationCursorColor = Settings.scoreNoteColor;
-////                        break;
-//                    case MouseEvent.BUTTON3:                                            // right click deletes (at mouseRelease) an entry in the score, so change the cursor color accordingly
-//                    default:
-//                        break;
-//                }
-//                this.repaint();
-//                break;
-//
-//            case editPerformance:
-////                if (mouseEvent.isControlDown())                                         // if CTRL is pressed we are in pan & zoom mode
-////                    break;                                                              // done
-////                switch (mouseEvent.getButton()) {
-//////                    case MouseEvent.BUTTON1:                                            // left click
-//////                        this.noteAnnotationCursorColor = Settings.scoreNoteColor;
-//////                        break;
-////                    case MouseEvent.BUTTON3:                                            // right click deletes (at mouseRelease) an entry in the score, so change the cursor color accordingly
-////                        this.noteAnnotationCursorColor = Settings.scoreNoteDeleteColor;
-////                        break;
-////                    default:
-////                        break;
-////                }
-////                this.repaint();
-//                break;
-//
-//            case panAndZoom:
-//            default:
-//                break;
-//        }
+        // in selectEdit mode: pick up the nearest anchor on left-click
+        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
+                && mouseEvent.getButton() == MouseEvent.BUTTON1
+                && !mouseEvent.isControlDown()) {
+            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
+            Element elt = this.getOverlayElementAt(mouseEvent);
+            if (elt != null) {
+                this.draggedElement = elt;                          // mark for dragging
+                // compute the pixel offset from the click point to the anchor's stored centre
+                // so that the anchor does not snap its centre to the cursor while dragging
+                if (this.anchorNode != null) {
+                    Point clickPos = this.getMousePositionInImage();
+                    this.anchorDragOffset.setLocation(
+                            this.anchorNode.getX() - clickPos.x,
+                            this.anchorNode.getY() - clickPos.y);
+                } else {
+                    this.anchorDragOffset.setLocation(0.0, 0.0);
+                }
+                this.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                this.repaint();
+            }
+        }
     }
 
     /**
@@ -867,6 +904,45 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseReleased(MouseEvent mouseEvent) {
+        // selectEdit mode: complete an element drag on left-button release
+        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
+                && this.draggedElement != null
+                && mouseEvent.getButton() == MouseEvent.BUTTON1) {
+            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
+            // move the anchor to the new position, applying the same grab offset so the
+            // anchor centre lands where the user expects it (not at the raw cursor position)
+            double targetX = this.getMousePositionInImage().getX() + this.anchorDragOffset.x;
+            double targetY = this.getMousePositionInImage().getY() + this.anchorDragOffset.y;
+            this.scorePage.addEntry(targetX, targetY, this.draggedElement);
+
+            // select the corresponding tree node and scroll it into view
+            if (this.draggedElement.getLocalName().equals("note")) {
+                MsmTree msmTree = this.parent.parent.getMsmTree();
+                MsmTreeNode msmTreeNode = msmTree.findNode(this.draggedElement, true);
+                if (msmTreeNode != null) {
+                    msmTree.updateNode(msmTreeNode);                        // refresh label (green dot)
+                    msmTree.setSelectedNode(msmTreeNode);                   // select in tree
+                    msmTree.scrollPathToVisible(msmTreeNode.getTreePath()); // scroll into view
+                }
+            } else {
+                MpmTree mpmTree = this.parent.parent.getMpmTree();
+                if (mpmTree != null) {
+                    MpmTreeNode mpmTreeNode = mpmTree.findNode(this.draggedElement, true);
+                    if (mpmTreeNode != null) {
+                        mpmTree.setSelectedNode(mpmTreeNode);                   // select in tree
+                        mpmTree.scrollPathToVisible(mpmTreeNode.getTreePath()); // scroll into view
+                    }
+                }
+            }
+
+            this.draggedElement = null;
+            // restore hover cursor / ring
+            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
+            this.updateAnchorForSelectEdit(this.getMousePositionInImage());
+            this.repaint();
+            return;
+        }
+
         if (mouseEvent.isControlDown() || (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.panAndZoom) || (this.dragStartPoint != null)) {   // if we are in pan mode or in the midst of a drag gesture (dragStartPoint != null)
             this.dragOrSelectGesture(mouseEvent);                                       // perform the drag
             return;                                                                     // done
@@ -964,7 +1040,13 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                 this.updateAnchor(this.getMousePositionInImage());
                 this.repaint();
                 break;
-
+            case selectEdit:
+                this.draggedElement = null;
+                this.anchorDragOffset.setLocation(0.0, 0.0);
+                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
+                this.updateAnchorForSelectEdit(this.getMousePositionInImage());
+                this.repaint();
+                break;
             case panAndZoom:
             default:
                 this.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
@@ -981,6 +1063,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         if ((this.parent.currentInteractionMode != ScoreDocumentData.InteractionMode.panAndZoom) && !mouseEvent.isControlDown()) {
             this.setMousePositionInImage(null);
             this.anchorNode = null;
+            this.draggedElement = null;
+            this.anchorDragOffset.setLocation(0.0, 0.0);
             this.repaint();
         }
     }
@@ -991,23 +1075,18 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseDragged(MouseEvent mouseEvent) {
-        // panning should work in all interaction modes; once dragImage() has set variable this.dragStartPoint non-null, method mouseReleased() will treat the mouse button release as the end of the drag gesture, not a click
-//        if ((this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.panAndZoom) || mouseEvent.isControlDown()) {   // in pan and zoom mode do this
-            this.setMousePositionInImage(null);
-            this.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));                         // set the drag cursor
-            this.dragImage(mouseEvent.getLocationOnScreen());
-//            return;
-//        }
-//
-//        // in performance mode, the anchor note stays fixed and we can drag the position even closer to other nodes
-//        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.editPerformance) {
-//            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-//            this.repaint();
-//            return;
-//        }
+        // in selectEdit mode: if an element is picked up, move the preview – do NOT pan the image
+        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit && this.draggedElement != null) {
+            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+            this.repaint();
+            return;
+        }
 
-//        this.mousePositionInImage = this.mouse2PixelPosition(mouseEvent);
-//        this.repaint();
+        // panning should work in all interaction modes; once dragImage() has set variable this.dragStartPoint non-null, method mouseReleased() will treat the mouse button release as the end of the drag gesture, not a click
+        this.setMousePositionInImage(null);
+        this.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));                         // set the drag cursor
+        this.dragImage(mouseEvent.getLocationOnScreen());
     }
 
     /**
@@ -1032,6 +1111,12 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                 this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
                 if (!this.scorePage.isEmpty())
                     this.updateAnchor(this.getMousePositionInImage());
+                this.repaint();
+                break;
+
+            case selectEdit:
+                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
+                this.updateAnchorForSelectEdit(this.getMousePositionInImage());
                 this.repaint();
                 break;
 
@@ -1152,7 +1237,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 //                }
 //                break;
             case KeyEvent.VK_CONTROL:
-                if ((this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.markNotes) || (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.editPerformance)) {
+                if ((this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.markNotes)
+                        || (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.editPerformance)
+                        || (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit)) {
                     this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
                 }
                 break;

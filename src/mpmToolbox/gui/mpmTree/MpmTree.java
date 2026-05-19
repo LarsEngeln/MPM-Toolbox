@@ -40,6 +40,7 @@ public class MpmTree extends WebExTree<MpmTreeNode> implements MouseListener, /*
 //        this.setStyleId(StyleId.treeTransparent);
 
 //        this.addTreeSelectionListener(this);
+        this.setToggleClickCount(0);
         this.treeModel.addTreeModelListener(this);
         this.addMouseListener(this);
     }
@@ -200,7 +201,20 @@ public class MpmTree extends WebExTree<MpmTreeNode> implements MouseListener, /*
             return;
         }
         if (SwingUtilities.isLeftMouseButton(mouseEvent)) {     // if left click
-            if (mouseEvent.getClickCount() > 1) {               // if double (or more) click -> open editor dialog
+            if(mouseEvent.getClickCount() == 1) {
+                int row = this.getRowForLocation(mouseEvent.getX(), mouseEvent.getY());
+                if (row != -1) {
+                    TreePath path = this.getPathForRow(row);
+
+                    if (this.isExpanded(path)) {
+                        this.collapsePath(path);
+                    } else {
+                        this.expandPath(path);
+                    }
+                }
+
+            }
+            else if (mouseEvent.getClickCount() > 1) {               // if double (or more) click -> open editor dialog
                 MpmTreeNode node = this.getSelectedNode();      // get the node that has been double-clicked
                 node.openEditorDialog(this);
             }
