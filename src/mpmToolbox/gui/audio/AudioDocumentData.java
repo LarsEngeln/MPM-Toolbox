@@ -32,6 +32,7 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.util.ArrayList;
 
 /**
  * A custom DocumentData object for the audio analysis component.
@@ -45,9 +46,13 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
     private final SpectrogramPanel spectrogram;
     private final TempoMapPanel tempoMap;
 
-    private int channelNumber = -1;                                 // index of the waveform/channel to be rendered to image; -1 means all channels
-    private long leftmostSample = -1;                                // index of the first sample to be rendered to image
-    private long rightmostSample = -1;                               // index of the last sample to be rendered to image
+    private final ArrayList<AnnotationData> annotations = new ArrayList<>();  // all loaded annotation datasets
+
+    private int channelNumber = -1;                                     // index of the waveform/channel to be rendered to image; -1 means all channels
+    private long leftmostSample = -1;                                   // index of the first sample to be rendered to image
+    private long rightmostSample = -1;                                  // index of the last sample to be rendered to image
+    private long leftmostMillisecond = -1;                              // the millisecond of the leftmost sample
+    private long rightmostMillisecond = -1;                             // the millisecond of the rightmost sample
     private double leftmostTick = 0.0;
     private double rightmostTick;
 
@@ -396,6 +401,39 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         return this.tempoMap;
     }
 
+
+    /**
+     * Returns all annotation datasets held by this audio frame.
+     * @return the list of AnnotationData objects
+     */
+    public ArrayList<AnnotationData> getAnnotations() {
+        return this.annotations;
+    }
+
+    /**
+     * Add an annotation dataset and refresh the panel.
+     * @param data the AnnotationData to add
+     */
+    public void addAnnotation(AnnotationData data) {
+        if (data == null) return;
+        this.annotations.add(data);
+    }
+
+    /**
+     * Replace the rows of an existing annotation dataset and refresh the panel.
+     * @param target   the existing dataset to update
+     * @param newData  the new data (rows and columns are copied from this)
+     */
+    public void replaceAnnotation(AnnotationData target, AnnotationData newData) {
+        if (target == null || newData == null) return;
+        // replace all lines (carries both metadata and values)
+        for (int i = 0; i < Math.min(target.getLineCount(), newData.getLineCount()); i++)
+            target.setLine(i, newData.getLine(i));
+        // if newData has more lines, append them
+        for (int i = target.getLineCount(); i < newData.getLineCount(); i++)
+            target.addLine(newData.getLine(i));
+    }
+
     /**
      * The sequence at which the child components update their visualizations is important.
      * This method takes care of it.
@@ -584,6 +622,15 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
      */
     public void setLeftmostSample(long leftmostSample) {
         this.leftmostSample = leftmostSample;
+        this.leftmostMillisecond = (long) ((this.leftmostSample / (double) this.getAudio().getFrameRate()) * 1000.0);
+    }
+
+    /**
+     * a getter for the millisecond of the leftmost sample to be displayed
+     * @return
+     */
+    public long getLeftmostMillisecond() {
+        return this.leftmostMillisecond;
     }
 
     /**
@@ -600,6 +647,15 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
      */
     public void setRightmostSample(long rightmostSample) {
         this.rightmostSample = rightmostSample;
+        this.rightmostMillisecond = (long) ((this.rightmostSample / (double) this.getAudio().getFrameRate()) * 1000.0);
+    }
+
+    /**
+     * a getter for the millisecond of the rightmost sample to be displayed
+     * @return
+     */
+    public long getRightmostMillisecond() {
+        return this.rightmostMillisecond;
     }
 
     /**

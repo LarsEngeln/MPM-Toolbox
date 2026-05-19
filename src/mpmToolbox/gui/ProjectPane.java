@@ -10,13 +10,13 @@ import com.alee.laf.panel.WebPanel;
 import com.alee.managers.style.StyleId;
 import meico.mei.Mei;
 import meico.midi.Midi;
-import meico.midi.MidiPlayer;
 import meico.mpm.Mpm;
-import meico.mpm.elements.Performance;
 import meico.msm.Msm;
 import mpmToolbox.projectData.audio.Audio;
 import mpmToolbox.projectData.ProjectData;
+import mpmToolbox.gui.audio.AnnotationData;
 import mpmToolbox.gui.audio.AudioDocumentData;
+import mpmToolbox.gui.audio.utilities.CsvImportDialog;
 import mpmToolbox.gui.mpmTree.MpmDockableFrame;
 import mpmToolbox.gui.mpmTree.MpmTree;
 import mpmToolbox.gui.msmTree.MsmTree;
@@ -394,6 +394,33 @@ public class ProjectPane extends WebDockablePane {
         this.data.removeSvg(index);
         this.svgDockableFrame.removeSvg(index);
         this.repaintScoreDisplay();
+    }
+
+    /**
+     * Load annotation data from a CSV file into the AnnotationPanel.
+     * Opens a dialog to let the user configure column types and units.
+     * @param file the CSV file
+     */
+    public void loadAnnotationCsv(File file) {
+        CsvImportDialog dialog = new CsvImportDialog(file, this.audioFrame.getAnnotations());
+        if (!dialog.showDialog())
+            return;
+
+        AnnotationData built = dialog.buildAnnotationData();
+        if (built == null) {
+            System.err.println("No valid annotation data found in " + file.getAbsolutePath());
+            return;
+        }
+
+        System.out.println("Loaded " + built.getRowCount() + " rows from " + file.getAbsolutePath());
+
+        AnnotationData target = dialog.getTargetAnnotationData();
+        if (target != null)
+            this.audioFrame.replaceAnnotation(target, built);
+        else
+            this.audioFrame.addAnnotation(built);
+
+        this.tabs.setSelected(this.audioFrame);
     }
 
     /**

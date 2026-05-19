@@ -41,6 +41,8 @@ public class WaveformPanel extends PianoRollPanel {
         this.drawPianoRoll(g2);
         this.drawPlaybackCursor(g2);
 
+        this.paintAnnotations(g2);
+
         // draw the mouse cursor
         if (this.drawMouseCursor(g2)) {
             // print info text
@@ -49,6 +51,7 @@ public class WaveformPanel extends PianoRollPanel {
             g2.setColor(Color.LIGHT_GRAY);
             g2.drawString("Sample No.: " + sampleIndex, 2, Settings.getDefaultFontSize());
             g2.drawString("Milliseconds: " + millisec, 2, Settings.getDefaultFontSize() * 2.25f);
+            this.paintAnnotationMouseInfo(g2, millisec);
         }
     }
 

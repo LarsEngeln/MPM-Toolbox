@@ -357,6 +357,7 @@ public class MpmToolbox {
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("XML", "xml"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("MIDI", "mid", "midi"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Audio files", "wav", "mp3"));
+        fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Annotations", "csv"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Images", "pdf", "jpg", "jpeg", "png", "gif", "bmp"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("SVG", "svg"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Soundfonts", "dls", "sf2"));
@@ -458,6 +459,12 @@ public class MpmToolbox {
                         System.err.println("No project loaded to add the audio.");
                     else
                         this.projectPane.addAudio(new Audio(file, this.getProjectPane().getMsm()));
+                    break;
+                case ".csv":
+                    if (this.projectPane == null)
+                        System.err.println("No project loaded to add the annotation data.");
+                    else
+                        this.projectPane.loadAnnotationCsv(file);
                     break;
                 case ".jpg":
                 case ".jpeg":

@@ -21,7 +21,7 @@ import java.awt.event.*;
  * It is also the basis of classes WaveformPanel and SpectrogramPanel.
  * @author Axel Berndt
  */
-public class PianoRollPanel extends WebPanel implements ComponentListener, MouseListener, MouseMotionListener, MouseWheelListener {
+public class PianoRollPanel extends AnnotationPanel implements ComponentListener, MouseListener, MouseMotionListener, MouseWheelListener {
     public final AudioDocumentData parent;                  // the container
     protected final WebLabel noData;                        // to be displayed when no data is there to be visualized
     protected Integer mousePositionY = null;                  // if the mouse is in this panel, this is set to its y pixel coordinate
@@ -41,7 +41,7 @@ public class PianoRollPanel extends WebPanel implements ComponentListener, Mouse
      * @param noDataText
      */
     protected PianoRollPanel(AudioDocumentData parent, String noDataText) {
-        super();
+        super(parent);
         this.parent = parent;
 
         this.noData = new WebLabel(noDataText, WebLabel.CENTER);
@@ -236,6 +236,8 @@ public class PianoRollPanel extends WebPanel implements ComponentListener, Mouse
             this.parent.getParent().getSyncPlayer().triggerPlayback(this.parent.getSampleIndex(e.getPoint().getX()));
         });
         menu.add(playFromHere);
+
+        this.appendAnnotationMenu(menu);
 
         return menu;
     }
