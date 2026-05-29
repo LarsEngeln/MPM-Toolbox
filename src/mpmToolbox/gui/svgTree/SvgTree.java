@@ -8,6 +8,8 @@ import nu.xom.Element;
 
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 /**
  * A WebExTree that displays the XML structure of an SVG document.
@@ -46,6 +48,32 @@ public class SvgTree extends WebExTree<SvgTreeNode> {
                 }
             }
             projectPane.repaintScoreDisplay();
+        });
+
+        // Tree → Score: when the mouse hovers over a node, set the hovered element
+        // so the score display can draw a small hotpink indicator rectangle.
+        this.addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                TreePath path = getPathForLocation(e.getX(), e.getY());
+                if (path == null) {
+                    svgData.setHoveredElement(null);
+                } else {
+                    SvgTreeNode node = getNodeForPath(path);
+                    if (node != null && node.getUserObject() instanceof Element) {
+                        svgData.setHoveredElement((Element) node.getUserObject());
+                    } else {
+                        svgData.setHoveredElement(null);
+                    }
+                }
+                projectPane.repaintScoreDisplay();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                svgData.setHoveredElement(null);
+                projectPane.repaintScoreDisplay();
+            }
         });
     }
 

@@ -20,47 +20,49 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
         implements TextBridge<TreeNodeParameters<SvgTreeNode, WebExTree<SvgTreeNode>>> {
 
     @NotNull protected String name;
-    @NotNull protected final SvgNodeType type;
 
     /**
      * Constructor for element nodes.
-     * @param element the SVG XML element
      */
     public SvgTreeNode(@NotNull Element element) {
         super(element);
-        this.type = SvgNodeType.fromElement(element);
         this.generateMyName();
     }
 
     /**
      * Constructor for attribute nodes.
-     * @param attribute the SVG XML attribute
      */
     public SvgTreeNode(@NotNull Attribute attribute) {
         super(attribute);
-        this.type = SvgNodeType.attribute;
         this.generateMyName();
     }
 
     // -------------------------------------------------------------------------
-    // name generation – analogous to MpmTreeNode.generateMyName()
-    // -------------------------------------------------------------------------
 
     private void generateMyName() {
-        switch (this.type) {
+        Node obj = this.getUserObject();
 
-            case svg: {
-                Element e = (Element) this.getUserObject();
-                String w = e.getAttributeValue("width");
-                String h = e.getAttributeValue("height");
+        if (obj instanceof Attribute) {
+            Attribute a = (Attribute) obj;
+            String val = a.getValue();
+            if (val.length() > 60) val = val.substring(0, 60) + "…";
+            this.name = "<html><font color=\"silver\">@</font>  "
+                    + a.getLocalName()
+                    + " <font color=\"silver\">= " + val + "</font></html>";
+            return;
+        }
+
+        Element e = (Element) obj;
+        String localName = e.getLocalName();
+
+        switch (localName) {
+            case "svg": {
                 this.name = "<html><font size=\"-2\" color=\"silver\">&lt;/&gt;</font></html>";
                 break;
             }
-
-            case g: {
-                Element e = (Element) this.getUserObject();
+            case "g": {
                 String id    = e.getAttributeValue("id");
-                String label = e.getAttributeValue("label");          // inkscape:label lives in a namespace – fallback
+                String label = e.getAttributeValue("label");
                 if (label == null) label = e.getAttributeValue("label", "http://www.inkscape.org/namespaces/inkscape");
                 String display = (label != null) ? label : (id != null ? id : "");
                 this.name = "<html><b>g</b>"
@@ -68,17 +70,14 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case path: {
-                Element e = (Element) this.getUserObject();
+            case "path": {
                 String id = e.getAttributeValue("id");
-                this.name = "path" + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "");
-                this.name = "<html>" + this.name + "</html>";
+                this.name = "<html>path"
+                        + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "")
+                        + "</html>";
                 break;
             }
-
-            case rect: {
-                Element e = (Element) this.getUserObject();
+            case "rect": {
                 String w = e.getAttributeValue("width");
                 String h = e.getAttributeValue("height");
                 String id = e.getAttributeValue("id");
@@ -88,9 +87,7 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case circle: {
-                Element e = (Element) this.getUserObject();
+            case "circle": {
                 String r  = e.getAttributeValue("r");
                 String id = e.getAttributeValue("id");
                 this.name = "<html>circle"
@@ -99,9 +96,7 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case ellipse: {
-                Element e = (Element) this.getUserObject();
+            case "ellipse": {
                 String rx = e.getAttributeValue("rx");
                 String ry = e.getAttributeValue("ry");
                 String id = e.getAttributeValue("id");
@@ -111,9 +106,7 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case line: {
-                Element e = (Element) this.getUserObject();
+            case "line": {
                 String x1 = e.getAttributeValue("x1"), y1 = e.getAttributeValue("y1");
                 String x2 = e.getAttributeValue("x2"), y2 = e.getAttributeValue("y2");
                 this.name = "<html>line"
@@ -121,19 +114,15 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case polyline:
-            case polygon: {
-                Element e = (Element) this.getUserObject();
+            case "polyline":
+            case "polygon": {
                 String id = e.getAttributeValue("id");
-                this.name = "<html>" + e.getLocalName()
+                this.name = "<html>" + localName
                         + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "")
                         + "</html>";
                 break;
             }
-
-            case text: {
-                Element e = (Element) this.getUserObject();
+            case "text": {
                 String value = e.getValue().trim();
                 if (value.length() > 40) value = value.substring(0, 40) + "…";
                 this.name = "<html>text"
@@ -141,9 +130,7 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case tspan: {
-                Element e = (Element) this.getUserObject();
+            case "tspan": {
                 String value = e.getValue().trim();
                 if (value.length() > 40) value = value.substring(0, 40) + "…";
                 this.name = "<html>tspan"
@@ -151,10 +138,7 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case image: {
-                Element e = (Element) this.getUserObject();
-                // href / xlink:href
+            case "image": {
                 String href = e.getAttributeValue("href");
                 if (href == null) href = e.getAttributeValue("href", "http://www.w3.org/1999/xlink");
                 String id = e.getAttributeValue("id");
@@ -164,9 +148,7 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case use: {
-                Element e = (Element) this.getUserObject();
+            case "use": {
                 String href = e.getAttributeValue("href");
                 if (href == null) href = e.getAttributeValue("href", "http://www.w3.org/1999/xlink");
                 this.name = "<html>use"
@@ -174,79 +156,14 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case defs:
-                this.name = "defs";
-                break;
-
-            case symbol: {
-                Element e = (Element) this.getUserObject();
-                String id = e.getAttributeValue("id");
-                this.name = "symbol" + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "");
-                this.name = "<html>" + this.name + "</html>";
-                break;
-            }
-
-            case linearGradient:
-            case radialGradient: {
-                Element e = (Element) this.getUserObject();
-                String id = e.getAttributeValue("id");
-                this.name = "<html>" + e.getLocalName()
-                        + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "")
-                        + "</html>";
-                break;
-            }
-
-            case stop: {
-                Element e = (Element) this.getUserObject();
-                String offset = e.getAttributeValue("offset");
-                this.name = "stop" + (offset != null ? " " + offset : "");
-                break;
-            }
-
-            case clipPath: {
-                Element e = (Element) this.getUserObject();
-                String id = e.getAttributeValue("id");
-                this.name = "clipPath" + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "");
-                this.name = "<html>" + this.name + "</html>";
-                break;
-            }
-
-            case mask: {
-                Element e = (Element) this.getUserObject();
-                String id = e.getAttributeValue("id");
-                this.name = "mask" + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "");
-                this.name = "<html>" + this.name + "</html>";
-                break;
-            }
-
-            case filter: {
-                Element e = (Element) this.getUserObject();
-                String id = e.getAttributeValue("id");
-                this.name = "filter" + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "");
-                this.name = "<html>" + this.name + "</html>";
-                break;
-            }
-
-            case pattern: {
-                Element e = (Element) this.getUserObject();
-                String id = e.getAttributeValue("id");
-                this.name = "pattern" + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "");
-                this.name = "<html>" + this.name + "</html>";
-                break;
-            }
-
-            case title: {
-                Element e = (Element) this.getUserObject();
+            case "title": {
                 String value = e.getValue().trim();
                 this.name = "<html>title"
                         + (value.isEmpty() ? "" : "  <font color=\"silver\">\"" + value + "\"</font>")
                         + "</html>";
                 break;
             }
-
-            case desc: {
-                Element e = (Element) this.getUserObject();
+            case "desc": {
                 String value = e.getValue().trim();
                 if (value.length() > 60) value = value.substring(0, 60) + "…";
                 this.name = "<html>desc"
@@ -254,23 +171,11 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                         + "</html>";
                 break;
             }
-
-            case attribute: {
-                Attribute a = (Attribute) this.getUserObject();
-                String val = a.getValue();
-                if (val.length() > 60) val = val.substring(0, 60) + "…";
-                this.name = "<html><font color=\"silver\">@</font>  "
-                        + a.getLocalName()
-                        + " <font color=\"silver\">= " + val + "</font></html>";
-                break;
-            }
-
-            case element:
             default: {
-                // generic element: show local name + optional id
-                Element e = (Element) this.getUserObject();
+                // all other elements (defs, symbol, linearGradient, radialGradient,
+                // stop, clipPath, mask, filter, pattern, …): show localName + optional id
                 String id = e.getAttributeValue("id");
-                this.name = "<html>" + e.getLocalName()
+                this.name = "<html>" + localName
                         + (id != null ? "  <font color=\"silver\">#" + id + "</font>" : "")
                         + "</html>";
                 break;
@@ -298,10 +203,6 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
         return null;
     }
 
-    public SvgNodeType getType() {
-        return this.type;
-    }
-
     /**
      * Tooltip text showing the raw XML of this node.
      */
@@ -319,71 +220,5 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
     @Override
     public String toString() {
         return this.name;
-    }
-
-    // -------------------------------------------------------------------------
-    // Node-type enum
-    // -------------------------------------------------------------------------
-
-    public enum SvgNodeType {
-        svg,
-        g,
-        path,
-        rect,
-        circle,
-        ellipse,
-        line,
-        polyline,
-        polygon,
-        text,
-        tspan,
-        image,
-        use,
-        defs,
-        symbol,
-        linearGradient,
-        radialGradient,
-        stop,
-        clipPath,
-        mask,
-        filter,
-        pattern,
-        title,
-        desc,
-        attribute,
-        element;    // catch-all for unknown elements
-
-        /**
-         * Resolve a type from an SVG element's local name.
-         */
-        public static SvgNodeType fromElement(@NotNull Element e) {
-            switch (e.getLocalName()) {
-                case "svg":            return svg;
-                case "g":              return g;
-                case "path":           return path;
-                case "rect":           return rect;
-                case "circle":         return circle;
-                case "ellipse":        return ellipse;
-                case "line":           return line;
-                case "polyline":       return polyline;
-                case "polygon":        return polygon;
-                case "text":           return text;
-                case "tspan":          return tspan;
-                case "image":          return image;
-                case "use":            return use;
-                case "defs":           return defs;
-                case "symbol":         return symbol;
-                case "linearGradient": return linearGradient;
-                case "radialGradient": return radialGradient;
-                case "stop":           return stop;
-                case "clipPath":       return clipPath;
-                case "mask":           return mask;
-                case "filter":         return filter;
-                case "pattern":        return pattern;
-                case "title":          return title;
-                case "desc":           return desc;
-                default:               return element;
-            }
-        }
     }
 }

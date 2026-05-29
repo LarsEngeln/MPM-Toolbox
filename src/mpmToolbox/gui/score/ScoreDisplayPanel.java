@@ -191,25 +191,23 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                         g2.setComposite(originalComposite);
                     }
 
-                    // draw highlight rectangles for the selected SVG element (tree → score)
+                    // draw highlight for the selected SVG element (tree → score)
                     for (SvgData svg : svgs) {
-                        nu.xom.Element highlighted = svg.getHighlightedElement();
-                        if (highlighted == null)
+                        if (svg.getHighlightedElement() == null)
                             continue;
-                        String id = highlighted.getAttributeValue("id");
-                        if (id == null || id.isEmpty())
+                        svg.renderHighlight(g2, imgW, imgH);
+                    }
+
+                    // draw hover indicator: small hotpink rect in the top-left corner
+                    for (SvgData svg : svgs) {
+                        if (svg.getHoveredElement() == null)
                             continue;
-                        java.awt.geom.Rectangle2D bounds = svg.getBoundsInImageSpace(id, imgW, imgH);
-                        if (bounds == null || bounds.getWidth() <= 0 || bounds.getHeight() <= 0)
-                            continue;
-                        Composite savedComp = g2.getComposite();
-                        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.45f));
-                        g2.setColor(new Color(255, 200, 0));   // amber fill
-                        g2.fill(bounds);
-                        g2.setComposite(savedComp);
-                        g2.setColor(new Color(255, 160, 0));   // amber outline
-                        g2.setStroke(new BasicStroke(2.0f));
-                        g2.draw(bounds);
+                        int indicatorSize = 10;
+                        Color prevColor = g2.getColor();
+                        g2.setColor(Color.decode("#FF69B4")); // hotpink
+                        g2.fillRect(2, 2, indicatorSize, indicatorSize);
+                        g2.setColor(prevColor);
+                        break; // one indicator is enough
                     }
                 }
             }
