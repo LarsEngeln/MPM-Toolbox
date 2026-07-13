@@ -12,10 +12,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * This class represents one score page.
@@ -24,7 +21,7 @@ import java.util.UUID;
 public class ScorePage extends OrthantNeighborhoodGraph {
     private final File file;                                                    // the score file (image file) behind this score page
     private final BufferedImage image;                                          // the image of the score page
-    private final HashMap<Element, ScoreNode> object2Node = new HashMap<>();    // this maps elements to ONGNodes
+    private final LinkedHashMap<Element, ScoreNode> object2Node = new LinkedHashMap<>();    // this maps elements to ONGNodes
 
     /**
      * constructor
@@ -188,7 +185,7 @@ public class ScorePage extends OrthantNeighborhoodGraph {
      * get the hashmap with all entries on this score page
      * @return
      */
-    public HashMap<Element, ScoreNode> getAllEntries() {
+    public LinkedHashMap<Element, ScoreNode> getAllEntries() {
         return this.object2Node;
     }
 
