@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -79,8 +80,8 @@ public class Score {
         }
 
         // parse the score data
-        HashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> noteAnnotations = new HashMap<>();
-        HashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> performanceAnnotations = new HashMap<>();
+        LinkedHashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> noteAnnotations = new LinkedHashMap<>();
+        LinkedHashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> performanceAnnotations = new LinkedHashMap<>();
         String basePath = this.parentProject.getXml().getFile().getParent() + File.separator;   // the project directory is required to resolve relative paths
         for (Element pageElement : e.getChildElements("page")) {                                    // for each score page
             ScorePage page;

@@ -40,7 +40,7 @@ public class ScorePage extends OrthantNeighborhoodGraph {
      * @param performanceAnnotations
      * @throws IOException
      */
-    protected ScorePage(Element pageElement, String basePath, HashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> noteAnnotations, HashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> performanceAnnotations) throws IOException {
+    protected ScorePage(Element pageElement, String basePath, LinkedHashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> noteAnnotations, LinkedHashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> performanceAnnotations) throws IOException {
         this.file = new File(Tools.uniformPath(basePath + pageElement.getAttributeValue("file")));     // get the image file
         if (!file.exists())
             throw new IOException("Score image file " + this.file.getAbsolutePath() + " does not exist.");
@@ -205,16 +205,30 @@ public class ScorePage extends OrthantNeighborhoodGraph {
         pageElt.addAttribute(new Attribute("width.pixels", String.valueOf(this.getImage().getWidth())));
         pageElt.addAttribute(new Attribute("height.pixels", String.valueOf(this.getImage().getHeight())));
 
+        HashMap<Double, LinkedList<Element>> elementAssociations = new HashMap<>();
+
         // add the entry on this page to the XML
         for (Map.Entry<Element, ScoreNode> entry : this.getAllEntries().entrySet()) {
             Element element = entry.getKey();
             String id = Helper.getAttributeValue("id", element);
-            Element elementAssociation = new Element(element.getLocalName());
+            String ln = element.getLocalName();
+            double date = 0.0f;
+            if(element.getAttribute("date") != null)
+                date = Double.parseDouble(element.getAttributeValue("date"));
+            //if(!ln.equals("note"))
+            //    localNames.add(ln);
+            Element elementAssociation = new Element(ln);
             elementAssociation.addAttribute(new Attribute("ref", id));
             elementAssociation.addAttribute(new Attribute("x", "" + entry.getValue().getX()));
             elementAssociation.addAttribute(new Attribute("y", "" + entry.getValue().getY()));
-            pageElt.appendChild(elementAssociation);
+
+            elementAssociations.computeIfAbsent(date, k -> new LinkedList<>()).add(elementAssociation);
         }
+
+        elementAssociations.keySet().stream().sorted().forEach(key -> {
+            for(Element element : elementAssociations.get(key))
+                pageElt.appendChild(element);
+        });
 
         return pageElt;
     }
