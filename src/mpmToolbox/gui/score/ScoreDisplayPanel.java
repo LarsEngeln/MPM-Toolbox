@@ -26,7 +26,6 @@ import mpmToolbox.supplementary.orthantNeighborhoodGraph.ONGNode;
 import nu.xom.Element;
 import nu.xom.Node;
 
-import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.AffineTransform;
@@ -69,6 +68,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     protected ScoreNode anchorNode = null;                                  // in some modes (edit performance mode) we track the nearest neighboring overlay node to the mouse position and store it in this variable
     private Element draggedElement = null;                                  // in selectEdit mode: the element whose anchor is currently being dragged
     private final Point2D.Double anchorDragOffset = new Point2D.Double(0, 0); // in selectEdit mode: pixel offset from click point to anchor centre (keeps the anchor from snapping its centre to the cursor)
+    private final ScoreNoteMultiselectHelper noteMultiselect;               // handles Shift-drag rectangle note multiselect
 
     /**
      * constructor
@@ -80,6 +80,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         this.parent = parent;                                                       // store the link to the parent project
         this.scorePage = this.parent.parent.getScore().getPage(this.pageIndex);     // load the score page to be displayed
+        this.noteMultiselect = new ScoreNoteMultiselectHelper(this.parent.getParent().getMsmTree());
 
         this.updateOverlayElementsScaleFactor();                                    // compute the initial size of overlay elements
 
@@ -114,18 +115,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         }
 
         this.parent.getParent().getMsmTree().addTreeSelectionListener(treeSelectionEvent -> {
-            TreePath path = treeSelectionEvent.getNewLeadSelectionPath();
-            if (path == null)
-                return;
-
-            MsmTreeNode n = this.parent.getParent().getMsmTree().getNodeForPath(path);
-//            n.play(this.parent.getParent().getParentMpmToolbox().getMidiPlayerForSingleNotes()); // the node might be a note and should play its note via MIDI when selected
-
-            // trigger the score frame's score panel to repaint, so it highlights the selected note, if visible
-            if (n.getType() == MsmTreeNode.XmlNodeType.note) {                                  // if the currently selected node is of type note
-                if (this.getScorePage().contains((Element) n.getUserObject()))                  // if it contains the note we have just selected
-                    this.repaint();                                                             // let the score display repaint so the highlighted note gets displayed
-            }
+            this.repaint();
         });
     }
 
@@ -227,9 +217,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         g2.setStroke(stroke);
 
         // find the currently selected node in the MSM and MPM tree so it can get a highlight color
-        Object selectedMsmNode = this.parent.parent.getMsmTree().getSelectedNode();
-        if (selectedMsmNode != null)
-            selectedMsmNode = ((MsmTreeNode) selectedMsmNode).getUserObject();
+        ArrayList<Element> selectedMsmNotes = this.noteMultiselect.getSelectedMsmNotes();
 
         MpmTreeNode selectedMpmNode = (this.parent.parent.getMpmTree() == null) ? null : this.parent.parent.getMpmTree().getSelectedNode();
 
@@ -299,7 +287,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                 continue;
 
             if (element.getLocalName().equals("note")) {    // draw a note overlay
-                if (element == selectedMsmNode) {
+                if (this.noteMultiselect.containsReference(selectedMsmNotes, element)) {
                     g2.setColor(Settings.scoreNoteColorHighlighted);
                 } else {
                     g2.setColor(Settings.scoreNoteColor);
@@ -317,6 +305,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                     } else {                                                                                // cursor is in another performance than the node to be painted
                         g2.setColor(Settings.scorePerformanceColorFaded);                                   // use the faded color
                     }
+
                 }
                 if (element.getLocalName().equals("style")) {                                               // style elements get a different symbol then ...
                     GeneralPath diamond = Tools.generateDiamondShape(p.getX(), p.getY(), this.xWidth, this.xWidth);
@@ -400,6 +389,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                 }
             }
         }
+
+        this.noteMultiselect.paintSelectionRectangle(g2, this.yWidth);
     }
 
     /**
@@ -832,6 +823,12 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @param point2D the current mouse position in image coordinates
      */
     private void updateAnchorForSelectEdit(Point2D point2D) {
+        if (this.noteMultiselect.isActive()) {
+            this.anchorNode = null;
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+            return;
+        }
+
         if (this.scorePage.isEmpty()) {
             this.anchorNode = null;
             this.setCursor(Cursor.getDefaultCursor());
@@ -874,10 +871,25 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     public void mousePressed(MouseEvent mouseEvent) {
         this.requestFocusInWindow();    // obtain focus on mouse press
 
+        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
+                && mouseEvent.getButton() == MouseEvent.BUTTON1
+                && mouseEvent.isShiftDown()
+                && !mouseEvent.isControlDown()) {
+            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
+            this.noteMultiselect.start(this.getMousePositionInImage());
+            this.draggedElement = null;
+            this.anchorDragOffset.setLocation(0.0, 0.0);
+            this.anchorNode = null;
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+            this.repaint();
+            return;
+        }
+
         // in selectEdit mode: pick up the nearest anchor on left-click
         if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
                 && mouseEvent.getButton() == MouseEvent.BUTTON1
-                && !mouseEvent.isControlDown()) {
+                && !mouseEvent.isControlDown()
+                && !mouseEvent.isShiftDown()) {
             this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
             Element elt = this.getOverlayElementAt(mouseEvent);
             if (elt != null) {
@@ -904,6 +916,17 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseReleased(MouseEvent mouseEvent) {
+        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
+                && this.noteMultiselect.isActive()
+                && mouseEvent.getButton() == MouseEvent.BUTTON1) {
+            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
+            this.noteMultiselect.update(this.getMousePositionInImage());
+            this.noteMultiselect.finishAndSelect(this.scorePage.getAllEntries().entrySet());
+            this.updateAnchorForSelectEdit(this.getMousePositionInImage());
+            this.repaint();
+            return;
+        }
+
         // selectEdit mode: complete an element drag on left-button release
         if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
                 && this.draggedElement != null
@@ -1065,6 +1088,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             this.anchorNode = null;
             this.draggedElement = null;
             this.anchorDragOffset.setLocation(0.0, 0.0);
+            this.noteMultiselect.clear();
             this.repaint();
         }
     }
@@ -1075,6 +1099,14 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseDragged(MouseEvent mouseEvent) {
+        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit && this.noteMultiselect.isActive()) {
+            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
+            this.noteMultiselect.update(this.getMousePositionInImage());
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+            this.repaint();
+            return;
+        }
+
         // in selectEdit mode: if an element is picked up, move the preview – do NOT pan the image
         if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit && this.draggedElement != null) {
             this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
@@ -1115,6 +1147,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                 break;
 
             case selectEdit:
+                if (this.noteMultiselect.isActive())
+                    break;
                 this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
                 this.updateAnchorForSelectEdit(this.getMousePositionInImage());
                 this.repaint();

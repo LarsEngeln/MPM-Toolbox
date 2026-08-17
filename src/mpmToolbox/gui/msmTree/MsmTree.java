@@ -33,6 +33,7 @@ import java.util.Enumeration;
 public class MsmTree extends WebExTree<MsmTreeNode> implements MouseListener, TreeSelectionListener, TreeModelListener {
     @NotNull private final ProjectPane projectPane;                         // a link to the parent project pane to access its data, midi player etc.
     private WebDockableFrame dockableFrame = null;                          // a WebDockableFrame instance that displays this MSM tree, to be used in class ProjectPane
+    private boolean adjustingSelection = false;                             // guard against recursive selection updates
 
 
     /**
@@ -43,7 +44,7 @@ public class MsmTree extends WebExTree<MsmTreeNode> implements MouseListener, Tr
         super(new MsmTreeDataProvider(projectPane.getMsm().getRootElement(), projectPane.getProjectData()));
         this.projectPane = projectPane;
 
-        this.setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);     // this sets that only one node can be selected at a time
+        this.setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION); // allow Ctrl/Shift multiselect
         this.setCellRenderer(new MsmTreeCellRenderer());                     // a custom tree cell renderer
         this.setToolTipProvider(new MsmTreeTooltipProvider());               // set a tooltip provider so we can print tooltips on mouse over of tree cells
 //        msmTree.setEditable(true);
@@ -72,12 +73,66 @@ public class MsmTree extends WebExTree<MsmTreeNode> implements MouseListener, Tr
      */
     @Override
     public void valueChanged(TreeSelectionEvent treeSelectionEvent) {
+        if (this.adjustingSelection)
+            return;
+
+        if (this.getSelectionCount() > 1) {
+            TreePath[] selectedPaths = this.getSelectionPaths();
+            if ((selectedPaths == null) || !this.isScoreOnlySelection(selectedPaths)) {
+                TreePath leadPath = treeSelectionEvent.getNewLeadSelectionPath();
+                if (leadPath == null)
+                    leadPath = this.getLeadSelectionPath();
+                if (leadPath == null)
+                    return;
+
+                this.adjustingSelection = true;
+                this.setSelectionPath(leadPath);
+                this.adjustingSelection = false;
+            }
+            return;
+        }
+
+        if (this.getSelectionCount() != 1)
+            return;
+
         TreePath path = treeSelectionEvent.getNewLeadSelectionPath();
         if (path == null)
             return;
 
         MsmTreeNode n = this.getNodeForPath(path);
         n.play(this.projectPane.getParentMpmToolbox().getMidiPlayerForSingleNotes());   // the node might be a node and should play its note via MIDI when selected
+    }
+
+    /**
+     * Multi-select is only valid when all selected nodes are inside a score subtree.
+     * @param selectedPaths current selection
+     * @return true if all paths point to nodes that belong to any score subtree
+     */
+    private boolean isScoreOnlySelection(@NotNull TreePath[] selectedPaths) {
+        for (TreePath path : selectedPaths) {
+            MsmTreeNode node = this.getNodeForPath(path);
+            if (node == null)
+                return false;
+
+            MsmTreeNode scoreNode = this.findScoreNode(node);
+            if (scoreNode == null)
+                return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Find the score node that contains this node.
+     * @param node tree node
+     * @return score node or null if node is not in a score subtree
+     */
+    private MsmTreeNode findScoreNode(@Nullable MsmTreeNode node) {
+        for (MsmTreeNode parent = node; parent != null; parent = parent.getParent())
+            if (parent.getType() == MsmTreeNode.XmlNodeType.score)
+                return parent;
+
+        return null;
     }
 
     /**
@@ -222,13 +277,26 @@ public class MsmTree extends WebExTree<MsmTreeNode> implements MouseListener, Tr
     public void mouseClicked(MouseEvent mouseEvent) {
         // right click opens the context menu of the clicked node
         if (SwingUtilities.isRightMouseButton(mouseEvent)) {    // if right click
-            MsmTreeNode node = this.getNodeForRow(this.getClosestRowForLocation(mouseEvent.getX(), mouseEvent.getY()));   // get the node that has been clicked
+            int row = this.getRowForLocation(mouseEvent.getX(), mouseEvent.getY());
+            if (row < 0)
+                return;
+
+            TreePath clickedPath = this.getPathForRow(row);
+            if ((clickedPath != null) && !this.isPathSelected(clickedPath))
+                this.setSelectionPath(clickedPath);
+
+            MsmTreeNode node = this.getNodeForRow(row);   // get the node that has been clicked
+            if (node == null)
+                return;
+
             node.getContextMenu(this).show(this, mouseEvent.getX() - 25, mouseEvent.getY()); // trigger its context menu
             return;
         }
         if (SwingUtilities.isLeftMouseButton(mouseEvent)) {     // if left click
             if (mouseEvent.getClickCount() > 1) {               // if double (or more) click -> open editor dialog
-                MsmTreeNode node = this.getSelectedNode();      // get the node that has been double-clicked
+                MsmTreeNode node = this.getNodeForLocation(mouseEvent.getX(), mouseEvent.getY()); // get the node that has been double-clicked
+                if (node == null)
+                    return;
                 node.openEditorDialog(this);
             }
         }
