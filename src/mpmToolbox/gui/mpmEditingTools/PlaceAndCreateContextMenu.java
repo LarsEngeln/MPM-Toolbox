@@ -53,14 +53,14 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
      * @return
      */
     private WebMenu createPerformanceInstructionPopupSubmenu() {
-        MpmTree mpmTree = this.parent.getParentScoreDocumentData().getParent().getMpmTree();
+        MpmTree mpmTree = this.parent.getParentScoreDocumentData().getProjectPane().getMpmTree();
         WebMenu creationMenu = new WebMenu("New Performance Instruction in");
 
         // Which date should the instruction be associated to? Here we choose the date of the anchor node or 0.0 if there is no anchor node.
         final ScoreNode anchor = this.parent.getAnchorNode();
 
         // choose the performance where the instruction should be added
-        for (Performance performance : this.parent.getParentScoreDocumentData().getParent().getMpm().getAllPerformances()) {
+        for (Performance performance : this.parent.getParentScoreDocumentData().getProjectPane().getMpm().getAllPerformances()) {
             WebMenu performanceMenu = new WebMenu(performance.getName());
             MpmTreeNode performanceNode = mpmTree.findNode(performance, false);
 
@@ -152,7 +152,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
      * @return
      */
     private JMenuItem repositionPerformanceInstructionPopupSubmenu() {
-        MpmTreeNode currentNode = this.parent.getParentScoreDocumentData().getParent().getMpmTree().getSelectedNode();            // get the currently selected node
+        MpmTreeNode currentNode = this.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().getSelectedNode();            // get the currently selected node
 
         if ((currentNode == null) || !currentNode.isMapEntryType()) {
             WebMenuItem placeInstructionHere = new WebMenuItem("Place instruction here");
@@ -227,8 +227,8 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
                 repositionPerformanceInstruction(currentNode, mousePosInImage, this, true); // position the object in the score
                 currentNode.setDate(Double.parseDouble(date));                              // set the new date and reorder the parent map accordingly
                 Performance performance = currentNode.getPerformance();                     // get the performance that this node belongs to
-                this.parent.getParentScoreDocumentData().getParent().getMpmTree().reloadNode(currentNode.getParent());      // update MPM subtree
-                MpmEditingTools.updateAudioAlignment(performance, this.parent.getParentScoreDocumentData().getParent(), instructionType.equals("Tempo"));    // the piano roll visualization of this performance in the audio frame must be kept up to date
+                this.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().reloadNode(currentNode.getParent());      // update MPM subtree
+                MpmEditingTools.updateAudioAlignment(performance, this.parent.getParentScoreDocumentData().getProjectPane(), instructionType.equals("Tempo"));    // the piano roll visualization of this performance in the audio frame must be kept up to date
             });
             placeAndChangeDate.setToolTipText("The date can be edited later on.");
             placeInstructionHere.add(placeAndChangeDate);
@@ -248,24 +248,24 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
         // update the associated data in the project data structure
         Element object = (Element) currentNode.getUserObject();                 // get the element
         ScoreNode objectNode = self.parent.getScorePage().addEntry(position.getX(), position.getY(), object);
-        self.parent.getParentScoreDocumentData().getParent().getMpmTree().updateNode(currentNode);          // update the indication that the instruction is associated to a pixel position now
+        self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().updateNode(currentNode);          // update the indication that the instruction is associated to a pixel position now
 
         // if the cursor in the MPM tree should not increment, i.e. select the next map node, it should at leas select the current node
         if (!incrementTreeCursor) {
-            self.parent.getParentScoreDocumentData().getParent().getMpmTree().setSelectedNode(currentNode);                   // select it
-            self.parent.getParentScoreDocumentData().getParent().getMpmTree().scrollPathToVisible(currentNode.getTreePath()); // scroll the tree so the node is visible
+            self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().setSelectedNode(currentNode);                   // select it
+            self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().scrollPathToVisible(currentNode.getTreePath()); // scroll the tree so the node is visible
             return;
         }
 
         // in the MPM tree find and select the next node
         for (MpmTreeNode nextNode = currentNode.getNextNode(); nextNode != null; nextNode = nextNode.getNextNode()) {
             if (nextNode.isMapEntryType()) {                                                                // if the node is an entry in an MPM map
-                self.parent.getParentScoreDocumentData().getParent().getMpmTree().setSelectedNode(nextNode);                   // select it
-                self.parent.getParentScoreDocumentData().getParent().getMpmTree().scrollPathToVisible(nextNode.getTreePath()); // scroll the tree so the node is visible
+                self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().setSelectedNode(nextNode);                   // select it
+                self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().scrollPathToVisible(nextNode.getTreePath()); // scroll the tree so the node is visible
                 return;
             }
         }
-        self.parent.getParentScoreDocumentData().getParent().getMpmTree().clearSelection();                 // no node was found (null because end of tree), clear the selection so the next click won't overwrite the last node's coordinates
+        self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().clearSelection();                 // no node was found (null because end of tree), clear the selection so the next click won't overwrite the last node's coordinates
     }
 
     /**

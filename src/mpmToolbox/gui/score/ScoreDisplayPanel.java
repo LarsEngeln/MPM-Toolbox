@@ -1,5 +1,6 @@
 package mpmToolbox.gui.score;
 
+import com.alee.extended.button.WebSplitButton;
 import com.alee.extended.window.WebPopup;
 import com.alee.laf.WebLookAndFeel;
 import com.alee.laf.label.WebLabel;
@@ -7,7 +8,6 @@ import com.alee.laf.menu.WebPopupMenu;
 import com.alee.laf.panel.WebPanel;
 import meico.mpm.elements.Performance;
 import meico.supplementary.KeyValue;
-import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.mpmEditingTools.MpmEditingTools;
 import mpmToolbox.gui.mpmEditingTools.PlaceAndCreateContextMenu;
 import mpmToolbox.gui.mpmTree.MpmTree;
@@ -15,32 +15,28 @@ import mpmToolbox.gui.mpmTree.MpmTreeNode;
 import mpmToolbox.gui.msmEditingTools.MsmEditingTools;
 import mpmToolbox.gui.msmTree.MsmTree;
 import mpmToolbox.gui.msmTree.MsmTreeNode;
+import mpmToolbox.gui.score.interaction.*;
 import mpmToolbox.gui.svgTree.SvgDockableFrame;
 import mpmToolbox.gui.svgTree.SvgTree;
 import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.projectData.score.ScoreNode;
 import mpmToolbox.projectData.score.ScorePage;
-import mpmToolbox.supplementary.Tools;
 import mpmToolbox.supplementary.orthantNeighborhoodGraph.ONGNode;
 import nu.xom.Element;
 import nu.xom.Node;
 
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.GeneralPath;
-import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
-import java.util.Map;
 
 /**
  * This class displays the score pages and defines interaction with them.
  * @author Axel Berndt
  */
 public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, MouseListener, MouseMotionListener, KeyListener {
-    protected final ScoreDocumentData parent;                               // a link to the parent ScoreFrame
+    protected final ScoreDocumentData scoreDocumentData;                               // a link to the parent ScoreFrame
     protected ScorePage scorePage;                                          // the score page currently displayed
     private int pageIndex = 0;                                              // the page number (array index) currently displayed
     private final WebPopup noNoteSelected = new WebPopup<>(new WebLabel("You should select a note in the Musical Sequence Markup to be associated with a position here."));
@@ -48,12 +44,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     private final WebPopup noPerformance = new WebPopup<>(new WebLabel("This project's MPM has no Performance. First create a performance."));
 
     // variables for pan and zoom
-    private final AffineTransform affineTransform = new AffineTransform();  // the pan and zoom transformation of the image is stored in here
-    private AffineTransform inverseAffineTransform = new AffineTransform(); // this holds the inverse of the affine transform, it is computed together with the affine transform so it is quickly available for paint operations
-    private Double zoomFactor = null;                                       // the zoom factor of the displayed score page image it is initialized the first time the panel is drawn, see paintComponent()
-    private Point dragStartPoint = null;                                    // the start point of a drag gesture
-    private final Point diff = new Point(0, 0);                             // this keeps track of drag gestures
-    private final Point2D.Double offset = new Point2D.Double(0.0, 0.0);     // this stores the offset after all transforms so the image does not jump back to its initial position
+    protected PanZoomHelper panZoomHelper;                                  // manages pan and zoom state
 
     // variables for the overlay
     private Point mousePositionInImage = null;                              // this is used to keep track of the pixel position of the mouse cursor within the image (required to draw the "annotation preview overlay")
@@ -65,22 +56,18 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
     private Font performanceSymbolFont = WebLookAndFeel.globalWindowFont.deriveFont(Font.BOLD, (float) (72.0 * this.xWidth / Toolkit.getDefaultToolkit().getScreenResolution()));
 
-    protected ScoreNode anchorNode = null;                                  // in some modes (edit performance mode) we track the nearest neighboring overlay node to the mouse position and store it in this variable
-    private Element draggedElement = null;                                  // in selectEdit mode: the element whose anchor is currently being dragged
-    private final Point2D.Double anchorDragOffset = new Point2D.Double(0, 0); // in selectEdit mode: pixel offset from click point to anchor centre (keeps the anchor from snapping its centre to the cursor)
-    private final ScoreNoteMultiselectHelper noteMultiselect;               // handles Shift-drag rectangle note multiselect
-
+    private InteractionModeManager interactionModeManager;                  // manages all interaction modes and their UI
     /**
      * constructor
      *
-     * @param parent
+     * @param scoreDocumentData is the parent of ScoreDisplayPanel
      */
-    public ScoreDisplayPanel(ScoreDocumentData parent) {
+    public ScoreDisplayPanel(ScoreDocumentData scoreDocumentData) {
         super();
 
-        this.parent = parent;                                                       // store the link to the parent project
-        this.scorePage = this.parent.parent.getScore().getPage(this.pageIndex);     // load the score page to be displayed
-        this.noteMultiselect = new ScoreNoteMultiselectHelper(this.parent.getParent().getMsmTree());
+        this.scoreDocumentData = scoreDocumentData;                                                       // store the link to the parent project
+        this.scorePage = this.scoreDocumentData.projectPane.getScore().getPage(this.pageIndex);     // load the score page to be displayed
+        this.panZoomHelper = new PanZoomHelper(this);                               // initialize the pan/zoom helper
 
         this.updateOverlayElementsScaleFactor();                                    // compute the initial size of overlay elements
 
@@ -92,6 +79,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         this.noMpm.setPadding(3);
         this.noPerformance.setPadding(3);
 
+        this.interactionModeManager = new InteractionModeManager(this, scoreDocumentData);
+
         // initialize the input listeners needed for interaction
         this.addMouseWheelListener(this);
         this.addMouseMotionListener(this);
@@ -100,8 +89,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 //        this.addKeyboardInput();
 
         this.updateMpmTreeSelectionListener();
-        if (this.parent.getParent().getMpmDockableFrame() != null) {
-            this.parent.getParent().getMpmDockableFrame().addContainerListener(new ContainerListener() {    // if the MPM tree is completely removed or newly added, this listener updates the corresponding tree listener
+        if (this.scoreDocumentData.getProjectPane().getMpmDockableFrame() != null) {
+            this.scoreDocumentData.getProjectPane().getMpmDockableFrame().addContainerListener(new ContainerListener() {    // if the MPM tree is completely removed or newly added, this listener updates the corresponding tree listener
                 @Override
                 public void componentAdded(ContainerEvent e) {
                     updateMpmTreeSelectionListener();
@@ -114,7 +103,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             });
         }
 
-        this.parent.getParent().getMsmTree().addTreeSelectionListener(treeSelectionEvent -> {
+        this.scoreDocumentData.getProjectPane().getMsmTree().addTreeSelectionListener(treeSelectionEvent -> {
             this.repaint();
         });
     }
@@ -123,9 +112,18 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * invoke this method if the MPM tree is deleted or newly created, so the TempoMapPanel can react on it
      */
     public void updateMpmTreeSelectionListener() {
-        if (this.parent.getParent().getMpmTree() != null) {
-            this.parent.getParent().getMpmTree().addTreeSelectionListener(treeSelectionEvent -> this.repaint());    // repaint when tree selection in MPM tree changed, so the highlighting gets updated
+        if (this.scoreDocumentData.getProjectPane().getMpmTree() != null) {
+            this.scoreDocumentData.getProjectPane().getMpmTree().addTreeSelectionListener(treeSelectionEvent -> this.repaint());    // repaint when tree selection in MPM tree changed, so the highlighting gets updated
         }
+    }
+
+    /**
+     * Set the current interaction mode.
+     */
+    public void onInteractionModeChange() {
+        this.setMousePositionInImage(null);
+        this.setCursor(Cursor.getDefaultCursor());
+        this.repaint();
     }
 
     /**
@@ -133,7 +131,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @return
      */
     public ScoreDocumentData getParentScoreDocumentData() {
-        return this.parent;
+        return this.scoreDocumentData;
     }
 
     /**
@@ -141,7 +139,63 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @return
      */
     public ScoreNode getAnchorNode() {
-        return this.anchorNode;
+        return (this.interactionModeManager != null) ? this.interactionModeManager.getAnchorNodeHelper().getAnchorNode() : null;
+    }
+
+    /**
+     * Gets the pan/zoom helper.
+     * @return the pan/zoom helper
+     */
+    public PanZoomHelper getPanZoomHelper() {
+        return this.panZoomHelper;
+    }
+
+    /**
+     * Indicates whether overlay rendering should be hidden.
+     * @return true when overlays are hidden
+     */
+    public boolean isOverlayHidden() {
+        return this.scoreDocumentData.hideOverlay;
+    }
+
+    /**
+     * Gets the horizontal offset used for overlay symbols.
+     * @return the overlay x offset
+     */
+    public int getOverlayXOffset() {
+        return this.xOffset;
+    }
+
+    /**
+     * Gets the vertical offset used for overlay symbols.
+     * @return the overlay y offset
+     */
+    public int getOverlayYOffset() {
+        return this.yOffset;
+    }
+
+    /**
+     * Gets the overlay symbol width.
+     * @return the overlay width
+     */
+    public int getOverlayXWidth() {
+        return this.xWidth;
+    }
+
+    /**
+     * Gets the overlay symbol height.
+     * @return the overlay height
+     */
+    public int getOverlayYWidth() {
+        return this.yWidth;
+    }
+
+    /**
+     * Gets the font used for performance symbols.
+     * @return the performance symbol font
+     */
+    public Font getPerformanceSymbolFont() {
+        return this.performanceSymbolFont;
     }
 
     /**
@@ -152,11 +206,11 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);                                    // this ensures that the background is filled with the standard background color
 
-        if (this.zoomFactor == null)
+        if (this.panZoomHelper.getZoomFactor() == null)
             this.reset();
 
         Graphics2D g2 = (Graphics2D)g;                              // make g a Graphics2D object so we can use its extended drawing features
-        g2.transform(this.affineTransform);                         // do the transform on the graphics
+        g2.transform(this.panZoomHelper.getAffineTransform());                         // do the transform on the graphics
 
         // draw light gray background exactly the size of the score image
         {
@@ -166,12 +220,12 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             g2.fillRect(0, 0, imgW, imgH);
         }
 
-        if (!this.parent.hideScore)
+        if (!this.scoreDocumentData.hideScore)
             g2.drawImage(this.scorePage.getImage(), 0, 0, this);    // draw image
 
         // draw SVG overlays
-        if (!this.parent.hideOverlay) {
-            java.util.ArrayList<SvgData> svgs = this.parent.parent.getProjectData().getSvgs();
+        if (!this.scoreDocumentData.hideOverlay) {
+            java.util.ArrayList<SvgData> svgs = this.scoreDocumentData.projectPane.getProjectData().getSvgs();
             if (!svgs.isEmpty()) {
                 int imgW = this.scorePage.getImage().getWidth(this);
                 int imgH = this.scorePage.getImage().getHeight(this);
@@ -207,190 +261,10 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             }
         }
 
-        // draw the overlay information
-        if (this.parent.hideOverlay)
-            return;
-
-        // set the stroke style
-        float strokeWidth = this.yWidth / 3.0f;
-        BasicStroke stroke = new BasicStroke(strokeWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-        g2.setStroke(stroke);
-
-        // find the currently selected node in the MSM and MPM tree so it can get a highlight color
-        ArrayList<Element> selectedMsmNotes = this.noteMultiselect.getSelectedMsmNotes();
-
-        MpmTreeNode selectedMpmNode = (this.parent.parent.getMpmTree() == null) ? null : this.parent.parent.getMpmTree().getSelectedNode();
-
-        // draw an "annotation preview" at the mouse position
-        if (this.getMousePositionInImage() != null) {                    // this is only possible if we have a mouse position
-            switch (this.parent.currentInteractionMode) {
-                case panAndZoom:
-                    break;
-
-                case markNotes:
-                    g2.setColor(Settings.scoreNoteColor);
-                    g2.fillOval(this.getMousePositionInImage().x - this.xOffset, this.getMousePositionInImage().y - this.yOffset, this.xWidth, this.yWidth);
-                    break;
-
-                case editPerformance:
-                    // draw the line between mouse pointer and anchor node
-                    if (this.anchorNode != null) {
-                        g2.setColor(Settings.scorePerformanceColorHighlighted);
-                        g2.drawLine((int) this.anchorNode.getX(), (int) this.anchorNode.getY(), this.getMousePositionInImage().x, this.getMousePositionInImage().y);
-                    }
-
-                    // draw the performance annotation symbol at the mouse position (kind of preview)
-                    g2.setColor(Settings.scorePerformanceColor);
-                    g2.fillRect(this.getMousePositionInImage().x - this.xOffset, this.getMousePositionInImage().y - this.xOffset, this.xWidth, this.xWidth);
-//                    g2.fill(ScoreDisplayPanel.drawDiamond(this.getMousePositionInImage().x, this.getMousePositionInImage().y, this.xWidth, this.xWidth));
-                    break;
-
-                case selectEdit:
-                    // draw a selection ring around the nearest draggable anchor (hover feedback)
-                    if (this.anchorNode != null) {
-                        g2.setColor(Settings.editColorHighlighted);
-                        int r = this.xWidth / 2 + 4;
-                        g2.drawOval((int) this.anchorNode.getX() - r, (int) this.anchorNode.getY() - r, 2 * r, 2 * r);
-                    }
-                    // if dragging, draw the element preview at the mouse position with the original grab offset preserved
-                    if (this.draggedElement != null) {
-                        g2.setColor(Settings.editColor);
-                        // apply the grab offset so the anchor does not snap its centre to the cursor
-                        int px = (int) (this.getMousePositionInImage().x + this.anchorDragOffset.x);
-                        int py = (int) (this.getMousePositionInImage().y + this.anchorDragOffset.y);
-                        if (this.draggedElement.getLocalName().equals("note")) {
-                            g2.fillOval(px - this.xOffset, py - this.yOffset, this.xWidth, this.yWidth);
-                        } else if (this.draggedElement.getLocalName().equals("style")) {
-                            g2.fill(Tools.generateDiamondShape(px, py, this.xWidth, this.xWidth));
-                        } else {
-                            g2.fillRect(px - this.xOffset, py - this.xOffset, this.xWidth, this.xWidth);
-                        }
-                    }
-                    break;
-
-                default:
-                    break;
-            }
+        if (this.interactionModeManager != null) {
+            MpmTreeNode selectedMpmNode = this.getParentScoreDocumentData().getSelectedMpmNode();
+            this.interactionModeManager.draw(g2, selectedMpmNode);
         }
-
-        // generate a font of an appropriate size for the symbols in the performance instruction squares
-        g2.setFont(this.performanceSymbolFont);
-        FontMetrics metrics = g2.getFontMetrics(this.performanceSymbolFont);
-
-        // draw the overlay elements
-        for (Map.Entry<Element, ScoreNode> overlayElement : this.scorePage.getAllEntries().entrySet()) {    // go through all overlay elements on the score page
-            Element element = overlayElement.getKey();                                                      // get the data of the overlay element
-            ONGNode p = overlayElement.getValue();                                                          // get the ONGNode ()
-
-            // in selectEdit mode, the dragged element is drawn at the mouse position (see above), not at its stored position
-            if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit && element == this.draggedElement)
-                continue;
-
-            if (element.getLocalName().equals("note")) {    // draw a note overlay
-                if (this.noteMultiselect.containsReference(selectedMsmNotes, element)) {
-                    g2.setColor(Settings.scoreNoteColorHighlighted);
-                } else {
-                    g2.setColor(Settings.scoreNoteColor);
-                }
-                g2.fillOval(((int)p.getX()) - this.xOffset, ((int)p.getY()) - this.yOffset, this.xWidth, this.yWidth);  // paint the note
-            }
-            else {                                                                                          // draw a performance overlay
-                // set the color
-                if ((selectedMpmNode != null) && (element == selectedMpmNode.getUserObject())) {            // if the node is selected
-                    g2.setColor(Settings.scorePerformanceColorHighlighted);                                 // use the highlight color
-                } else {                                                                                    // node is not selected
-                    boolean samePerformance = ScoreDisplayPanel.samePerformance(element, selectedMpmNode);
-                    if (samePerformance) {                                                                  // node is in the same performance as the cursor in the MPM tree
-                        g2.setColor(Settings.scorePerformanceColor);                                        // use normal performance symbol color
-                    } else {                                                                                // cursor is in another performance than the node to be painted
-                        g2.setColor(Settings.scorePerformanceColorFaded);                                   // use the faded color
-                    }
-
-                }
-                if (element.getLocalName().equals("style")) {                                               // style elements get a different symbol then ...
-                    GeneralPath diamond = Tools.generateDiamondShape(p.getX(), p.getY(), this.xWidth, this.xWidth);
-                    g2.fill(diamond);
-
-                    // global MPM nodes get an additional outline
-                    if (ScoreDisplayPanel.isGlobal(element)) {
-                        float outlineWidth = this.yWidth / 5.0f;
-                        BasicStroke outlineStroke = new BasicStroke(outlineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-                        g2.setStroke(outlineStroke);
-                        g2.setColor(g2.getColor().brighter());
-                        g2.draw(diamond);
-                    }
-                } else {                                                                                    // a performance instruction
-                    int xUpperLeft = (int) p.getX() - this.xOffset;
-                    int yUpperLeft = (int) p.getY() - this.xOffset;
-
-                    g2.fillRect(xUpperLeft, yUpperLeft, this.xWidth, this.xWidth);                          // paint the square
-
-                    // global MPM nodes get an additional outline
-                    if (ScoreDisplayPanel.isGlobal(element)) {
-                        float outlineWidth = this.yWidth / 5.0f;
-                        BasicStroke outlineStroke = new BasicStroke(outlineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-                        g2.setStroke(outlineStroke);
-                        g2.setColor(g2.getColor().brighter());
-                        g2.drawRect(((int) p.getX()) - this.xOffset, ((int) p.getY()) - this.xOffset, this.xWidth, this.xWidth);
-                    }
-
-                    // add a symbol in the square that indicates the type of the performance instruction
-                    String performanceSymbol = null;
-                    switch (element.getLocalName()) {
-                        case "note":
-                            break;
-                        case "accentuationPattern":
-                            performanceSymbol = "M";
-                            break;
-                        case "articulation":
-                            performanceSymbol = "A";
-                            break;
-                        case "asynchrony":
-                            performanceSymbol = "\u21C4";   // ⇄
-                            break;
-                        case "distribution.correlated.brownianNoise":
-                        case "distribution.correlated.compensatingTriangle":
-                        case "distribution.gaussian":
-                        case "distribution.list":
-                        case "distribution.triangular":
-                        case "distribution.uniform":
-                            break;
-                        case "dynamics":
-                            performanceSymbol = "D";
-                            break;
-                        case "ornament":
-                            performanceSymbol = "O";
-                            break;
-                        case "rubato":
-                            performanceSymbol = "R";
-                            break;
-                        case "style":
-                            break;
-                        case "tempo":
-                            performanceSymbol = "T";
-                            break;
-                        default:
-                            break;
-                    }
-                    if (performanceSymbol != null) {
-                        g2.setColor(g2.getColor().darker().darker());
-                        int xFont = xUpperLeft + (this.xWidth - metrics.stringWidth(performanceSymbol)) / 2;        // Determine the X coordinate for the text
-                        int yFont = yUpperLeft + ((this.xWidth - metrics.getHeight()) / 2) + metrics.getAscent();   // Determine the Y coordinate for the text (note we add the ascent, as in java 2d 0 is top of the screen)
-                        g.drawString(performanceSymbol, xFont, yFont);                                              // Draw the string
-                    }
-                }
-            }
-
-            // Debug output: this draws the connections of the Orthant Neighborhood Graph
-            if (Settings.debug) {
-                for (ONGNode neighbor : p.neighbors) {
-                    if (neighbor != null)
-                        g2.drawLine((int) p.getX(), (int) p.getY(), (int) neighbor.getX(), (int) neighbor.getY());
-                }
-            }
-        }
-
-        this.noteMultiselect.paintSelectionRectangle(g2, this.yWidth);
     }
 
     /**
@@ -406,17 +280,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * invoke this method to reset the image zoom to match the panel size and translate the image to the initial position
      */
     private void reset() {
-        this.affineTransform.setToIdentity();
-        this.zoomFactor = ((double) this.getHeight()) / this.scorePage.getImage().getHeight();
-        this.affineTransform.scale(this.zoomFactor, this.zoomFactor);
-
-        try {
-            this.inverseAffineTransform = this.affineTransform.createInverse();
-        } catch (NoninvertibleTransformException e) {
-            e.printStackTrace();
-        }
-
-        this.repaint();
+        this.panZoomHelper.reset();
     }
 
     /**
@@ -427,7 +291,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @param e2 the currently selected MpmTreeNode
      * @return true if the parent performance is the same for both, false in every other case
      */
-    private static boolean samePerformance(Element mpmElement, MpmTreeNode e2) {
+    public static boolean samePerformance(Element mpmElement, MpmTreeNode e2) {
         if ((mpmElement == null) || (e2 == null))                       // if any of the input objects is null
             return false;                                               // the result is false
 
@@ -458,7 +322,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @param mpmElement
      * @return
      */
-    private static boolean isGlobal(Element mpmElement) {
+    public static boolean isGlobal(Element mpmElement) {
         if (mpmElement == null)
             return false;
 
@@ -511,7 +375,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * display the next page in the list
      */
     public void nextPage() {
-        Score score = this.parent.parent.getScore();
+        Score score = this.scoreDocumentData.projectPane.getScore();
 
         if ((this.pageIndex + 1) >= score.size())
             return;
@@ -530,7 +394,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             return;
 
         this.pageIndex--;
-        this.scorePage = this.parent.parent.getScore().getPage(this.pageIndex);
+        this.scorePage = this.scoreDocumentData.projectPane.getScore().getPage(this.pageIndex);
 
         this.repaint();
     }
@@ -540,7 +404,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @param index the page index
      */
     public void showPage(int index) {
-        Score score = this.parent.parent.getScore();
+        Score score = this.scoreDocumentData.projectPane.getScore();
 
         if (index >= score.size())
             return;
@@ -555,7 +419,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * invoke this method when the size of the overlay elements needs to be updated
      */
     protected void updateOverlayElementsScaleFactor() {
-        int exp = (int)this.parent.annotationSizeSpinner.getValue();
+        int exp = (int)this.scoreDocumentData.annotationSizeSpinner.getValue();
         this.overlayElementScaleFactor = 5.0 * Math.pow(1.05, exp);
 
         this.xOffset = (int)(this.overlayElementScaleFactor * 3.0);      // horizontal offset to center the ellipsis around its position
@@ -573,49 +437,18 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * this implements the dragging of the image
      * @param mousePosition
      */
-    private void dragImage(Point mousePosition) {
-        if (this.dragStartPoint == null) {
-            this.dragStartPoint = mousePosition;        // the drag gesture did not start yet, hence, we store the start position of the gesture first
-            return;
-        }
-
-        this.diff.setLocation(mousePosition.x - this.dragStartPoint.x, mousePosition.y - this.dragStartPoint.y);        // get difference to start position (when mouse press began)
-        this.affineTransform.setToIdentity();                                                                           // initialize the new transform
-        this.affineTransform.translate(this.offset.getX() + this.diff.getX(), this.offset.getY() + this.diff.getY());   // add translation to the transform
-
-        // add scaling to the transform
-        if (this.zoomFactor == null)
-            this.affineTransform.scale(1.0, 1.0);
-        else
-            this.affineTransform.scale(this.zoomFactor, this.zoomFactor);
-
-        try {
-            this.inverseAffineTransform = this.affineTransform.createInverse();
-        } catch (NoninvertibleTransformException e) {
-            e.printStackTrace();
-        }
-
-        this.repaint();     // repaint the contents with this new transform
-    }
-
-    /**
-     * this implements the end of an image drag action
-     */
-    private void dragEnded() {
-        if ((this.diff.getX() != 0) && (this.diff.getY() != 0)) {               // if we had a drag interaction, we keep the image offset so it does not jump back to its initial position
-            this.offset.setLocation(this.offset.getX() + this.diff.getX(), this.offset.getY() + this.diff.getY());
-        }
-        this.dragStartPoint = null;
+    public void dragImage(Point mousePosition) {
+        this.panZoomHelper.dragImage(mousePosition);
     }
 
     /**
      * this implements the logic when a drag or select gesture is performed and the mouse button has been released
      * @param mouseEvent
      */
-    private void dragOrSelectGesture(MouseEvent mouseEvent) {
-        if (this.dragStartPoint != null) {                                      // user has actually performed a drag gesture
+    public void dragOrSelectGesture(MouseEvent mouseEvent) {
+        if (this.panZoomHelper.getDragStartPoint() != null) {                                      // user has actually performed a drag gesture
             this.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
-            this.dragEnded();
+            this.panZoomHelper.dragEnded();
             return;
         }
 
@@ -623,13 +456,13 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         Element selectedElement = this.getOverlayElementAt(mouseEvent);         // get the overlay element that the mouse click selects
         if (selectedElement == null) {                                          // click was over nothing
             // Score → SVG Tree: try to pick an SVG element at this position
-            Point mousePoint = this.mouse2PixelPosition(mouseEvent);
+            Point mousePoint = this.panZoomHelper.getPixelPosition(mouseEvent.getPoint());
             int imgW = this.scorePage.getImage().getWidth(this);
             int imgH = this.scorePage.getImage().getHeight(this);
             boolean svgHit = false;
             if (imgW > 0 && imgH > 0) {
-                SvgDockableFrame svgFrame = this.parent.parent.getSvgDockableFrame();
-                java.util.ArrayList<SvgData> svgs = this.parent.parent.getProjectData().getSvgs();
+                SvgDockableFrame svgFrame = this.scoreDocumentData.projectPane.getSvgDockableFrame();
+                java.util.ArrayList<SvgData> svgs = this.scoreDocumentData.projectPane.getProjectData().getSvgs();
                 for (SvgData svg : svgs) {
                     nu.xom.Element picked = svg.pickElementAt(mousePoint.x, mousePoint.y, imgW, imgH);
                     if (picked != null) {
@@ -646,8 +479,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                 }
             }
             if (!svgHit) {
-                this.parent.parent.getMsmTree().clearSelection();               // deselect anything in the MSM tree
-                this.parent.parent.getMpmTree().clearSelection();               // deselect anything in the MPM tree
+                this.scoreDocumentData.projectPane.getMsmTree().clearSelection();               // deselect anything in the MSM tree
+                this.scoreDocumentData.projectPane.getMpmTree().clearSelection();               // deselect anything in the MPM tree
             }
             this.repaint();
             return;
@@ -655,7 +488,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         switch (selectedElement.getLocalName()) {
             case "note": {
-                MsmTree msmTree = this.parent.parent.getMsmTree();              // a handle to the msm tree
+                MsmTree msmTree = this.scoreDocumentData.projectPane.getMsmTree();              // a handle to the msm tree
                 MsmTreeNode msmTreeNode = msmTree.findNode(selectedElement, true);    // get the msm tree's node that corresponds with the selected note
                 if (msmTreeNode == null)                                        // if nothing has been selected
                     return;                                                     // done
@@ -673,7 +506,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                 break;
             }
             default: {                                                          // a performance instruction
-                MpmTree mpmTree = this.parent.parent.getMpmTree();              // a handle to the mpm tree
+                MpmTree mpmTree = this.scoreDocumentData.projectPane.getMpmTree();              // a handle to the mpm tree
                 MpmTreeNode mpmTreeNode = mpmTree.findNode(selectedElement, true);    // get the msm tree's node that corresponds with the selected note
                 if (mpmTreeNode == null)                                        // if nothing has been selected
                     return;                                                     // done
@@ -698,8 +531,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * A helper method to keep the mouse listener methods clear. It implements the procedure to annotate a note position on the current page
      * @param mouseEvent
      */
-    private void makeNoteAssociation(MouseEvent mouseEvent) {
-        MsmTreeNode currentNode = this.parent.parent.getMsmTree().getSelectedNode();            // get the currently selected node
+    public void makeNoteAssociation(MouseEvent mouseEvent) {
+        MsmTreeNode currentNode = this.scoreDocumentData.projectPane.getMsmTree().getSelectedNode();            // get the currently selected node
         if ((currentNode == null) || (currentNode.getType() != MsmTreeNode.XmlNodeType.note)) { // but there is no node of type note selected in the MSM tree to be associated with the pixel position
             this.noNoteSelected.showPopup(this, mouseEvent.getPoint());                         // display the popup message at the mouse position
             return;
@@ -713,24 +546,24 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         repaint();                                                                              // the overlay has been updated, so we need to repaint
 
-        this.parent.parent.getMsmTree().updateNode(currentNode);                                // update the indication that the note is associated to a pixel position now
+        this.scoreDocumentData.projectPane.getMsmTree().updateNode(currentNode);                                // update the indication that the note is associated to a pixel position now
 
         // in the MSM tree find and select the next node of type note
         for (MsmTreeNode nextNode = currentNode.getNextNode(); nextNode != null; nextNode = nextNode.getNextNode()) {
             if (nextNode.getType() == MsmTreeNode.XmlNodeType.note) {                           // found the next note
-                this.parent.parent.getMsmTree().setSelectedNode(nextNode);                      // select it
-                this.parent.parent.getMsmTree().scrollPathToVisible(nextNode.getTreePath());    // scroll the tree so the node is visible
+                this.scoreDocumentData.projectPane.getMsmTree().setSelectedNode(nextNode);                      // select it
+                this.scoreDocumentData.projectPane.getMsmTree().scrollPathToVisible(nextNode.getTreePath());    // scroll the tree so the node is visible
                 return;
             }
         }
-        this.parent.parent.getMsmTree().clearSelection();       // no note node was found (null), clear the selection so the next click won't overwrite the last note's coordinates
+        this.scoreDocumentData.projectPane.getMsmTree().clearSelection();       // no note node was found (null), clear the selection so the next click won't overwrite the last note's coordinates
     }
 
     /**
      * this helper method creates a popup menu for placing and creating performance instructions in the score
      * @return
      */
-    private WebPopupMenu makePlaceAndCreateContextMenu() {
+    public WebPopupMenu makePlaceAndCreateContextMenu() {
         Point mousePosInImage = this.getMousePositionInImage();
         return new PlaceAndCreateContextMenu(mousePosInImage, this); // create popup menu for the creation and placement of MPM nodes
     }
@@ -740,7 +573,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @param mouseEvent
      * @return
      */
-    private Element getOverlayElementAt(MouseEvent mouseEvent) {
+    public Element getOverlayElementAt(MouseEvent mouseEvent) {
         if (this.scorePage.isEmpty())                               // this score page has no elements
             return null;
 
@@ -769,7 +602,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @param point2D
      * @return
      */
-    private ONGNode getNeighboringNodes(Point2D point2D) {
+    ONGNode getNeighboringNodes(Point2D point2D) {
         return this.scorePage.findAllNearestNeighborsOf(point2D.getX(), point2D.getY());   // get the four neighbors to the point via a new ScoreNode
     }
 
@@ -778,7 +611,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @param point2D
      * @return
      */
-    private ArrayList<ONGNode> getAllDirectAndInverseNeighbors(Point2D point2D) {
+    ArrayList<ONGNode> getAllDirectAndInverseNeighbors(Point2D point2D) {
         ArrayList<ONGNode> neighbors = new ArrayList<>();      // put the neighboring nodes to the mouse position in the connectMeWithMouse list which is later used to highlight those nodes
 
         neighbors.add(this.scorePage.findNearestNeighborOf(point2D.getX(), point2D.getY()).getKey());    // get the nearest neighbor to the mouse position
@@ -800,59 +633,12 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     }
 
     /**
-     * set the anchorNode according to its current value and the nearest neighbor to the specified point
-     * @param point2D
-     */
-    private void updateAnchor(Point2D point2D) {
-        KeyValue<ONGNode, Double> nearest = this.scorePage.findNearestNeighborOf(point2D.getX(), point2D.getY());   // find the nearest neighboring overlay node
-        if (this.anchorNode == null) {
-            this.anchorNode = (ScoreNode) nearest.getKey();
-            return;
-        }
-        if (this.anchorNode != nearest.getKey()) {
-            double anchorDistance = this.anchorNode.distanceSq(point2D);
-            if ((nearest.getValue() / anchorDistance) <= Settings.anchorSwitchOvershootThreshold) {     // We switch the anchor to the nearest node only if we get much closer than we are to the current anchor. The threshold ratio is defined in Settings.
-                this.anchorNode = (ScoreNode) nearest.getKey();
-            }
-        }
-    }
-
-    /**
-     * In selectEdit mode: update anchorNode to the nearest overlay element only if the cursor is
-     * close enough to grab it. Also updates the mouse cursor accordingly.
-     * @param point2D the current mouse position in image coordinates
-     */
-    private void updateAnchorForSelectEdit(Point2D point2D) {
-        if (this.noteMultiselect.isActive()) {
-            this.anchorNode = null;
-            this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
-            return;
-        }
-
-        if (this.scorePage.isEmpty()) {
-            this.anchorNode = null;
-            this.setCursor(Cursor.getDefaultCursor());
-            return;
-        }
-        KeyValue<ONGNode, Double> nearest = this.scorePage.findNearestNeighborOf(point2D.getX(), point2D.getY());
-        if (nearest != null && (Math.sqrt(nearest.getValue()) * 2.0) <= this.xWidth) {
-            this.anchorNode = (ScoreNode) nearest.getKey();
-            this.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        } else {
-            this.anchorNode = null;
-            this.setCursor(Cursor.getDefaultCursor());
-        }
-    }
-
-    /**
      * convert the mouse position to the pixel position on the image
      * @param mouseEvent
      * @return
      */
-    private Point mouse2PixelPosition(MouseEvent mouseEvent) {
-        double x = mouseEvent.getX() * this.inverseAffineTransform.getScaleX() + this.inverseAffineTransform.getTranslateX();
-        double y = mouseEvent.getY() * this.inverseAffineTransform.getScaleY() + this.inverseAffineTransform.getTranslateY();
-        return new Point((int)x, (int)y);
+    public Point mouse2PixelPosition(MouseEvent mouseEvent) {
+        return this.panZoomHelper.getPixelPosition(mouseEvent.getPoint());
     }
 
     /**
@@ -861,6 +647,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseClicked(MouseEvent mouseEvent) {
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.mouseClicked(mouseEvent);
+        }
     }
 
     /**
@@ -869,44 +658,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mousePressed(MouseEvent mouseEvent) {
-        this.requestFocusInWindow();    // obtain focus on mouse press
-
-        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
-                && mouseEvent.getButton() == MouseEvent.BUTTON1
-                && mouseEvent.isShiftDown()
-                && !mouseEvent.isControlDown()) {
-            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-            this.noteMultiselect.start(this.getMousePositionInImage());
-            this.draggedElement = null;
-            this.anchorDragOffset.setLocation(0.0, 0.0);
-            this.anchorNode = null;
-            this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
-            this.repaint();
-            return;
-        }
-
-        // in selectEdit mode: pick up the nearest anchor on left-click
-        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
-                && mouseEvent.getButton() == MouseEvent.BUTTON1
-                && !mouseEvent.isControlDown()
-                && !mouseEvent.isShiftDown()) {
-            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-            Element elt = this.getOverlayElementAt(mouseEvent);
-            if (elt != null) {
-                this.draggedElement = elt;                          // mark for dragging
-                // compute the pixel offset from the click point to the anchor's stored centre
-                // so that the anchor does not snap its centre to the cursor while dragging
-                if (this.anchorNode != null) {
-                    Point clickPos = this.getMousePositionInImage();
-                    this.anchorDragOffset.setLocation(
-                            this.anchorNode.getX() - clickPos.x,
-                            this.anchorNode.getY() - clickPos.y);
-                } else {
-                    this.anchorDragOffset.setLocation(0.0, 0.0);
-                }
-                this.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
-                this.repaint();
-            }
+        this.requestFocusInWindow();
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.mousePressed(mouseEvent);
         }
     }
 
@@ -916,124 +670,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseReleased(MouseEvent mouseEvent) {
-        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
-                && this.noteMultiselect.isActive()
-                && mouseEvent.getButton() == MouseEvent.BUTTON1) {
-            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-            this.noteMultiselect.update(this.getMousePositionInImage());
-            this.noteMultiselect.finishAndSelect(this.scorePage.getAllEntries().entrySet());
-            this.updateAnchorForSelectEdit(this.getMousePositionInImage());
-            this.repaint();
-            return;
-        }
-
-        // selectEdit mode: complete an element drag on left-button release
-        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit
-                && this.draggedElement != null
-                && mouseEvent.getButton() == MouseEvent.BUTTON1) {
-            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-            // move the anchor to the new position, applying the same grab offset so the
-            // anchor centre lands where the user expects it (not at the raw cursor position)
-            double targetX = this.getMousePositionInImage().getX() + this.anchorDragOffset.x;
-            double targetY = this.getMousePositionInImage().getY() + this.anchorDragOffset.y;
-            this.scorePage.addEntry(targetX, targetY, this.draggedElement);
-
-            // select the corresponding tree node and scroll it into view
-            if (this.draggedElement.getLocalName().equals("note")) {
-                MsmTree msmTree = this.parent.parent.getMsmTree();
-                MsmTreeNode msmTreeNode = msmTree.findNode(this.draggedElement, true);
-                if (msmTreeNode != null) {
-                    msmTree.updateNode(msmTreeNode);                        // refresh label (green dot)
-                    msmTree.setSelectedNode(msmTreeNode);                   // select in tree
-                    msmTree.scrollPathToVisible(msmTreeNode.getTreePath()); // scroll into view
-                }
-            } else {
-                MpmTree mpmTree = this.parent.parent.getMpmTree();
-                if (mpmTree != null) {
-                    MpmTreeNode mpmTreeNode = mpmTree.findNode(this.draggedElement, true);
-                    if (mpmTreeNode != null) {
-                        mpmTree.setSelectedNode(mpmTreeNode);                   // select in tree
-                        mpmTree.scrollPathToVisible(mpmTreeNode.getTreePath()); // scroll into view
-                    }
-                }
-            }
-
-            this.draggedElement = null;
-            // restore hover cursor / ring
-            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-            this.updateAnchorForSelectEdit(this.getMousePositionInImage());
-            this.repaint();
-            return;
-        }
-
-        if (mouseEvent.isControlDown() || (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.panAndZoom) || (this.dragStartPoint != null)) {   // if we are in pan mode or in the midst of a drag gesture (dragStartPoint != null)
-            this.dragOrSelectGesture(mouseEvent);                                       // perform the drag
-            return;                                                                     // done
-        }
-
-        // otherwise perform a click
-        switch (this.parent.currentInteractionMode) {
-            case markNotes:                                                             // we are in mark notes mode
-                this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
-                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-
-                switch (mouseEvent.getButton()) {
-                    case MouseEvent.BUTTON1:                                            // left click = make note association
-                        this.makeNoteAssociation(mouseEvent);                           // create the note association
-                        break;
-                    case MouseEvent.BUTTON3:                                            // right click = context menu
-                        Element selectedElement = this.getOverlayElementAt(mouseEvent); // get the overlay element that the mouse click selects
-                        MsmTree msmTree = this.parent.parent.getMsmTree();              // a handle to the msm tree
-                        MsmTreeNode msmTreeNode = msmTree.findNode(selectedElement, true);    // get the msm tree's node that corresponds with the selected note
-                        if (msmTreeNode != null) {                                      // if something has been selected
-                            msmTree.setSelectedNode(msmTreeNode);                       // select the node in the msm tree
-                            msmTree.scrollPathToVisible(msmTreeNode.getTreePath());     // scroll the tree so the node is visible
-                            WebPopupMenu menu = MsmEditingTools.makeScoreContextMenu(msmTreeNode, msmTree, scorePage);
-                            menu.show(this, mouseEvent.getX() - 25, mouseEvent.getY());
-                        }
-                        break;
-                    default:
-                        break;
-                }
-                break;
-
-            case editPerformance:
-                this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
-                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-
-                switch (mouseEvent.getButton()) {
-                    case MouseEvent.BUTTON1:                                            // left click = open performance popup menu
-                        if (this.parent.parent.getMpm() == null) {
-                            this.noMpm.showPopup(this, mouseEvent.getPoint());          // display the popup message at the mouse position
-                            return;
-                        }
-                        if (this.parent.parent.getMpm().size() == 0) {
-                            this.noPerformance.showPopup(this, mouseEvent.getPoint());  // display the popup message at the mouse position
-                            return;
-                        }
-                        this.makePlaceAndCreateContextMenu().show(this, mouseEvent.getX() - 25, mouseEvent.getY());  // the -25 x offset is to place the upper excluded corner at the mouse position
-                        break;
-                    case MouseEvent.BUTTON3: {                                          // right click
-                        Element selectedElement = this.getOverlayElementAt(mouseEvent); // get the overlay element that the mouse click selects
-                        MpmTree mpmTree = this.parent.parent.getMpmTree();              // a handle to the mpm tree
-                        MpmTreeNode mpmTreeNode = mpmTree.findNode(selectedElement, true);    // get the mpm tree's element that corresponds with the selected node
-                        if (mpmTreeNode != null) {                                      // if something has been selected
-                            mpmTree.setSelectedNode(mpmTreeNode);                       // select the node in the mpm tree
-                            mpmTree.scrollPathToVisible(mpmTreeNode.getTreePath());     // scroll the tree so the node is visible
-                            WebPopupMenu editMenu = MpmEditingTools.makeScoreContextMenu(mpmTreeNode, mpmTree, scorePage);
-                            editMenu.show(this, mouseEvent.getX() - 25, mouseEvent.getY());
-                        }
-                        break;
-                    }
-                    default:
-                        break;
-                }
-                break;
-
-//            case panAndZoom:
-//            default:
-//                this.dragOrSelectGesture(mouseEvent);
-//                break;
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.mouseReleased(mouseEvent);
         }
     }
 
@@ -1043,37 +681,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseEntered(MouseEvent mouseEvent) {
-        if (mouseEvent.isControlDown()) {
-            this.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
-            return;
-        }
-
-        switch (this.parent.currentInteractionMode) {
-            case markNotes:
-                this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
-                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-                this.anchorNode = null;
-                this.repaint();
-                break;
-            case editPerformance:
-                this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
-                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-                if (this.scorePage.isEmpty())
-                    break;
-                this.updateAnchor(this.getMousePositionInImage());
-                this.repaint();
-                break;
-            case selectEdit:
-                this.draggedElement = null;
-                this.anchorDragOffset.setLocation(0.0, 0.0);
-                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-                this.updateAnchorForSelectEdit(this.getMousePositionInImage());
-                this.repaint();
-                break;
-            case panAndZoom:
-            default:
-                this.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
-                break;
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.mouseEntered(mouseEvent);
         }
     }
 
@@ -1083,13 +692,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseExited(MouseEvent mouseEvent) {
-        if ((this.parent.currentInteractionMode != ScoreDocumentData.InteractionMode.panAndZoom) && !mouseEvent.isControlDown()) {
-            this.setMousePositionInImage(null);
-            this.anchorNode = null;
-            this.draggedElement = null;
-            this.anchorDragOffset.setLocation(0.0, 0.0);
-            this.noteMultiselect.clear();
-            this.repaint();
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.mouseExited(mouseEvent);
         }
     }
 
@@ -1099,26 +703,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseDragged(MouseEvent mouseEvent) {
-        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit && this.noteMultiselect.isActive()) {
-            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-            this.noteMultiselect.update(this.getMousePositionInImage());
-            this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
-            this.repaint();
-            return;
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.mouseDragged(mouseEvent);
         }
-
-        // in selectEdit mode: if an element is picked up, move the preview – do NOT pan the image
-        if (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit && this.draggedElement != null) {
-            this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-            this.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
-            this.repaint();
-            return;
-        }
-
-        // panning should work in all interaction modes; once dragImage() has set variable this.dragStartPoint non-null, method mouseReleased() will treat the mouse button release as the end of the drag gesture, not a click
-        this.setMousePositionInImage(null);
-        this.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));                         // set the drag cursor
-        this.dragImage(mouseEvent.getLocationOnScreen());
     }
 
     /**
@@ -1127,38 +714,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseMoved(MouseEvent mouseEvent) {
-        if (mouseEvent.isControlDown()) {   // if CTRL is pressed we are in pan & zoom mode and there is nothing to be done
-            Element selectedElement = this.getOverlayElementAt(mouseEvent);         // get the overlay element at the mouse position
-            this.setCursor((selectedElement == null) ? Cursor.getDefaultCursor() : new Cursor(Cursor.HAND_CURSOR)); // change mouse cursor to hand if there is an overlay element
-            return;
-        }
-
-        switch (this.parent.currentInteractionMode) {
-            case markNotes:
-                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-                this.repaint();
-                break;
-
-            case editPerformance:        // in this mode, we track the nearest node to the mouse position to set the anchor node where a performance instruction will be associated (the date of the element behind the anchor node)
-                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-                if (!this.scorePage.isEmpty())
-                    this.updateAnchor(this.getMousePositionInImage());
-                this.repaint();
-                break;
-
-            case selectEdit:
-                if (this.noteMultiselect.isActive())
-                    break;
-                this.setMousePositionInImage(this.mouse2PixelPosition(mouseEvent));
-                this.updateAnchorForSelectEdit(this.getMousePositionInImage());
-                this.repaint();
-                break;
-
-            case panAndZoom:
-                Element selectedElement = this.getOverlayElementAt(mouseEvent);         // get the overlay element at the mouse position
-                this.setCursor((selectedElement == null) ? Cursor.getDefaultCursor() : new Cursor(Cursor.HAND_CURSOR)); // change mouse cursor to hand if there is an overlay element
-            default:
-                break;
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.mouseMoved(mouseEvent);
         }
     }
 
@@ -1168,67 +725,10 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void mouseWheelMoved(MouseWheelEvent mouseWheelEvent) {
-        // zooming should be possible in all interaction modes, so the following line is commented out
-//        if (!((this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.markNotes) || (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.editPerformance)) || mouseWheelEvent.isControlDown()) {     // we are in pan and zoom mode
-            if (this.zoomFactor == null)                        // make sure zoomFactor is initialized
-                this.zoomFactor = 1.0;
-
-            double prevZoomFactor = this.zoomFactor;            // store the zoom factor so far, needed later
-
-            if (mouseWheelEvent.getWheelRotation() < 0)         // zoom in
-                this.zoomFactor *= 1.1;
-            else if (mouseWheelEvent.getWheelRotation() > 0)    // zoom out
-                this.zoomFactor /= 1.1;
-            else                                                // in any other case
-                return;                                         // cancel
-
-            // compute the transform
-            double zoomDiv = this.zoomFactor / prevZoomFactor;
-            this.offset.setLocation((zoomDiv) * (this.offset.getX()) + (1.0 - zoomDiv) * mouseWheelEvent.getX(), (zoomDiv) * (this.offset.getY()) + (1.0 - zoomDiv) * mouseWheelEvent.getY());
-            this.affineTransform.setToIdentity();
-            this.affineTransform.translate(this.offset.getX(), this.offset.getY());
-            this.affineTransform.scale(this.zoomFactor, this.zoomFactor);
-
-            try {
-                this.inverseAffineTransform = this.affineTransform.createInverse();
-            } catch (NoninvertibleTransformException e) {
-                e.printStackTrace();
-            }
-
-            this.repaint();     // repaint the contents with this new transform
-//        }
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.mouseWheelMoved(mouseWheelEvent);
+        }
     }
-
-//    /**
-//     * define keyboard interaction
-//     */
-//    private void addKeyboardInput() {
-//        InputMap inputMap = this.getInputMap(JComponent.WHEN_FOCUSED);          // this inputmap fires only if the panel is focussed
-//
-//        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0), "PrevPage");
-//        this.getActionMap().put("PrevPage", new AbstractAction() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                previousPage();
-//            }
-//        });
-//
-//        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0), "NextPage");
-//        this.getActionMap().put("NextPage", new AbstractAction() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                nextPage();
-//            }
-//        });
-//
-//        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "DeletePage");
-//        this.getActionMap().put("DeletePage", new AbstractAction() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                parent.parent.removeScorePage(getPageIndex());
-//            }
-//        });
-//    }
 
     /**
      * actions to be triggered when a key is typed
@@ -1236,6 +736,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void keyTyped(KeyEvent keyEvent) {
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.keyTyped(keyEvent);
+        }
     }
 
     /**
@@ -1244,6 +747,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void keyPressed(KeyEvent keyEvent) {
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.keyPressed(keyEvent);
+        }
     }
 
     /**
@@ -1252,33 +758,32 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     @Override
     public void keyReleased(KeyEvent keyEvent) {
-        switch (keyEvent.getKeyCode()) {
-            case KeyEvent.VK_LEFT:
-                this.previousPage();
-                break;
-            case KeyEvent.VK_RIGHT:
-                this.nextPage();
-                break;
-//            case KeyEvent.VK_DELETE:
-////                this.parent.parent.removeScorePage(getPageIndex());     // remove score page
-//
-//                 // remove the currently selected note entry
-//                MsmTreeNode currentMsmTreeNode = this.parent.parent.getMsmTree().getSelectedNode();
-//                if ((currentMsmTreeNode != null) && (currentMsmTreeNode.getType() == MsmTreeNode.XmlNodeType.note)) {
-//                    this.scorePage.removeEntry((Element) currentMsmTreeNode.getUserObject());
-//                    this.repaint();
-//                    this.parent.parent.getMsmTree().updateNode(currentMsmTreeNode);
-//                }
-//                break;
-            case KeyEvent.VK_CONTROL:
-                if ((this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.markNotes)
-                        || (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.editPerformance)
-                        || (this.parent.currentInteractionMode == ScoreDocumentData.InteractionMode.selectEdit)) {
-                    this.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
-                }
-                break;
-            default:
-                break;
+        if (this.interactionModeManager != null) {
+            this.interactionModeManager.keyReleased(keyEvent);
         }
+    }
+
+    /**
+     * opens pop-up to inform user that no MPM is available
+     * @param mouseEvent
+     */
+    public void showHasNoMpmPopUp(MouseEvent mouseEvent) {
+        this.noMpm.showPopup(this, mouseEvent.getPoint());
+    }
+
+    /**
+     * opens pop-up to inform user that no performance is available
+     * @param mouseEvent
+     */
+    public void showNoPerformancePopUp(MouseEvent mouseEvent) {
+        this.noPerformance.showPopup(this, mouseEvent.getPoint());
+    }
+
+    /**
+     * sets button to be filled by InteractionManager
+     * @param button
+     */
+    public void setModeButton(WebSplitButton button) {
+        this.interactionModeManager.setModeButton(button);
     }
 }

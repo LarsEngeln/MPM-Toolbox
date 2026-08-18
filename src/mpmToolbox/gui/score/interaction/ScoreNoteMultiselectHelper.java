@@ -1,4 +1,4 @@
-package mpmToolbox.gui.score;
+package mpmToolbox.gui.score.interaction;
 
 import mpmToolbox.gui.msmTree.MsmTree;
 import mpmToolbox.gui.msmTree.MsmTreeNode;
@@ -23,7 +23,7 @@ public class ScoreNoteMultiselectHelper {
         this.msmTree = msmTree;
     }
 
-    public boolean isActive() {
+    public boolean isSelecting() {
         return this.selectionRectStart != null;
     }
 
@@ -38,9 +38,11 @@ public class ScoreNoteMultiselectHelper {
         this.selectionRect = makeRectangle(this.selectionRectStart, currentPoint);
     }
 
-    public void finishAndSelect(Set<Map.Entry<Element, ScoreNode>> scoreNodes) {
+    public ArrayList<Map.Entry<Element, ScoreNode>> finishAndSelect(Set<Map.Entry<Element, ScoreNode>> scoreNodes) {
         if (this.selectionRect == null)
-            return;
+            return null;
+
+        ArrayList<Map.Entry<Element, ScoreNode>> selectedNodes = new ArrayList<>();
 
         ArrayList<TreePath> paths = new ArrayList<>();
         for (Map.Entry<Element, ScoreNode> entry : scoreNodes) {
@@ -51,6 +53,8 @@ public class ScoreNoteMultiselectHelper {
             ScoreNode node = entry.getValue();
             if (!this.selectionRect.contains(node.getX(), node.getY()))
                 continue;
+
+            selectedNodes.add(entry);
 
             MsmTreeNode msmTreeNode = this.msmTree.findNode(element, true);
             if ((msmTreeNode != null) && (msmTreeNode.getType() == MsmTreeNode.XmlNodeType.note))
@@ -64,6 +68,8 @@ public class ScoreNoteMultiselectHelper {
         }
 
         this.clear();
+
+        return selectedNodes;
     }
 
     public void clear() {
