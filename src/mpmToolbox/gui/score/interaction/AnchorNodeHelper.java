@@ -1,14 +1,20 @@
-package mpmToolbox.gui.score;
+package mpmToolbox.gui.score.interaction;
 
 import meico.supplementary.KeyValue;
 import mpmToolbox.gui.Settings;
-import mpmToolbox.gui.score.interaction.ScoreNoteMultiselectHelper;
+import mpmToolbox.gui.mpmTree.MpmTree;
+import mpmToolbox.gui.mpmTree.MpmTreeNode;
+import mpmToolbox.gui.msmTree.MsmTree;
+import mpmToolbox.gui.msmTree.MsmTreeNode;
+import mpmToolbox.gui.score.ScoreDisplayPanel;
 import mpmToolbox.projectData.score.ScoreNode;
 import mpmToolbox.projectData.score.ScorePage;
 import mpmToolbox.supplementary.orthantNeighborhoodGraph.ONGNode;
+import nu.xom.Element;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
+import java.util.ArrayList;
 
 /**
  * Manages anchor node state for interaction modes.
@@ -62,23 +68,28 @@ public class AnchorNodeHelper {
         KeyValue<ONGNode, Double> nearest = scorePage.findNearestNeighborOf(point2D.getX(), point2D.getY());
         if (this.anchorNode == null) {
             this.anchorNode = (ScoreNode) nearest.getKey();
+
+            selectNode(this.anchorNode);
+
             return;
         }
         if (this.anchorNode != nearest.getKey()) {
             double anchorDistance = this.anchorNode.distanceSq(point2D);
             if ((nearest.getValue() / anchorDistance) <= Settings.anchorSwitchOvershootThreshold) {
                 this.anchorNode = (ScoreNode) nearest.getKey();
+
+                selectNode(this.anchorNode);
             }
         }
     }
 
     /**
-     * In selectEdit mode: updates anchor node to the nearest overlay element only if the cursor is
+     * for multiselect: updates anchor node to the nearest overlay element only if the cursor is
      * close enough to grab it. Also updates the mouse cursor accordingly.
      * @param point2D the current mouse position in image coordinates
      * @param noteMultiselect the note multiselect helper to check selection state
      */
-    public void updateAnchorForSelectEdit(Point2D point2D, ScoreNoteMultiselectHelper noteMultiselect) {
+    public void updateAnchorMultiselect(Point2D point2D, ScoreNoteMultiselectHelper noteMultiselect) {
         if (noteMultiselect.isSelecting()) {
             this.anchorNode = null;
             this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
@@ -98,6 +109,32 @@ public class AnchorNodeHelper {
         } else {
             this.anchorNode = null;
             this.panel.setCursor(Cursor.getDefaultCursor());
+        }
+    }
+
+    /**
+     * selects the given node
+     * @param node the node to select
+     */
+    private void selectNode(ScoreNode node) {
+        ArrayList<Element> elements = node.getAssociatedElements();
+        if (elements.isEmpty())
+            return;
+
+        Element element = elements.get(0);
+
+        MsmTree msmTree = panel.getScoreDocumentData().getProjectPane().getMsmTree();
+        MsmTreeNode msmTreeNode = msmTree.findNode(element, true);
+        if (msmTreeNode != null) {
+            msmTree.setSelectionPath(msmTreeNode.getTreePath());
+            return;
+        }
+
+        MpmTree mpmTree = panel.getScoreDocumentData().getProjectPane().getMpmTree();
+        MpmTreeNode mpmTreeNode = mpmTree.findNode(element, true);
+        if (mpmTreeNode != null) {
+            mpmTree.setSelectionPath(mpmTreeNode.getTreePath());
+            return;
         }
     }
 }

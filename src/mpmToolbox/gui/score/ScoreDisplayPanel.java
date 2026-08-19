@@ -130,7 +130,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * Get access to the ScoreDocumentData object that instantiated this.
      * @return
      */
-    public ScoreDocumentData getParentScoreDocumentData() {
+    public ScoreDocumentData getScoreDocumentData() {
         return this.scoreDocumentData;
     }
 
@@ -262,7 +262,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         }
 
         if (this.interactionModeManager != null) {
-            MpmTreeNode selectedMpmNode = this.getParentScoreDocumentData().getSelectedMpmNode();
+            MpmTreeNode selectedMpmNode = this.getScoreDocumentData().getSelectedMpmNode();
             this.interactionModeManager.draw(g2, selectedMpmNode);
         }
     }
@@ -564,8 +564,17 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * @return
      */
     public WebPopupMenu makePlaceAndCreateContextMenu() {
+        return this.makePlaceAndCreateContextMenu(null);
+    }
+
+    /**
+     * this helper method creates a popup menu for placing and creating performance instructions in the score
+     * @param selectedMsmNotes the currently selected MSM notes
+     * @return
+     */
+    public WebPopupMenu makePlaceAndCreateContextMenu(ArrayList<Element> selectedMsmNotes) {
         Point mousePosInImage = this.getMousePositionInImage();
-        return new PlaceAndCreateContextMenu(mousePosInImage, this); // create popup menu for the creation and placement of MPM nodes
+        return new PlaceAndCreateContextMenu(mousePosInImage, this, selectedMsmNotes); // create popup menu for the creation and placement of MPM nodes
     }
 
     /**

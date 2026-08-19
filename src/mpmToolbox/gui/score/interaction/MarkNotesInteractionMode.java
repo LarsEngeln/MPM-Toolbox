@@ -94,7 +94,7 @@ public final class MarkNotesInteractionMode extends AbstractInteractionMode {
                 break;
             case MouseEvent.BUTTON3:
                 Element selectedElement = this.panel.getOverlayElementAt(mouseEvent);
-                MsmTree msmTree = this.panel.getParentScoreDocumentData().getProjectPane().getMsmTree();
+                MsmTree msmTree = this.panel.getScoreDocumentData().getProjectPane().getMsmTree();
                 MsmTreeNode msmTreeNode = msmTree.findNode(selectedElement, true);
                 if (msmTreeNode != null) {
                     msmTree.setSelectedNode(msmTreeNode);
@@ -113,7 +113,7 @@ public final class MarkNotesInteractionMode extends AbstractInteractionMode {
      */
     @Override
     public void performSetup() {
-        MsmTree msmTree = this.panel.getParentScoreDocumentData().getProjectPane().getMsmTree();
+        MsmTree msmTree = this.panel.getScoreDocumentData().getProjectPane().getMsmTree();
         if (msmTree != null) {
             MsmTreeNode node = msmTree.getSelectedNode();
             if ((node == null) || (node.getType() != MsmTreeNode.XmlNodeType.note)) {

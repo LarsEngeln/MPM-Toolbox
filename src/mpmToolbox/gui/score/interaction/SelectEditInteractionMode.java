@@ -6,7 +6,6 @@ import mpmToolbox.gui.msmTree.MsmTree;
 import mpmToolbox.gui.msmTree.MsmTreeNode;
 import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.score.ScoreDisplayPanel;
-import mpmToolbox.gui.score.AnchorNodeHelper;
 import mpmToolbox.projectData.score.ScoreNode;
 import mpmToolbox.supplementary.Tools;
 import nu.xom.Element;
@@ -35,7 +34,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
     public SelectEditInteractionMode(ScoreDisplayPanel panel) {
         super(panel, "Select / Edit", "select and drag annotation anchors to reposition them", Color.ORANGE);
         this.anchorNodeHelper = new AnchorNodeHelper(panel);
-        this.noteMultiselect = new ScoreNoteMultiselectHelper(panel.getParentScoreDocumentData().getProjectPane().getMsmTree());
+        this.noteMultiselect = new ScoreNoteMultiselectHelper(panel.getScoreDocumentData().getProjectPane().getMsmTree());
     }
 
     /**
@@ -51,7 +50,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
         this.draggedElement = null;
         this.anchorNodeHelper.getAnchorDragOffset().setLocation(0.0, 0.0);
         updateMousePosition(mouseEvent);
-        this.anchorNodeHelper.updateAnchorForSelectEdit(this.panel.getMousePositionInImage(), this.noteMultiselect);
+        this.anchorNodeHelper.updateAnchor(this.panel.getMousePositionInImage());
         this.panel.repaint();
     }
 
@@ -121,7 +120,6 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
             updateMousePosition(mouseEvent);
             this.noteMultiselect.update(this.panel.getMousePositionInImage());
             this.currentSelection = this.noteMultiselect.finishAndSelect(this.panel.getScorePage().getAllEntries().entrySet());
-            this.anchorNodeHelper.updateAnchorForSelectEdit(this.panel.getMousePositionInImage(), this.noteMultiselect);
             this.panel.repaint();
             return;
         }
@@ -134,7 +132,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
             this.panel.getScorePage().addEntry(targetX, targetY, this.draggedElement);
 
             if (this.draggedElement.getLocalName().equals("note")) {
-                MsmTree msmTree = this.panel.getParentScoreDocumentData().getProjectPane().getMsmTree();
+                MsmTree msmTree = this.panel.getScoreDocumentData().getProjectPane().getMsmTree();
                 MsmTreeNode msmTreeNode = msmTree.findNode(this.draggedElement, true);
                 if (msmTreeNode != null) {
                     msmTree.updateNode(msmTreeNode);
@@ -142,7 +140,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
                     msmTree.scrollPathToVisible(msmTreeNode.getTreePath());
                 }
             } else {
-                MpmTree mpmTree = this.panel.getParentScoreDocumentData().getProjectPane().getMpmTree();
+                MpmTree mpmTree = this.panel.getScoreDocumentData().getProjectPane().getMpmTree();
                 if (mpmTree != null) {
                     MpmTreeNode mpmTreeNode = mpmTree.findNode(this.draggedElement, true);
                     if (mpmTreeNode != null) {
@@ -156,7 +154,6 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
             this.currentSelection = null;
             this.draggedElement = null;
             updateMousePosition(mouseEvent);
-            this.anchorNodeHelper.updateAnchorForSelectEdit(this.panel.getMousePositionInImage(), this.noteMultiselect);
             this.panel.repaint();
         }
     }
@@ -201,7 +198,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
         }
 
         updateMousePosition(mouseEvent);
-        this.anchorNodeHelper.updateAnchorForSelectEdit(this.panel.getMousePositionInImage(), this.noteMultiselect);
+        this.anchorNodeHelper.updateAnchor(this.panel.getMousePositionInImage());
         this.panel.repaint();
     }
 

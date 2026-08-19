@@ -62,7 +62,7 @@ public class ScoreNoteMultiselectHelper {
         }
 
         if (paths.isEmpty()) {
-            this.msmTree.clearSelection();
+            deselect();
         } else {
             this.msmTree.setSelectionPaths(paths.toArray(new TreePath[0]));
         }
@@ -70,6 +70,10 @@ public class ScoreNoteMultiselectHelper {
         this.clear();
 
         return selectedNodes;
+    }
+
+    public void deselect() {
+        this.msmTree.clearSelection();
     }
 
     public void clear() {

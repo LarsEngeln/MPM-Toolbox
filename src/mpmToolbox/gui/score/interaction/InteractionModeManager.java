@@ -5,7 +5,6 @@ import com.alee.laf.menu.PopupMenuWay;
 import com.alee.laf.menu.WebMenuItem;
 import com.alee.laf.menu.WebPopupMenu;
 import mpmToolbox.gui.Settings;
-import mpmToolbox.gui.score.AnchorNodeHelper;
 import mpmToolbox.gui.score.ScoreDisplayPanel;
 import mpmToolbox.gui.score.ScoreDocumentData;
 import mpmToolbox.gui.mpmTree.MpmTreeNode;

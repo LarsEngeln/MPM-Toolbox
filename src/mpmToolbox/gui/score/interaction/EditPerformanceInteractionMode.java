@@ -6,7 +6,6 @@ import mpmToolbox.gui.mpmTree.MpmTreeNode;
 import mpmToolbox.gui.mpmEditingTools.MpmEditingTools;
 import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.score.ScoreDisplayPanel;
-import mpmToolbox.gui.score.AnchorNodeHelper;
 import nu.xom.Element;
 
 import java.awt.Color;
@@ -19,6 +18,7 @@ import java.awt.event.MouseEvent;
  */
 public final class EditPerformanceInteractionMode extends AbstractInteractionMode {
     private final AnchorNodeHelper anchorNodeHelper;
+    private final ScoreNoteMultiselectHelper noteMultiselect;
 
     /**
      * Creates the edit-performance interaction handler for the score panel.
@@ -27,6 +27,7 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
     public EditPerformanceInteractionMode(ScoreDisplayPanel panel) {
         super(panel, "Add/Place Performance", "add or place performance data", Color.CYAN);
         this.anchorNodeHelper = new AnchorNodeHelper(panel);
+        this.noteMultiselect = new ScoreNoteMultiselectHelper(panel.getScoreDocumentData().getProjectPane().getMsmTree());
     }
 
     /**
@@ -37,6 +38,10 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
     public void mouseEntered(MouseEvent mouseEvent) {
         if (mouseEvent.isControlDown()) {
             this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+            return;
+        }
+        if (this.noteMultiselect.isSelecting()) {
+            this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
             return;
         }
         this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
@@ -60,11 +65,33 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
     }
 
     /**
+     * Starts note multi-selection on Shift-drag.
+     * @param mouseEvent the press event
+     */
+    @Override
+    public void mousePressed(MouseEvent mouseEvent) {
+        if ((mouseEvent.getButton() == MouseEvent.BUTTON1) && mouseEvent.isShiftDown() && !mouseEvent.isControlDown()) {
+            updateMousePosition(mouseEvent);
+            this.noteMultiselect.start(this.panel.getMousePositionInImage());
+            this.anchorNodeHelper.reset();
+            this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+            this.panel.repaint();
+        }
+    }
+
+    /**
      * Reuses the shared pan behavior while dragging.
      * @param mouseEvent the drag event
      */
     @Override
     public void mouseDragged(MouseEvent mouseEvent) {
+        if (this.noteMultiselect.isSelecting()) {
+            updateMousePosition(mouseEvent);
+            this.noteMultiselect.update(this.panel.getMousePositionInImage());
+            this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+            this.panel.repaint();
+            return;
+        }
         handlePanDrag(mouseEvent);
     }
 
@@ -76,6 +103,9 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
     public void mouseMoved(MouseEvent mouseEvent) {
         if (mouseEvent.isControlDown()) {
             this.panel.setCursor((this.panel.getOverlayElementAt(mouseEvent) == null) ? Cursor.getDefaultCursor() : new Cursor(Cursor.HAND_CURSOR));
+            return;
+        }
+        if (this.noteMultiselect.isSelecting()) {
             return;
         }
         updateMousePosition(mouseEvent);
@@ -95,24 +125,33 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
             return;
         }
 
+        if (this.noteMultiselect.isSelecting() && mouseEvent.getButton() == MouseEvent.BUTTON1) {
+            updateMousePosition(mouseEvent);
+            this.noteMultiselect.update(this.panel.getMousePositionInImage());
+            this.noteMultiselect.finishAndSelect(this.panel.getScorePage().getAllEntries().entrySet());
+            this.anchorNodeHelper.reset();
+            this.panel.repaint();
+            return;
+        }
+
         this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
         updateMousePosition(mouseEvent);
 
         switch (mouseEvent.getButton()) {
             case MouseEvent.BUTTON1:
-                if (this.panel.getParentScoreDocumentData().getProjectPane().getMpm() == null) {
+                if (this.panel.getScoreDocumentData().getProjectPane().getMpm() == null) {
                     this.panel.showHasNoMpmPopUp(mouseEvent);
                     return;
                 }
-                if (this.panel.getParentScoreDocumentData().getProjectPane().getMpm().size() == 0) {
+                if (this.panel.getScoreDocumentData().getProjectPane().getMpm().size() == 0) {
                     this.panel.showNoPerformancePopUp(mouseEvent);
                     return;
                 }
-                this.panel.makePlaceAndCreateContextMenu().show(this.panel, mouseEvent.getX() - 25, mouseEvent.getY());
+                this.panel.makePlaceAndCreateContextMenu(this.noteMultiselect.getSelectedMsmNotes()).show(this.panel, mouseEvent.getX() - 25, mouseEvent.getY());
                 break;
             case MouseEvent.BUTTON3:
                 Element selectedElement = this.panel.getOverlayElementAt(mouseEvent);
-                MpmTree mpmTree = this.panel.getParentScoreDocumentData().getProjectPane().getMpmTree();
+                MpmTree mpmTree = this.panel.getScoreDocumentData().getProjectPane().getMpmTree();
                 MpmTreeNode mpmTreeNode = mpmTree.findNode(selectedElement, true);
                 if (mpmTreeNode != null) {
                     mpmTree.setSelectedNode(mpmTreeNode);
@@ -131,7 +170,7 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
      */
     @Override
     public void performSetup() {
-        MpmTree mpmTree = this.panel.getParentScoreDocumentData().getProjectPane().getMpmTree();
+        MpmTree mpmTree = this.panel.getScoreDocumentData().getProjectPane().getMpmTree();
         if (mpmTree != null) {
             MpmTreeNode node = mpmTree.getSelectedNode();
             if ((node == null) || !node.isMapEntryType()) {
@@ -147,6 +186,7 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
     @Override
     public void drawModeSpecificOverlay(Graphics2D g2) {
         if (this.panel.getMousePositionInImage() == null) {
+            this.noteMultiselect.paintSelectionRectangle(g2, this.panel.getOverlayYWidth());
             return;
         }
 
@@ -162,6 +202,18 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
         g2.fillRect(this.panel.getMousePositionInImage().x - this.panel.getOverlayXOffset(),
                     this.panel.getMousePositionInImage().y - this.panel.getOverlayXOffset(),
                     this.panel.getOverlayXWidth(), this.panel.getOverlayXWidth());
+
+        this.noteMultiselect.paintSelectionRectangle(g2, this.panel.getOverlayYWidth());
+    }
+
+    /**
+     * Clears transient edit-performance state when leaving the panel.
+     */
+    @Override
+    protected void clearTransientState() {
+        super.clearTransientState();
+        this.anchorNodeHelper.reset();
+        this.noteMultiselect.clear();
     }
 
     /**

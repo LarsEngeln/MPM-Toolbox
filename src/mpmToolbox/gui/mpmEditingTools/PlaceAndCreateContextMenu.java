@@ -33,19 +33,33 @@ import java.util.ArrayList;
 public class PlaceAndCreateContextMenu extends WebPopupMenu {
     protected final ScoreDisplayPanel parent;   // the parent interface widget
     private final Point mousePosInImage;        // the pixel position in the score page that corresponds to the mouse event
+    private final ArrayList<Element> selectedMsmNotes;
 
     /**
      * constructor
      * @param mousePosInImage
      */
     public PlaceAndCreateContextMenu(Point mousePosInImage, ScoreDisplayPanel parent) {
+        this(mousePosInImage, parent, null);
+    }
+
+    /**
+     * constructor
+     * @param mousePosInImage
+     * @param parent
+     * @param selectedMsmNotes the currently selected MSM notes, if any
+     */
+    public PlaceAndCreateContextMenu(Point mousePosInImage, ScoreDisplayPanel parent, ArrayList<Element> selectedMsmNotes) {
         super();
 
         this.parent = parent;
         this.mousePosInImage = mousePosInImage;
+        this.selectedMsmNotes = (selectedMsmNotes == null) ? new ArrayList<>() : selectedMsmNotes;
 
         this.add(this.createPerformanceInstructionPopupSubmenu());      // create performance instruction in the score
-        this.add(this.repositionPerformanceInstructionPopupSubmenu());  // place a performance instruction on the score
+        if (this.selectedMsmNotes.size() <= 1) {
+            this.add(this.repositionPerformanceInstructionPopupSubmenu());  // place a performance instruction on the score
+        }
     }
 
     /**
@@ -53,14 +67,15 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
      * @return
      */
     private WebMenu createPerformanceInstructionPopupSubmenu() {
-        MpmTree mpmTree = this.parent.getParentScoreDocumentData().getProjectPane().getMpmTree();
+        MpmTree mpmTree = this.parent.getScoreDocumentData().getProjectPane().getMpmTree();
         WebMenu creationMenu = new WebMenu("New Performance Instruction in");
 
-        // Which date should the instruction be associated to? Here we choose the date of the anchor node or 0.0 if there is no anchor node.
+        // Which date should the instruction be associated to? Use the hover anchor.
         final ScoreNode anchor = this.parent.getAnchorNode();
+        final Point placementPoint = this.mousePosInImage;
 
         // choose the performance where the instruction should be added
-        for (Performance performance : this.parent.getParentScoreDocumentData().getProjectPane().getMpm().getAllPerformances()) {
+        for (Performance performance : this.parent.getScoreDocumentData().getProjectPane().getMpm().getAllPerformances()) {
             WebMenu performanceMenu = new WebMenu(performance.getName());
             MpmTreeNode performanceNode = mpmTree.findNode(performance, false);
 
@@ -79,63 +94,63 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
 
                 // choose instruction type and specify the action when it is clicked
                 WebMenuItem articulationItem = new WebMenuItem("Articulation");
-                articulationItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addArticulation(datedNode, mpmTree, anchor, this.mousePosInImage, this));
+                articulationItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addArticulation(datedNode, mpmTree, anchor, placementPoint, this));
                 datedMenu.getKey().add(articulationItem);
 
                 WebMenuItem asynchronyItem = new WebMenuItem("Asynchrony");
-                asynchronyItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addAsynchrony(datedNode, mpmTree, anchor, this.mousePosInImage, this));
+                asynchronyItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addAsynchrony(datedNode, mpmTree, anchor, placementPoint, this));
                 datedMenu.getKey().add(asynchronyItem);
 
                 WebMenuItem dynamicsItem = new WebMenuItem("Dynamics");
-                dynamicsItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDynamics(datedNode, mpmTree, anchor, this.mousePosInImage, this));
+                dynamicsItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDynamics(datedNode, mpmTree, anchor, placementPoint, this));
                 datedMenu.getKey().add(dynamicsItem);
 
                 WebMenuItem metricalAccentuationItem = new WebMenuItem("Metrical Accentuation");
-                metricalAccentuationItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addAccentuationPattern(datedNode, mpmTree, anchor, this.mousePosInImage, this));
+                metricalAccentuationItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addAccentuationPattern(datedNode, mpmTree, anchor, placementPoint, this));
                 datedMenu.getKey().add(metricalAccentuationItem);
 
                 WebMenuItem ornamentItem = new WebMenuItem("Ornament");
-                ornamentItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addOrnament(datedNode, mpmTree, anchor, this.mousePosInImage, this));
+                ornamentItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addOrnament(datedNode, mpmTree, anchor, placementPoint, this));
                 datedMenu.getKey().add(ornamentItem);
 
                 WebMenuItem rubatoItem = new WebMenuItem("Rubato");
-                rubatoItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addRubato(datedNode, mpmTree, anchor, this.mousePosInImage, this));
+                rubatoItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addRubato(datedNode, mpmTree, anchor, placementPoint, this));
                 datedMenu.getKey().add(rubatoItem);
 
                 WebMenuItem tempoItem = new WebMenuItem("Tempo");
-                tempoItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addTempo(datedNode, mpmTree, anchor, this.mousePosInImage, this));
+                tempoItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addTempo(datedNode, mpmTree, anchor, placementPoint, this));
                 datedMenu.getKey().add(tempoItem);
 
                 WebMenu randomizationItem = new WebMenu("Randomization");
                 WebMenuItem randomDynamicsItem = new WebMenuItem("Dynamics");
-                randomDynamicsItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDistribution(datedNode, mpmTree, anchor, this.mousePosInImage, this, Mpm.IMPRECISION_MAP_DYNAMICS));
+                randomDynamicsItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDistribution(datedNode, mpmTree, anchor, placementPoint, this, Mpm.IMPRECISION_MAP_DYNAMICS));
                 randomizationItem.add(randomDynamicsItem);
                 WebMenuItem randomTimingItem = new WebMenuItem("Timing");
-                randomTimingItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDistribution(datedNode, mpmTree, anchor, this.mousePosInImage, this, Mpm.IMPRECISION_MAP_TIMING));
+                randomTimingItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDistribution(datedNode, mpmTree, anchor, placementPoint, this, Mpm.IMPRECISION_MAP_TIMING));
                 randomizationItem.add(randomTimingItem);
                 WebMenuItem randomTondedurationItem = new WebMenuItem("Tone Duration");
-                randomTondedurationItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDistribution(datedNode, mpmTree, anchor, this.mousePosInImage, this, Mpm.IMPRECISION_MAP_TONEDURATION));
+                randomTondedurationItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDistribution(datedNode, mpmTree, anchor, placementPoint, this, Mpm.IMPRECISION_MAP_TONEDURATION));
                 randomizationItem.add(randomTondedurationItem);
                 WebMenuItem randomTuningItem = new WebMenuItem("Tuning");
-                randomTuningItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDistribution(datedNode, mpmTree, anchor, this.mousePosInImage, this, Mpm.IMPRECISION_MAP_TUNING));
+                randomTuningItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addDistribution(datedNode, mpmTree, anchor, placementPoint, this, Mpm.IMPRECISION_MAP_TUNING));
                 randomizationItem.add(randomTuningItem);
                 datedMenu.getKey().add(randomizationItem);
 
                 WebMenu styleSwitchItem = new WebMenu("Style Switch");
                 WebMenuItem articulationStyleSwitchItem = new WebMenuItem("Articulation Style");
-                articulationStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, this.mousePosInImage, this, Mpm.ARTICULATION_MAP));
+                articulationStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, placementPoint, this, Mpm.ARTICULATION_MAP));
                 styleSwitchItem.add(articulationStyleSwitchItem);
                 WebMenuItem dynamicsStyleSwitchItem = new WebMenuItem("Dynamics Style");
-                dynamicsStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, this.mousePosInImage, this, Mpm.DYNAMICS_MAP));
+                dynamicsStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, placementPoint, this, Mpm.DYNAMICS_MAP));
                 styleSwitchItem.add(dynamicsStyleSwitchItem);
                 WebMenuItem metricalAccentuationStyleSwitchItem = new WebMenuItem("Metrical Accentuation Style");
-                metricalAccentuationStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, this.mousePosInImage, this, Mpm.METRICAL_ACCENTUATION_MAP));
+                metricalAccentuationStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, placementPoint, this, Mpm.METRICAL_ACCENTUATION_MAP));
                 styleSwitchItem.add(metricalAccentuationStyleSwitchItem);
                 WebMenuItem rubatoStyleSwitchItem = new WebMenuItem("Rubato Style");
-                rubatoStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, this.mousePosInImage, this, Mpm.RUBATO_MAP));
+                rubatoStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, placementPoint, this, Mpm.RUBATO_MAP));
                 styleSwitchItem.add(rubatoStyleSwitchItem);
                 WebMenuItem tempoStyleSwitchItem = new WebMenuItem("Tempo Style");
-                tempoStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, this.mousePosInImage, this, Mpm.TEMPO_MAP));
+                tempoStyleSwitchItem.addActionListener(actionEvent -> PlaceAndCreateContextMenu.addStyleSwitch(datedNode, mpmTree, anchor, placementPoint, this, Mpm.TEMPO_MAP));
                 styleSwitchItem.add(tempoStyleSwitchItem);
                 datedMenu.getKey().add(styleSwitchItem);
             }
@@ -152,7 +167,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
      * @return
      */
     private JMenuItem repositionPerformanceInstructionPopupSubmenu() {
-        MpmTreeNode currentNode = this.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().getSelectedNode();            // get the currently selected node
+        MpmTreeNode currentNode = this.parent.getScoreDocumentData().getProjectPane().getMpmTree().getSelectedNode();            // get the currently selected node
 
         if ((currentNode == null) || !currentNode.isMapEntryType()) {
             WebMenuItem placeInstructionHere = new WebMenuItem("Place instruction here");
@@ -227,8 +242,8 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
                 repositionPerformanceInstruction(currentNode, mousePosInImage, this, true); // position the object in the score
                 currentNode.setDate(Double.parseDouble(date));                              // set the new date and reorder the parent map accordingly
                 Performance performance = currentNode.getPerformance();                     // get the performance that this node belongs to
-                this.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().reloadNode(currentNode.getParent());      // update MPM subtree
-                MpmEditingTools.updateAudioAlignment(performance, this.parent.getParentScoreDocumentData().getProjectPane(), instructionType.equals("Tempo"));    // the piano roll visualization of this performance in the audio frame must be kept up to date
+                this.parent.getScoreDocumentData().getProjectPane().getMpmTree().reloadNode(currentNode.getParent());      // update MPM subtree
+                MpmEditingTools.updateAudioAlignment(performance, this.parent.getScoreDocumentData().getProjectPane(), instructionType.equals("Tempo"));    // the piano roll visualization of this performance in the audio frame must be kept up to date
             });
             placeAndChangeDate.setToolTipText("The date can be edited later on.");
             placeInstructionHere.add(placeAndChangeDate);
@@ -248,24 +263,127 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
         // update the associated data in the project data structure
         Element object = (Element) currentNode.getUserObject();                 // get the element
         ScoreNode objectNode = self.parent.getScorePage().addEntry(position.getX(), position.getY(), object);
-        self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().updateNode(currentNode);          // update the indication that the instruction is associated to a pixel position now
+        self.parent.getScoreDocumentData().getProjectPane().getMpmTree().updateNode(currentNode);          // update the indication that the instruction is associated to a pixel position now
 
         // if the cursor in the MPM tree should not increment, i.e. select the next map node, it should at leas select the current node
         if (!incrementTreeCursor) {
-            self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().setSelectedNode(currentNode);                   // select it
-            self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().scrollPathToVisible(currentNode.getTreePath()); // scroll the tree so the node is visible
+            self.parent.getScoreDocumentData().getProjectPane().getMpmTree().setSelectedNode(currentNode);                   // select it
+            self.parent.getScoreDocumentData().getProjectPane().getMpmTree().scrollPathToVisible(currentNode.getTreePath()); // scroll the tree so the node is visible
             return;
         }
 
         // in the MPM tree find and select the next node
         for (MpmTreeNode nextNode = currentNode.getNextNode(); nextNode != null; nextNode = nextNode.getNextNode()) {
             if (nextNode.isMapEntryType()) {                                                                // if the node is an entry in an MPM map
-                self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().setSelectedNode(nextNode);                   // select it
-                self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().scrollPathToVisible(nextNode.getTreePath()); // scroll the tree so the node is visible
+                self.parent.getScoreDocumentData().getProjectPane().getMpmTree().setSelectedNode(nextNode);                   // select it
+                self.parent.getScoreDocumentData().getProjectPane().getMpmTree().scrollPathToVisible(nextNode.getTreePath()); // scroll the tree so the node is visible
                 return;
             }
         }
-        self.parent.getParentScoreDocumentData().getProjectPane().getMpmTree().clearSelection();                 // no node was found (null because end of tree), clear the selection so the next click won't overwrite the last node's coordinates
+        self.parent.getScoreDocumentData().getProjectPane().getMpmTree().clearSelection();                 // no node was found (null because end of tree), clear the selection so the next click won't overwrite the last node's coordinates
+    }
+
+    /**
+     * Applies a created performance instruction to all selected notes when multiselect is active.
+     * @param map the target map
+     * @param sourceElement the element that was just created
+     * @param datedNode the dated environment node
+     * @param mpmTree the tree owning the map
+     * @param self the popup menu instance
+     * @return true when extra copies were created
+     */
+    private boolean applyCreatedElementToSelectedNotes(GenericMap map, Element sourceElement, MpmTreeNode datedNode, MpmTree mpmTree, PlaceAndCreateContextMenu self) {
+        if (this.selectedMsmNotes.size() <= 1) {
+            return false;
+        }
+
+        Element firstSelectedNote = this.selectedMsmNotes.get(0);
+        this.applyNoteReference(sourceElement, firstSelectedNote, datedNode, mpmTree);
+
+        Point offset = this.getSelectionOffset();
+        boolean copied = false;
+        for (int i = 1; i < this.selectedMsmNotes.size(); ++i) {
+            Element selectedNote = this.selectedMsmNotes.get(i);
+            ScoreNode noteNode = this.parent.getScorePage().getNode(selectedNote);
+            if (noteNode == null) {
+                continue;
+            }
+
+            Element copy = sourceElement.copy();
+            Attribute id = copy.getAttribute("id", "http://www.w3.org/XML/1998/namespace");
+            if (id != null) {
+                id.setValue(id.getValue() + "_mpmToolbox-copy_" + java.util.UUID.randomUUID());
+            }
+
+            this.applyNoteReference(copy, selectedNote, datedNode, mpmTree);
+
+            map.addElement(copy);
+            this.parent.getScorePage().addEntry(noteNode.getX() + offset.x, noteNode.getY() + offset.y, copy);
+            copied = true;
+        }
+
+        if (copied) {
+            mpmTree.reloadNode(datedNode);
+        }
+        return copied;
+    }
+
+    /**
+     * Makes sure a created performance element matches a specific note's noteid and date.
+     * @param performanceElement the created/duplicated performance element
+     * @param noteElement the reference MSM note
+     * @param datedNode the dated environment node
+     * @param mpmTree the owning tree
+     */
+    private void applyNoteReference(Element performanceElement, Element noteElement, MpmTreeNode datedNode, MpmTree mpmTree) {
+        String noteId = Helper.getAttributeValue("id", noteElement);
+        Attribute noteIdAttr = performanceElement.getAttribute("noteid");
+        if ((noteId != null) && !noteId.isEmpty()) {
+            if (noteIdAttr == null) {
+                performanceElement.addAttribute(new Attribute("noteid", "#" + noteId));
+            } else {
+                noteIdAttr.setValue("#" + noteId);
+            }
+        } else if (noteIdAttr != null) {
+            performanceElement.removeAttribute(noteIdAttr);
+        }
+
+        String noteDate = Helper.getAttributeValue("date", noteElement);
+        Attribute dateAttr = performanceElement.getAttribute("date");
+        if ((noteDate != null) && !noteDate.isEmpty()) {
+            double msmDate = Double.parseDouble(noteDate);
+            double performanceDate = this.toPerformanceDate(msmDate, datedNode, mpmTree);
+            if (dateAttr == null) {
+                performanceElement.addAttribute(new Attribute("date", String.valueOf(performanceDate)));
+            } else {
+                dateAttr.setValue(String.valueOf(performanceDate));
+            }
+        }
+    }
+
+    /**
+     * Gets the offset from the hover anchor to the mouse position.
+     * @return the x/y offset to apply to multiselected copies
+     */
+    private Point getSelectionOffset() {
+        ScoreNode anchor = this.parent.getAnchorNode();
+        if ((anchor == null) || (this.mousePosInImage == null)) {
+            return new Point(0, 0);
+        }
+        return new Point(this.mousePosInImage.x - (int) anchor.getX(), this.mousePosInImage.y - (int) anchor.getY());
+    }
+
+    /**
+     * Converts an MSM date to the matching performance date.
+     * @param msmDate the MSM date
+     * @param datedNode the performance's dated environment
+     * @param mpmTree the tree that owns the performance
+     * @return the converted performance date
+     */
+    private double toPerformanceDate(double msmDate, MpmTreeNode datedNode, MpmTree mpmTree) {
+        int ppqMsm = mpmTree.getProjectPane().getMsm().getPPQ();
+        int ppqMpm = datedNode.getPerformance().getPPQ();
+        return (msmDate * ppqMpm) / ppqMsm;
     }
 
     /**
@@ -322,6 +440,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
             mpmTree.reloadNode(mapNode);                                                // update the MPM tree
             MpmTreeNode newNode = mapNode.findChildNode(map.getElement(index), false);  // get a handle to the MPM tree node of the instruction just added
             PlaceAndCreateContextMenu.repositionPerformanceInstruction(newNode, position, self, false);  // set its position on the score page
+            self.applyCreatedElementToSelectedNotes(map, map.getElement(index), datedNode, mpmTree, self);
             MpmEditingTools.updateAudioAlignment(datedNode.getPerformance(), mpmTree.getProjectPane(), false);    // update the alignment visualization in the audio frame
         } else if (deleteMapOnCancel) {                                                 // cancel
             ((Dated) datedNode.getUserObject()).removeMap(Mpm.ARTICULATION_MAP);
@@ -364,6 +483,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
         MpmTreeNode mapNode = datedNode.findChildNode(map, false);                              // get a handle to the map node in the MPM tree
         MpmTreeNode newNode = mapNode.findChildNode(map.getElement(index), false);              // get a handle to the MPM tree node of the instruction just added
         PlaceAndCreateContextMenu.repositionPerformanceInstruction(newNode, position, self, false);    // the its position on the score page
+        self.applyCreatedElementToSelectedNotes(map, map.getElement(index), datedNode, mpmTree, self);
         MpmEditingTools.updateAudioAlignment(datedNode.getPerformance(), mpmTree.getProjectPane(), false);    // update the alignment visualization in the audio frame
     }
 
@@ -403,6 +523,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
             mpmTree.reloadNode(mapNode);                                                // update the MPM tree
             MpmTreeNode newNode = mapNode.findChildNode(map.getElement(index), false);  // get a handle to the MPM tree node of the instruction just added
             PlaceAndCreateContextMenu.repositionPerformanceInstruction(newNode, position, self, false);  // the its position on the score page
+            self.applyCreatedElementToSelectedNotes(map, map.getElement(index), datedNode, mpmTree, self);
             MpmEditingTools.updateAudioAlignment(datedNode.getPerformance(), mpmTree.getProjectPane(), false);    // update the alignment visualization in the audio frame
         } else if (deleteMapOnCancel) {                                                 // cancel
             ((Dated) datedNode.getUserObject()).removeMap(Mpm.DYNAMICS_MAP);
@@ -446,6 +567,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
             mpmTree.reloadNode(mapNode);                                                // update the MPM tree
             MpmTreeNode newNode = mapNode.findChildNode(map.getElement(index), false);  // get a handle to the MPM tree node of the instruction just added
             PlaceAndCreateContextMenu.repositionPerformanceInstruction(newNode, position, self, false);  // the its position on the score page
+            self.applyCreatedElementToSelectedNotes(map, map.getElement(index), datedNode, mpmTree, self);
             MpmEditingTools.updateAudioAlignment(datedNode.getPerformance(), mpmTree.getProjectPane(), false);    // update the alignment visualization in the audio frame
         } else if (deleteMapOnCancel) {                                                 // cancel
             ((Dated) datedNode.getUserObject()).removeMap(Mpm.METRICAL_ACCENTUATION_MAP);
@@ -489,6 +611,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
             mpmTree.reloadNode(mapNode);                                                // update the MPM tree
             MpmTreeNode newNode = mapNode.findChildNode(map.getElement(index), false);  // get a handle to the MPM tree node of the instruction just added
             PlaceAndCreateContextMenu.repositionPerformanceInstruction(newNode, position, self, false);  // set its position on the score page
+            self.applyCreatedElementToSelectedNotes(map, map.getElement(index), datedNode, mpmTree, self);
             MpmEditingTools.updateAudioAlignment(datedNode.getPerformance(), mpmTree.getProjectPane(), false);    // update the alignment visualization in the audio frame
         } else if (deleteMapOnCancel) {                                                 // cancel
             ((Dated) datedNode.getUserObject()).removeMap(Mpm.ORNAMENTATION_MAP);
@@ -532,6 +655,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
             mpmTree.reloadNode(mapNode);                                                // update the MPM tree
             MpmTreeNode newNode = mapNode.findChildNode(map.getElement(index), false);  // get a handle to the MPM tree node of the instruction just added
             PlaceAndCreateContextMenu.repositionPerformanceInstruction(newNode, position, self, false);  // the its position on the score page
+            self.applyCreatedElementToSelectedNotes(map, map.getElement(index), datedNode, mpmTree, self);
             MpmEditingTools.updateAudioAlignment(datedNode.getPerformance(), mpmTree.getProjectPane(), false);    // update the alignment visualization in the audio frame
         } else if (deleteMapOnCancel) {                                                 // cancel
             ((Dated) datedNode.getUserObject()).removeMap(Mpm.RUBATO_MAP);
@@ -575,6 +699,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
             mpmTree.reloadNode(mapNode);                                                // update the MPM tree
             MpmTreeNode newNode = mapNode.findChildNode(map.getElement(index), false);  // get a handle to the MPM tree node of the instruction just added
             PlaceAndCreateContextMenu.repositionPerformanceInstruction(newNode, position, self, false);  // the its position on the score page
+            self.applyCreatedElementToSelectedNotes(map, map.getElement(index), datedNode, mpmTree, self);
             MpmEditingTools.updateAudioAlignment(datedNode.getPerformance(), mpmTree.getProjectPane(), true);    // update the alignment visualization in the audio frame
         } else if (deleteMapOnCancel) {                                                 // cancel
             ((Dated) datedNode.getUserObject()).removeMap(Mpm.TEMPO_MAP);
@@ -618,6 +743,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
         MpmTreeNode mapNode = datedNode.findChildNode(map, false);                              // get a handle to the map node in the MPM tree
         MpmTreeNode newNode = mapNode.findChildNode(map.getElement(index), false);              // get a handle to the MPM tree node of the instruction just added
         PlaceAndCreateContextMenu.repositionPerformanceInstruction(newNode, position, self, false);    // the its position on the score page
+        self.applyCreatedElementToSelectedNotes(map, map.getElement(index), datedNode, mpmTree, self);
         MpmEditingTools.updateAudioAlignment(datedNode.getPerformance(), mpmTree.getProjectPane(), false);    // update the alignment visualization in the audio frame
     }
 
@@ -663,6 +789,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
             mpmTree.reloadNode(mapNode);                                                // update the MPM tree
             MpmTreeNode newNode = mapNode.findChildNode(map.getElement(index), false);  // get a handle to the MPM tree node of the instruction just added
             PlaceAndCreateContextMenu.repositionPerformanceInstruction(newNode, position, self, false);  // the its position on the score page
+            self.applyCreatedElementToSelectedNotes(map, map.getElement(index), datedNode, mpmTree, self);
             MpmEditingTools.updateAudioAlignment(datedNode.getPerformance(), mpmTree.getProjectPane(), mapType.equals(Mpm.TEMPO_MAP));    // update the alignment visualization in the audio frame
         } else if (deleteMapOnCancel) {                                                 // cancel
             ((Dated) datedNode.getUserObject()).removeMap(mapType);
