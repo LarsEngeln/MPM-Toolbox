@@ -30,27 +30,26 @@ import java.util.ArrayList;
  * @author Axel Berndt
  */
 public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionListener {
-    protected final ProjectPane parent;
+    protected final ProjectPane projectPane;
     private final WebPanel scorePanel = new WebPanel();
     private ScoreDisplayPanel scoreDisplay = null;                                                              // this displays the score
     private final WebLabel placeholder = new WebLabel("Place score images here.", WebLabel.CENTER);
     private final WebPopupMenu scorePagesPopupMenu = new WebPopupMenu();                                        // this is filled with the file names of the score pages, then used by the WebSplitButton for pages selection
-    private final WebSplitButton interactionMode = new WebSplitButton();                                        // with this button we switch between interaction modes
-    protected InteractionMode currentInteractionMode = InteractionMode.panAndZoom;                              // this is set to the current interaction mode whenever the interactionMode split button is set
+    private final WebSplitButton interactionModeSplitBtn = new WebSplitButton();                                        // with this button we switch between interaction modes
     protected final WebSpinner annotationSizeSpinner = new WebSpinner(new SpinnerNumberModel(0, -999, 999, 1)); // this spinner allows scaling the size of overlay elements in the score display
     boolean hideScore = false;
     boolean hideOverlay = false;
 
     /**
      * constructor
-     * @param parent
+     * @param projectPane is the parent of ScoreDocumentData
      */
-    public ScoreDocumentData(@NotNull ProjectPane parent) {
+    public ScoreDocumentData(@NotNull ProjectPane projectPane) {
         super("Score", "Score", null);
 
         this.setComponent(this.scorePanel);
         this.setClosable(false);
-        this.parent = parent;
+        this.projectPane = projectPane;
         this.draw();
     }
 
@@ -58,8 +57,8 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
      * Get the ProjectPane object that this belongs to.
      * @return
      */
-    public ProjectPane getParent() {
-        return this.parent;
+    public ProjectPane getProjectPane() {
+        return this.projectPane;
     }
 
     /**
@@ -131,9 +130,9 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
         this.initInteractionModeButton();           // the split button to choose the interaction mode
 
         // overlay elements size
-        this.annotationSizeSpinner.setValue(this.parent.getScore().getOverlayElementSize());
+        this.annotationSizeSpinner.setValue(this.projectPane.getScore().getOverlayElementSize());
         this.annotationSizeSpinner.addChangeListener(changeEvent -> {
-            this.parent.getScore().setOverlayElementSize((int) this.annotationSizeSpinner.getValue());
+            this.projectPane.getScore().setOverlayElementSize((int) this.annotationSizeSpinner.getValue());
             this.scoreDisplay.updateOverlayElementsScaleFactor();
         });
         this.annotationSizeSpinner.setToolTipText("set the size of overlay elements, e.g. notes");
@@ -143,7 +142,7 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
         GridBagLayout scoreButtonPanelLayout = new GridBagLayout();
         final WebPanel scoreButtonPanel = new WebPanel(scoreButtonPanelLayout);
         scoreButtonPanel.setPadding(Settings.paddingInDialogs);
-        final GroupPane buttonGroup = new GroupPane(GroupPane.CENTER, previousButton, deleteButton, hideScoreButton, hideOverlayButton, pageSelectButton, this.interactionMode, nextButton);    // the GroupPane groups the buttons
+        final GroupPane buttonGroup = new GroupPane(GroupPane.CENTER, previousButton, deleteButton, hideScoreButton, hideOverlayButton, pageSelectButton, this.interactionModeSplitBtn, nextButton);    // the GroupPane groups the buttons
         Tools.addComponentToGridBagLayout(scoreButtonPanel, scoreButtonPanelLayout, buttonGroup, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
         Tools.addComponentToGridBagLayout(scoreButtonPanel, scoreButtonPanelLayout, this.annotationSizeSpinner, 1, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
 
@@ -151,9 +150,10 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
         this.scorePanel.setLayout(gridBagLayout);
         Tools.addComponentToGridBagLayout(this.scorePanel, gridBagLayout, scoreButtonPanel, 0, 1, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.NONE, GridBagConstraints.SOUTH);
 
-        // the score page display
-        if (!this.parent.getScore().isEmpty()) {                                    // if the project has no score images
+        // the page page display
+        if (!this.projectPane.getScore().isEmpty()) {                                    // if the project has no score images
             this.scoreDisplay = new ScoreDisplayPanel(this);
+            this.initInteractionModeButton();
             Tools.addComponentToGridBagLayout(this.scorePanel, gridBagLayout, this.scoreDisplay, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
         } else {
             Tools.addComponentToGridBagLayout(this.scorePanel, gridBagLayout, this.placeholder, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
@@ -165,13 +165,13 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
      * @return the page selection button
      */
     private WebSplitButton makePageSelectButton() {
-        for (ScorePage page : this.parent.getScore().getAllPages()) {                   // first we generate the popup menu that writes down all score page file names, hence, we parse all score files
+        for (ScorePage page : this.projectPane.getScore().getAllPages()) {                   // first we generate the popup menu that writes down all score page file names, hence, we parse all score files
             WebMenuItem menuItem = new WebMenuItem(page.getFile().getAbsolutePath().trim());   // the popup menu item gets the file path
             this.scorePagesPopupMenu.add(menuItem);                                     // add the item to the popup menu
             // and set the behaviour when clicked
             menuItem.addActionListener(actionEvent -> {
 //                    pageSelectButton.setText(menuItem.getText());
-                int pageIndex = this.parent.getScore().getPageIndex(new File(menuItem.getText()));
+                int pageIndex = this.projectPane.getScore().getPageIndex(new File(menuItem.getText()));
                 if (pageIndex > -1) {
                     this.scoreDisplay.showPage(pageIndex);
                 }
@@ -190,61 +190,9 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
      * this method initializes the split button that triggers the interaction modes
      */
     private void initInteractionModeButton() {
-        WebPopupMenu interactionModePopup = new WebPopupMenu();
-
-        WebMenuItem menuItem = new WebMenuItem("Pan & Zoom");
-        menuItem.addActionListener(actionEvent -> {
-            this.currentInteractionMode = InteractionMode.panAndZoom;
-            this.interactionMode.setText("Pan & Zoom");
-            this.interactionMode.setForeground(Settings.foregroundColor);
-//            interactionMode.setToolTip("interaction mode: pan and zoom");
-        });
-        menuItem.setToolTipText("pan and zoom interaction mode");
-        interactionModePopup.add(menuItem);
-
-        menuItem = new WebMenuItem("Mark Notes");
-        menuItem.addActionListener(actionEvent -> {
-            this.currentInteractionMode = InteractionMode.markNotes;
-            MsmTreeNode node = this.parent.getMsmTree().getSelectedNode();              // get the currently selected node
-            if ((node == null) || (node.getType() != MsmTreeNode.XmlNodeType.note))     // if none is selected or it is not of type note
-                this.parent.getMsmTree().gotoFirstNoteNode();                           // select the first note node in the tree
-            this.interactionMode.setText("Mark Notes");
-            this.interactionMode.setForeground(Color.GREEN);
-//            interactionMode.setToolTip("<html><center>Interaction mode: Place notes from Musical Sequence Markup on the score.<br>Be sure to select the respective note in the Musical Sequence Markup.<br>Left click places a note, right click deletes a note from the score page.</center></html>");
-        });
-        menuItem.setToolTipText("<html><center>Place notes from Musical Sequence Markup on the score.<br>Be sure to select the respective note in the Musical Sequence Markup.<br>Left click places a note, right click deletes a note from the score page.</center></html>");
-        interactionModePopup.add(menuItem);
-
-        menuItem = new WebMenuItem("Add/Place Performance");
-        menuItem.addActionListener(actionEvent -> {
-            this.currentInteractionMode = InteractionMode.editPerformance;
-            if (this.parent.getMpmTree() != null) {
-                MpmTreeNode node = this.parent.getMpmTree().getSelectedNode();
-                if ((node == null) || !node.isMapEntryType())
-                    this.parent.getMpmTree().gotoFirstMapEntryNode();
-            }
-            this.interactionMode.setText("Add/Place Performance");
-//            interactionMode.setToolTip("interaction mode: edit performance data");
-            this.interactionMode.setForeground(Color.CYAN);
-        });
-        menuItem.setToolTipText("add or place performance data");
-        interactionModePopup.add(menuItem);
-
-        menuItem = new WebMenuItem("Select / Edit");
-        menuItem.addActionListener(actionEvent -> {
-            this.currentInteractionMode = InteractionMode.selectEdit;
-            this.interactionMode.setText("Select / Edit");
-            this.interactionMode.setForeground(Color.ORANGE);
-        });
-        menuItem.setToolTipText("select and drag annotation anchors to reposition them");
-        interactionModePopup.add(menuItem);
-
-        this.interactionMode.setPopupMenu(interactionModePopup);
-        this.interactionMode.setPopupMenuWay(PopupMenuWay.aboveEnd);
-        this.currentInteractionMode = InteractionMode.panAndZoom;
-        this.interactionMode.setText("Pan & Zoom");
-        this.interactionMode.setPadding(Settings.paddingInDialogs);
-        this.interactionMode.setToolTip("select interaction mode");
+        if(this.scoreDisplay != null) {
+            this.scoreDisplay.setModeButton(this.interactionModeSplitBtn);
+        }
     }
 
     /**
@@ -263,13 +211,14 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
     public void addScorePage(File file) {
         if (this.scoreDisplay == null) {
             this.scoreDisplay = new ScoreDisplayPanel(this);
+            this.initInteractionModeButton();
             this.getComponent().remove(this.placeholder);
             Tools.addComponentToGridBagLayout(this.getComponent(), (GridBagLayout) this.getComponent().getLayout(), this.scoreDisplay, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
         }
 
         WebMenuItem menuItem = new WebMenuItem(file.getAbsolutePath());
         menuItem.addActionListener(actionEvent -> {
-            int pageIndex = this.parent.getScore().getPageIndex(new File(menuItem.getText()));
+            int pageIndex = this.projectPane.getScore().getPageIndex(new File(menuItem.getText()));
             if (pageIndex > -1) {
                 this.scoreDisplay.showPage(pageIndex);
             }
@@ -285,7 +234,7 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
     public void removeScorePage(int index) {
         this.scorePagesPopupMenu.remove(index);
 
-        if (this.parent.getScore().isEmpty()) {                     // if no score page is left, close the frame and delete the score panel
+        if (this.projectPane.getScore().isEmpty()) {                     // if no score page is left, close the frame and delete the score panel
             this.getComponent().remove(this.scoreDisplay);
             this.scoreDisplay = null;
             Tools.addComponentToGridBagLayout(this.scorePanel, (GridBagLayout) this.scorePanel.getLayout(), this.placeholder, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
@@ -314,18 +263,18 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
                 break;
             case "deletePage":                      // delete score page
                 if (this.scoreDisplay != null) {
-                    this.parent.removeScorePage(this.scoreDisplay.getPageIndex());  // delete the file from the Score data structure
+                    this.projectPane.removeScorePage(this.scoreDisplay.getPageIndex());  // delete the file from the Score data structure
 
                     // update the MSM tree as some green points might have to disappear
-                    ArrayList<MsmTreeNode> scoreNodesInMsm = this.parent.getMsmTree().getAllNodesOfType(this.parent.getMsmTree().getRootNode(), MsmTreeNode.XmlNodeType.note);
+                    ArrayList<MsmTreeNode> scoreNodesInMsm = this.projectPane.getMsmTree().getAllNodesOfType(this.projectPane.getMsmTree().getRootNode(), MsmTreeNode.XmlNodeType.note);
                     for (MsmTreeNode n : scoreNodesInMsm) {
-                        this.parent.getMsmTree().updateNode(n);
+                        this.projectPane.getMsmTree().updateNode(n);
                     }
 
                     // update the MPM tree as some blue points might have to disappear
-                    ArrayList<MpmTreeNode> scoreNodesInMpm = this.parent.getMpmTree().getAllMapEntryNodes(this.parent.getMpmTree().getRootNode());
+                    ArrayList<MpmTreeNode> scoreNodesInMpm = this.projectPane.getMpmTree().getAllMapEntryNodes(this.projectPane.getMpmTree().getRootNode());
                     for (MpmTreeNode n : scoreNodesInMpm) {
-                        this.parent.getMpmTree().updateNode(n);
+                        this.projectPane.getMpmTree().updateNode(n);
                     }
                 }
                 break;
@@ -334,12 +283,12 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
     }
 
     /**
-     * This enumerates the score interaction modes.
+     * returns the currently selected MPM node, if any
+     * @return
      */
-    public enum InteractionMode {
-        panAndZoom,
-        markNotes,
-        editPerformance,
-        selectEdit
+    public MpmTreeNode getSelectedMpmNode() {
+        return (this.getProjectPane().getMpmTree() == null)
+                ? null
+                : this.getProjectPane().getMpmTree().getSelectedNode();
     }
 }
