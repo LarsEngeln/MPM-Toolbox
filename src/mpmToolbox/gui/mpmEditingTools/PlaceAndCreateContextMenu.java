@@ -222,10 +222,12 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
 
         for (Element e : this.parent.getAnchorNode().getAssociatedElements()) {              // for each element that is associated with this ONGNode
             String date = Helper.getAttributeValue("date", e);
+            String id = Helper.getAttributeValue("id", e);
             WebMenuItem placeAndChangeDate = new WebMenuItem("Set its date to " + date);
             placeAndChangeDate.addActionListener(actionEvent -> {
                 repositionPerformanceInstruction(currentNode, mousePosInImage, this, true); // position the object in the score
                 currentNode.setDate(Double.parseDouble(date));                              // set the new date and reorder the parent map accordingly
+                currentNode.setNoteId(id);                                                  // set the new note ID
                 Performance performance = currentNode.getPerformance();                     // get the performance that this node belongs to
                 this.parent.getParentScoreDocumentData().getParent().getMpmTree().reloadNode(currentNode.getParent());      // update MPM subtree
                 MpmEditingTools.updateAudioAlignment(performance, this.parent.getParentScoreDocumentData().getParent(), instructionType.equals("Tempo"));    // the piano roll visualization of this performance in the audio frame must be kept up to date

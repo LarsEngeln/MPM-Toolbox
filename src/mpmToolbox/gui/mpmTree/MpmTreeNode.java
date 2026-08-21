@@ -729,6 +729,19 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
         map.sort();                                                     // after changing the date it must reorder its elements
     }
 
+    public void setNoteId(String noteId) {
+        switch (this.getType()) {
+            case ornament:
+            case articulation:
+                break;
+            default:
+                return;
+        }
+
+        Attribute noteIdAtt = new Attribute("noteid", noteId);    // get the date attribute
+        ((Element) this.getUserObject()).addAttribute(noteIdAtt);
+    }
+
     /**
      * This method creates the context menu when the node is right-clicked.
      * @param mpmTree the MpmTree instance that this node belongs to
