@@ -109,6 +109,15 @@ public class ScoreNoteMultiselectHelper {
         return selected;
     }
 
+    public int getNumOfSelectedNodes() {
+        ArrayList<Element> selectedNotes = this.getSelectedMsmNotes();
+        return (selectedNotes != null) ? selectedNotes.size() : 0;
+    }
+
+    public boolean hasSelection() {
+        return this.getNumOfSelectedNodes() > 0;
+    }
+
     public boolean containsReference(ArrayList<Element> list, Element element) {
         for (Element candidate : list)
             if (candidate == element)

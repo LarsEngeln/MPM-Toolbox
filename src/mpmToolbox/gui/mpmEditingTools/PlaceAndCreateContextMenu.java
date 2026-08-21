@@ -70,8 +70,8 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
         MpmTree mpmTree = this.parent.getScoreDocumentData().getProjectPane().getMpmTree();
         WebMenu creationMenu = new WebMenu("New Performance Instruction in");
 
-        // Which date should the instruction be associated to? Use the hover anchor.
-        final ScoreNode anchor = this.parent.getAnchorNode();
+        // Which date should the instruction be associated to? Use the selected note, or the hover anchor if none is selected.
+        final ScoreNode anchor = this.getEditorAnchor();
         final Point placementPoint = this.mousePosInImage;
 
         // choose the performance where the instruction should be added
@@ -298,9 +298,14 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
         }
 
         Element firstSelectedNote = this.selectedMsmNotes.get(0);
+        ScoreNode firstNoteNode = this.parent.getScorePage().getNode(firstSelectedNote);
         this.applyNoteReference(sourceElement, firstSelectedNote, datedNode, mpmTree);
 
         Point offset = this.getSelectionOffset();
+        if (firstNoteNode != null) {
+            this.parent.getScorePage().addEntry(firstNoteNode.getX() + offset.x, firstNoteNode.getY() + offset.y, sourceElement);
+        }
+
         boolean copied = false;
         for (int i = 1; i < this.selectedMsmNotes.size(); ++i) {
             Element selectedNote = this.selectedMsmNotes.get(i);
@@ -322,7 +327,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
             copied = true;
         }
 
-        if (copied) {
+        if ((firstNoteNode != null) || copied) {
             mpmTree.reloadNode(datedNode);
         }
         return copied;
@@ -362,15 +367,50 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
     }
 
     /**
-     * Gets the offset from the hover anchor to the mouse position.
+     * Gets the note that should seed the editor dialog.
+     * @return the selected note node, or the hover anchor if nothing is selected
+     */
+    private ScoreNode getEditorAnchor() {
+        if (!this.selectedMsmNotes.isEmpty()) {
+            ScoreNode selectedNode = this.parent.getScorePage().getNode(this.selectedMsmNotes.get(0));
+            if (selectedNode != null) {
+                return selectedNode;
+            }
+        }
+        return this.parent.getAnchorNode();
+    }
+
+    /**
+     * Gets the offset from the nearest selected note to the mouse position.
      * @return the x/y offset to apply to multiselected copies
      */
     private Point getSelectionOffset() {
-        ScoreNode anchor = this.parent.getAnchorNode();
-        if ((anchor == null) || (this.mousePosInImage == null)) {
+        if (this.selectedMsmNotes.isEmpty() || (this.mousePosInImage == null)) {
             return new Point(0, 0);
         }
-        return new Point(this.mousePosInImage.x - (int) anchor.getX(), this.mousePosInImage.y - (int) anchor.getY());
+
+        ScoreNode nearestNoteNode = null;
+        double nearestDistance = Double.MAX_VALUE;
+        for (Element selectedNote : this.selectedMsmNotes) {
+            ScoreNode noteNode = this.parent.getScorePage().getNode(selectedNote);
+            if (noteNode == null) {
+                continue;
+            }
+
+            double dx = this.mousePosInImage.x - noteNode.getX();
+            double dy = this.mousePosInImage.y - noteNode.getY();
+            double distance = (dx * dx) + (dy * dy);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestNoteNode = noteNode;
+            }
+        }
+
+        if (nearestNoteNode == null) {
+            return new Point(0, 0);
+        }
+
+        return new Point(this.mousePosInImage.x - (int) nearestNoteNode.getX(), this.mousePosInImage.y - (int) nearestNoteNode.getY());
     }
 
     /**

@@ -109,7 +109,7 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
             return;
         }
         updateMousePosition(mouseEvent);
-        if (!this.panel.getScorePage().isEmpty()) {
+        if (!this.panel.getScorePage().isEmpty() && (this.noteMultiselect.getNumOfSelectedNodes() <= 1)) {
             this.anchorNodeHelper.updateAnchor(this.panel.getMousePositionInImage());
         }
         this.panel.repaint();
