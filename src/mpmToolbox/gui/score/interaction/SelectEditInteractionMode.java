@@ -34,6 +34,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
     public SelectEditInteractionMode(ScoreDisplayPanel panel) {
         super(panel, "Select / Edit", "select and drag annotation anchors to reposition them", Color.ORANGE);
         this.anchorNodeHelper = new AnchorNodeHelper(panel);
+        this.anchorNodeHelper.setMaxDistance(20);
         this.noteMultiselect = new ScoreNoteMultiselectHelper(panel.getScoreDocumentData().getProjectPane().getMsmTree());
     }
 
@@ -130,6 +131,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
             double targetX = this.panel.getMousePositionInImage().getX() + this.anchorNodeHelper.getAnchorDragOffset().x;
             double targetY = this.panel.getMousePositionInImage().getY() + this.anchorNodeHelper.getAnchorDragOffset().y;
             this.panel.getScorePage().addEntry(targetX, targetY, this.draggedElement);
+            this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
             if (this.draggedElement.getLocalName().equals("note")) {
                 MsmTree msmTree = this.panel.getScoreDocumentData().getProjectPane().getMsmTree();
@@ -138,6 +140,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
                     msmTree.updateNode(msmTreeNode);
                     msmTree.setSelectedNode(msmTreeNode);
                     msmTree.scrollPathToVisible(msmTreeNode.getTreePath());
+                    msmTreeNode.play(this.panel.getScoreDocumentData().getProjectPane().getParentMpmToolbox().getMidiPlayerForSingleNotes());   // the node might be a node and should play its note via MIDI when selected
                 }
             } else {
                 MpmTree mpmTree = this.panel.getScoreDocumentData().getProjectPane().getMpmTree();
@@ -151,6 +154,8 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
                 }
             }
 
+            this.noteMultiselect.deselect();
+            this.anchorNodeHelper.reset();
             this.currentSelection = null;
             this.draggedElement = null;
             updateMousePosition(mouseEvent);
@@ -199,6 +204,12 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
 
         updateMousePosition(mouseEvent);
         this.anchorNodeHelper.updateAnchor(this.panel.getMousePositionInImage());
+        if(this.anchorNodeHelper.getAnchorNode() != null) {
+            this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        } else {
+            this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+            this.noteMultiselect.deselect();
+        }
         this.panel.repaint();
     }
 

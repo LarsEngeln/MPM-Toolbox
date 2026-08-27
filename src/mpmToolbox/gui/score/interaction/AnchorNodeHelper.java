@@ -24,6 +24,7 @@ public class AnchorNodeHelper {
     private final ScoreDisplayPanel panel;
     private ScoreNode anchorNode = null;
     private final Point2D.Double anchorDragOffset = new Point2D.Double(0, 0);
+    private double maxDistance = Double.MAX_VALUE;
 
     /**
      * Creates the anchor node helper for the given score display panel.
@@ -66,6 +67,10 @@ public class AnchorNodeHelper {
     public void updateAnchor(Point2D point2D) {
         ScorePage scorePage = this.panel.getScorePage();
         KeyValue<ONGNode, Double> nearest = scorePage.findNearestNeighborOf(point2D.getX(), point2D.getY());
+        if(nearest.getKey().distance(point2D) > this.maxDistance) {
+            this.reset();
+            return;
+        }
         if (this.anchorNode == null) {
             this.anchorNode = (ScoreNode) nearest.getKey();
 
@@ -84,32 +89,12 @@ public class AnchorNodeHelper {
     }
 
     /**
-     * for multiselect: updates anchor node to the nearest overlay element only if the cursor is
-     * close enough to grab it. Also updates the mouse cursor accordingly.
-     * @param point2D the current mouse position in image coordinates
-     * @param noteMultiselect the note multiselect helper to check selection state
+     * sets the maximum distance the nearest node is selected.
+     * Only if the nearest node is closer than this distance, it will be selected as anchor node.
+     * @param maxDistance the maximum distance
      */
-    public void updateAnchorMultiselect(Point2D point2D, ScoreNoteMultiselectHelper noteMultiselect) {
-        if (noteMultiselect.isSelecting()) {
-            this.anchorNode = null;
-            this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
-            return;
-        }
-
-        ScorePage scorePage = this.panel.getScorePage();
-        if (scorePage.isEmpty()) {
-            this.anchorNode = null;
-            this.panel.setCursor(Cursor.getDefaultCursor());
-            return;
-        }
-        KeyValue<ONGNode, Double> nearest = scorePage.findNearestNeighborOf(point2D.getX(), point2D.getY());
-        if (nearest != null && (Math.sqrt(nearest.getValue()) * 2.0) <= this.panel.getOverlayXWidth()) {
-            this.anchorNode = (ScoreNode) nearest.getKey();
-            this.panel.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        } else {
-            this.anchorNode = null;
-            this.panel.setCursor(Cursor.getDefaultCursor());
-        }
+    public void setMaxDistance(double maxDistance) {
+        this.maxDistance = maxDistance;
     }
 
     /**

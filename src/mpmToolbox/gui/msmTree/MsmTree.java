@@ -98,9 +98,6 @@ public class MsmTree extends WebExTree<MsmTreeNode> implements MouseListener, Tr
         TreePath path = treeSelectionEvent.getNewLeadSelectionPath();
         if (path == null)
             return;
-
-        MsmTreeNode n = this.getNodeForPath(path);
-        n.play(this.projectPane.getParentMpmToolbox().getMidiPlayerForSingleNotes());   // the node might be a node and should play its note via MIDI when selected
     }
 
     /**
@@ -293,8 +290,9 @@ public class MsmTree extends WebExTree<MsmTreeNode> implements MouseListener, Tr
             return;
         }
         if (SwingUtilities.isLeftMouseButton(mouseEvent)) {     // if left click
+            MsmTreeNode node = this.getNodeForLocation(mouseEvent.getX(), mouseEvent.getY()); // get the node that has been double-clicked
+            node.play(this.projectPane.getParentMpmToolbox().getMidiPlayerForSingleNotes());   // the node might be a node and should play its note via MIDI when selected
             if (mouseEvent.getClickCount() > 1) {               // if double (or more) click -> open editor dialog
-                MsmTreeNode node = this.getNodeForLocation(mouseEvent.getX(), mouseEvent.getY()); // get the node that has been double-clicked
                 if (node == null)
                     return;
                 node.openEditorDialog(this);
