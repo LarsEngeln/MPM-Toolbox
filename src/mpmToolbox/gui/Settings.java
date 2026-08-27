@@ -45,7 +45,7 @@ public class Settings {
     public static Color scorePerformanceColorFaded = new Color(0.0f, 0.7f, 0.7f, 0.17f);        // the color of performance symbols when faded out because the MPM tree cursor is in another performance
     public static Color scorePerformanceColorHighlighted = new Color(0.2f, 1.0f, 1.0f, 0.6f);   // the highlight color of performance symbols that are annotated in a score image
 
-    public static Color editColor = new Color(0.8f, 0.7f, 0.0f, 0.7f);              // the color of anchors that are edited
+    public static Color editColor = new Color(0.9f, 0.75f, 0.05f, 0.8f);              // the color of anchors that are edited
     public static Color editColorHighlighted = new Color(1.0f, 0.8f, 0.0f, 0.4f);   // the highlight color of anchors that are edited
 
 //    protected static String symbolFontPath = "/resources/fonts/fa-solid-900.ttf";
