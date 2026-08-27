@@ -34,6 +34,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
     public SelectEditInteractionMode(ScoreDisplayPanel panel) {
         super(panel, "Select / Edit", "select and drag annotation anchors to reposition them", Color.ORANGE);
         this.anchorNodeHelper = new AnchorNodeHelper(panel);
+        this.anchorNodeHelper.setMaxDistance(20);
         this.noteMultiselect = new ScoreNoteMultiselectHelper(panel.getScoreDocumentData().getProjectPane().getMsmTree());
     }
 
@@ -138,6 +139,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
                     msmTree.updateNode(msmTreeNode);
                     msmTree.setSelectedNode(msmTreeNode);
                     msmTree.scrollPathToVisible(msmTreeNode.getTreePath());
+                    msmTreeNode.play(this.panel.getScoreDocumentData().getProjectPane().getParentMpmToolbox().getMidiPlayerForSingleNotes());   // the node might be a node and should play its note via MIDI when selected
                 }
             } else {
                 MpmTree mpmTree = this.panel.getScoreDocumentData().getProjectPane().getMpmTree();

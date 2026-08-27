@@ -99,6 +99,7 @@ public final class MarkNotesInteractionMode extends AbstractInteractionMode {
                 if (msmTreeNode != null) {
                     msmTree.setSelectedNode(msmTreeNode);
                     msmTree.scrollPathToVisible(msmTreeNode.getTreePath());
+                    msmTreeNode.play(this.panel.getScoreDocumentData().getProjectPane().getParentMpmToolbox().getMidiPlayerForSingleNotes());   // the node might be a node and should play its note via MIDI when selected
                     WebPopupMenu menu = MsmEditingTools.makeScoreContextMenu(msmTreeNode, msmTree, this.panel.getScorePage());
                     menu.show(this.panel, mouseEvent.getX() - 25, mouseEvent.getY());
                 }

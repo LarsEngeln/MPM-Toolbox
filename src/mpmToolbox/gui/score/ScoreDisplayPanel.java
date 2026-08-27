@@ -494,6 +494,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                     return;                                                     // done
                 msmTree.setSelectedNode(msmTreeNode);                           // select the node in the msm tree
                 msmTree.scrollPathToVisible(msmTreeNode.getTreePath());         // scroll the tree so the node is visible
+                msmTreeNode.play(this.getScoreDocumentData().getProjectPane().getParentMpmToolbox().getMidiPlayerForSingleNotes());   // the node might be a node and should play its note via MIDI when selected
 
                 switch (mouseEvent.getButton()) {
                     case MouseEvent.BUTTON1:                                    // left click
@@ -537,6 +538,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             this.noNoteSelected.showPopup(this, mouseEvent.getPoint());                         // display the popup message at the mouse position
             return;
         }
+        currentNode.play(this.getScoreDocumentData().getProjectPane().getParentMpmToolbox().getMidiPlayerForSingleNotes());   // the node might be a node and should play its note via MIDI when selected
 
 //        Point p = this.mouse2PixelPosition(mouseEvent);                                         // transform the mouse click position to image pixel coordinates via inverting the affine transform of the image ... this has already been done and stored in this.mousePositionInImage when this method is invoked
 
