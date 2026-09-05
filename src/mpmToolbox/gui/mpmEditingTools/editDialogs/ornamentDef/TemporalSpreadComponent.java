@@ -8,7 +8,7 @@ import com.alee.laf.panel.WebPanel;
 import com.alee.laf.spinner.WebSpinner;
 import com.alee.laf.text.WebTextField;
 import com.alee.extended.button.WebSwitch;
-import meico.mpm.elements.TemporalValue;
+import meico.mpm.elements.maps.data.TemporalValue;
 import meico.mpm.elements.styles.defs.OrnamentDef;
 import meico.supplementary.KeyValue;
 import mpmToolbox.gui.Settings;
