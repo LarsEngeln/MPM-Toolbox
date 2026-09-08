@@ -9,8 +9,6 @@ import meico.mpm.Mpm;
 import meico.mpm.elements.Performance;
 import meico.mpm.elements.maps.OrnamentationMap;
 import meico.mpm.elements.maps.data.OrnamentData;
-import meico.mpm.elements.styles.OrnamentationStyle;
-import meico.mpm.elements.styles.defs.OrnamentDef;
 import meico.msm.Msm;
 import mpmToolbox.gui.ProjectPane;
 import mpmToolbox.gui.Settings;
@@ -19,7 +17,6 @@ import mpmToolbox.gui.mpmEditingTools.editDialogs.ornament.NoteOrderComponent;
 import mpmToolbox.gui.mpmEditingTools.editDialogs.ornamentDef.NotePoolComponent;
 import mpmToolbox.gui.mpmEditingTools.editDialogs.supplementary.EditDialogToggleButton;
 import mpmToolbox.supplementary.Tools;
-import nu.xom.Attribute;
 import nu.xom.Element;
 
 import javax.swing.*;
@@ -44,10 +41,7 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
     private EditDialogToggleButton notePoolButton;
     private NotePoolComponent notePoolComponent;
     private WebSpinner scale;
-    private String loadedNotePoolSourceKey = "";
-    private static final String NOTE_POOL_ELEMENT = "notePool";
-    private static final String NOTE_POOL_ITEM_ELEMENT = "alteration";
-    private static final String NOTE_POOL_VALUE_ATTRIBUTE = "value";
+    private OrnamentData currentOrnamentData = null;
 
     /**
      * constructor
@@ -144,7 +138,7 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
     public OrnamentData edit(OrnamentData input) {
         this.ascendingPitchToggle.setSelected(true);    // the default state of note.order may be changed when parsing input
         boolean initNoteOrder = false;                  // this is set true when the note.order attribute of the input object contains a sequence of IDs, so we can later initialize the NoteOrderComponent
-        this.loadedNotePoolSourceKey = "";
+        this.currentOrnamentData = input;
 
         if (input != null) {
             this.date.setValue(input.date);
@@ -200,20 +194,22 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
 
         output.scale = Tools.round((double) this.scale.getValue(), 10);
         output.xmlId = id;
+        
+// Copy notes from currentOrnamentData if available
+if ((this.currentOrnamentData != null) && (this.currentOrnamentData.notes != null))
+    output.notes = new ArrayList<>(this.currentOrnamentData.notes);
 
-        // note.order
-        if (this.descendingPitchToggle.isSelected()) {
-            output.noteOrder = new ArrayList<>();
-            output.noteOrder.add("descending pitch");
-        } else if (this.noteOrderToggle.isSelected()) {
-            output.noteOrder = this.noteOrderComponent.getNoteOrder();
-        } //else if (this.ascendingPitchToggle.isSelected()) {
+// note.order
+if (this.descendingPitchToggle.isSelected()) {
+    output.noteOrder = new ArrayList<>();
+    output.noteOrder.add("descending pitch");
+} else if (this.noteOrderToggle.isSelected()) {
+    output.noteOrder = this.noteOrderComponent.getNoteOrder();
+} //else if (this.ascendingPitchToggle.isSelected()) {
 //            output.noteOrder = null;                          // unnecessary
 //        }
 
-        this.applyNotePoolToSelectedDefinition();
-
-        return output;
+return output;
     }
 
     private void installNameRefTracking() {
@@ -235,105 +231,29 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
         });
     }
 
-    private OrnamentDef getSelectedOrnamentDef() {
-        if (!(this.style instanceof OrnamentationStyle))
-            return null;
-        String ornamentName = this.nameRef.getText().trim();
-        if (ornamentName.isEmpty())
-            return null;
-        return (OrnamentDef) this.style.getDef(ornamentName);
-    }
-
     private void syncNotePoolFromSelectedDefinition() {
-        String key = ((this.style != null) ? this.style.getName() : "") + "::" + this.nameRef.getText().trim();
-        if (key.equals(this.loadedNotePoolSourceKey))
-            return;
-        this.loadedNotePoolSourceKey = key;
-
-        OrnamentDef def = this.getSelectedOrnamentDef();
-        if (def == null) {
-            this.notePoolButton.setEnabled(false);
-            this.notePoolButton.setSelected(false);
-            this.notePoolComponent.setEnabled(false);
-            this.notePoolComponent.setNotePool(new ArrayList<>());
-            return;
-        }
-
-        ArrayList<String> notePool = this.readNotePool(def);
-        this.notePoolComponent.setNotePool(notePool);
-        this.notePoolButton.setEnabled(true);
-        this.notePoolButton.setSelected(!notePool.isEmpty());
+        String ornamentName = this.nameRef.getText().trim();
+        
+        // Delegate to NotePoolComponent to sync from the alteration
+        this.notePoolComponent.syncFromOrnamentData(this.currentOrnamentData, ornamentName, this.projectPane);
+        
+        // Update UI state based on whether notePool is populated
+        boolean hasNotePool = !this.notePoolComponent.getNotePool().isEmpty();
+        this.notePoolButton.setEnabled(hasNotePool || (this.currentOrnamentData != null));
+        this.notePoolButton.setSelected(hasNotePool);
         this.notePoolComponent.setEnabled(this.notePoolButton.isSelected());
-    }
 
-    private void applyNotePoolToSelectedDefinition() {
-        OrnamentDef def = this.getSelectedOrnamentDef();
-        if (def == null)
-            return;
-
-        if (this.notePoolButton.isSelected())
-            this.writeNotePool(def, this.notePoolComponent.getNotePool());
-        else
-            this.writeNotePool(def, null);
-    }
-
-    private ArrayList<String> readNotePool(OrnamentDef def) {
-        ArrayList<String> result = new ArrayList<>();
-        if ((def == null) || (def.getXml() == null))
-            return result;
-
-        Element notePoolElement = def.getXml().getFirstChildElement(NOTE_POOL_ELEMENT, def.getXml().getNamespaceURI());
-        if (notePoolElement == null)
-            notePoolElement = def.getXml().getFirstChildElement(NOTE_POOL_ELEMENT);
-
-        if (notePoolElement == null)
-            return result;
-
-        for (int i = 0; i < notePoolElement.getChildElements().size(); ++i) {
-            Element child = notePoolElement.getChildElements().get(i);
-            if (!NOTE_POOL_ITEM_ELEMENT.equals(child.getLocalName()))
-                continue;
-
-            Attribute valueAttribute = child.getAttribute(NOTE_POOL_VALUE_ATTRIBUTE);
-            if (valueAttribute != null) {
-                String value = valueAttribute.getValue().trim();
-                if (!value.isEmpty())
-                    result.add(value);
+        // Update NoteOrder toggle state based on synced notes
+        if (hasNotePool) {
+            this.noteOrderToggle.setEnabled(true);
+            if (this.noteOrderToggle.isSelected() && (this.currentOrnamentData != null) && (this.currentOrnamentData.noteOrder != null) && (this.currentOrnamentData.noteOrder.size() > 0)) {
+                this.noteOrderComponent.setEnabled(true);
+                this.noteOrderComponent.setNoteOrder(this.currentOrnamentData.noteOrder);
             }
+        } else {
+            this.noteOrderToggle.setEnabled(false);
+            this.noteOrderComponent.clear();
         }
-        return result;
-    }
-
-    private void writeNotePool(OrnamentDef def, ArrayList<String> notePool) {
-        if ((def == null) || (def.getXml() == null))
-            return;
-
-        Element xml = def.getXml();
-
-        for (Element old = xml.getFirstChildElement(NOTE_POOL_ELEMENT, xml.getNamespaceURI()); old != null; old = xml.getFirstChildElement(NOTE_POOL_ELEMENT, xml.getNamespaceURI()))
-            xml.removeChild(old);
-        for (Element old = xml.getFirstChildElement(NOTE_POOL_ELEMENT); old != null; old = xml.getFirstChildElement(NOTE_POOL_ELEMENT))
-            xml.removeChild(old);
-
-        if ((notePool == null) || notePool.isEmpty())
-            return;
-
-        Element notePoolElement = new Element(NOTE_POOL_ELEMENT, xml.getNamespaceURI());
-        for (String entry : notePool) {
-            if (entry == null)
-                continue;
-
-            String trimmed = entry.trim();
-            if (trimmed.isEmpty())
-                continue;
-
-            Element item = new Element(NOTE_POOL_ITEM_ELEMENT, xml.getNamespaceURI());
-            item.addAttribute(new Attribute(NOTE_POOL_VALUE_ATTRIBUTE, trimmed));
-            notePoolElement.appendChild(item);
-        }
-
-        if (notePoolElement.getChildElements().size() > 0)
-            xml.appendChild(notePoolElement);
     }
 
     /**

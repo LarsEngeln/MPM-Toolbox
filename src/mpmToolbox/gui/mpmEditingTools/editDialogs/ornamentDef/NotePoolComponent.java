@@ -8,8 +8,13 @@ import com.alee.laf.scroll.WebScrollPane;
 import com.alee.laf.text.WebTextField;
 import com.alee.managers.style.StyleId;
 import meico.mei.ornament.OrnamentDictionary;
+import meico.mpm.elements.maps.data.OrnamentData;
+import meico.msm.elements.MsmNoteElement;
+import mpmToolbox.gui.ProjectPane;
 import mpmToolbox.gui.Settings;
 import mpmToolbox.supplementary.Tools;
+import nu.xom.Attribute;
+import nu.xom.Element;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -44,6 +49,9 @@ public class NotePoolComponent extends WebPanel {
     private AlterationField selectedField = null;
     private AlterationField draggedField = null;
     private boolean dragging = false;
+
+    private OrnamentData ornamentData = null;  // reference to the ornament data being edited
+    private String loadedOrnamentName = "";    // for caching to avoid redundant updates
 
     /**
      * constructor
@@ -141,6 +149,112 @@ public class NotePoolComponent extends WebPanel {
         for (AlterationField field : this.fields)
             output.add(field.getNormalizedValue());
         return output;
+    }
+
+    /**
+     * set the ornament data reference and sync the note pool from the selected alteration definition
+     * @param ornamentData the ornament data being edited
+     * @param selectedOrnamentName the name of the selected ornament
+     * @param projectPane the project pane to access MsmTree for finding the principal note
+     */
+    public void syncFromOrnamentData(OrnamentData ornamentData, String selectedOrnamentName, ProjectPane projectPane) {
+        this.ornamentData = ornamentData;
+        
+        String key = selectedOrnamentName.trim();
+        if (key.equals(this.loadedOrnamentName))
+            return;
+        this.loadedOrnamentName = key;
+
+        // Get principal note MIDI pitch from OrnamentData.correspondence via MsmTree
+        double principalNoteMidiPitch = 60.0;  // default to middle C if not found
+        if ((ornamentData != null) && (ornamentData.correspondence != null) && (projectPane != null)) {
+            mpmToolbox.gui.msmTree.MsmTreeNode noteNode = projectPane.getMsmTree().findNode(ornamentData.correspondence);
+            if (noteNode != null) {
+                Element principalNote = (Element) noteNode.getUserObject();
+                if (principalNote != null) {
+                    String midiPitchStr = principalNote.getAttributeValue("midi.pitch");
+                    if (midiPitchStr != null) {
+                        try {
+                            principalNoteMidiPitch = Double.parseDouble(midiPitchStr);
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                }
+            }
+        }
+
+        // Search for an Alteration in the ornament dictionary (ignoring "delayed" suffix)
+        List<String> alteration = null;
+        
+        if (this.ornamentDictionary.getOrnamentLookup() != null) {
+            // Try exact match first
+            alteration = this.ornamentDictionary.get(selectedOrnamentName);
+            
+            // If not found, try with "delayed" suffix removed
+            if (alteration == null && selectedOrnamentName.endsWith("delayed")) {
+                String withoutDelayed = selectedOrnamentName.substring(0, selectedOrnamentName.length() - "delayed".length()).trim();
+                alteration = this.ornamentDictionary.get(withoutDelayed);
+            }
+        }
+
+        if (alteration == null) {
+            this.setNotePool(new ArrayList<>());
+            if (this.ornamentData != null) {
+                this.ornamentData.notes = null;
+                this.ornamentData.noteOrder = null;
+            }
+            return;
+        }
+
+        // Alteration found: create XML Elements from alteration
+        ArrayList<String> notePoolDisplay = new ArrayList<>();  // for UI display
+        ArrayList<Element> noteElements = new ArrayList<>();
+        
+        int noteIndex = 1;
+        for (String alt : alteration) {
+            if (alt == null || alt.trim().isEmpty())
+                continue;
+            
+            String normalized = normalizeToken(alt);
+            notePoolDisplay.add(normalized);  // for UI display
+            
+            // Skip repeat markers for XML elements
+            if (REPEAT_START.equals(normalized) || REPEAT_END.equals(normalized))
+                continue;
+            
+            // Create a note element from the alteration value
+            try {
+                double interval = Double.parseDouble(normalized);
+                double midiPitch = principalNoteMidiPitch + interval;
+                
+                // Create XML Element for note
+                Element noteElement = new Element("note");
+                noteElement.addAttribute(new Attribute("midi.pitch", String.valueOf(midiPitch)));
+                noteElement.addAttribute(new Attribute("interval.chromatic", String.valueOf(interval)));
+                
+                noteElements.add(noteElement);
+                noteIndex++;
+            } catch (NumberFormatException ignored) {
+                // Skip non-numeric alterations (shouldn't happen with normalized values)
+            }
+        }
+        
+        this.setNotePool(notePoolDisplay);
+        
+        // Update ornamentData with note elements
+        if (this.ornamentData != null) {
+            this.ornamentData.notes = noteElements;
+            // Note: noteOrder is set separately by NoteOrderComponent or as "ascending pitch"/"descending pitch"
+        }
+    }
+
+    /**
+     * clear the note pool and reset the ornament data reference
+     */
+    public void clear() {
+        this.loadedOrnamentName = "";
+        this.ornamentData = null;
+        this.setNotePool(new ArrayList<>());
     }
 
     private void applySelectedPreset() {
