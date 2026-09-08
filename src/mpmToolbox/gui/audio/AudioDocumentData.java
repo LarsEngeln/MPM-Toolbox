@@ -206,6 +206,17 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
     }
 
     /**
+     * Gets the playback position in symbolic time (MSM ticks) for the currently selected performance.
+     * @return the playback tick position, or null if no performance alignment is available
+     */
+    public Double getPlaybackTickPosition() {
+        if ((this.getAlignment() == null) || (this.getParent().getSyncPlayer().getSelectedPerformance() == null)) {
+            return null;
+        }
+        return this.playbackCursor.getTicks();
+    }
+
+    /**
      * access the mouse cursor
      * @return
      */

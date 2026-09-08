@@ -8,9 +8,13 @@ import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.score.ScoreDisplayPanel;
 import nu.xom.Element;
 
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Composite;
 import java.awt.Cursor;
 import java.awt.Graphics2D;
+import java.awt.Stroke;
 import java.awt.event.MouseEvent;
 
 /**
@@ -27,6 +31,7 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
     public EditPerformanceInteractionMode(ScoreDisplayPanel panel) {
         super(panel, "Add/Place Performance", "add or place performance data", Color.CYAN);
         this.anchorNodeHelper = new AnchorNodeHelper(panel);
+        this.anchorNodeHelper.setTreeSelectionEnabled(false);
         this.noteMultiselect = new ScoreNoteMultiselectHelper(panel.getScoreDocumentData().getProjectPane().getMsmTree());
     }
 
@@ -158,7 +163,17 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
                     mpmTree.scrollPathToVisible(mpmTreeNode.getTreePath());
                     WebPopupMenu editMenu = MpmEditingTools.makeScoreContextMenu(mpmTreeNode, mpmTree, this.panel.getScorePage());
                     editMenu.show(this.panel, mouseEvent.getX() - 25, mouseEvent.getY());
+                    return;
                 }
+                if (this.panel.getScoreDocumentData().getProjectPane().getMpm() == null) {
+                    this.panel.showHasNoMpmPopUp(mouseEvent);
+                    return;
+                }
+                if (this.panel.getScoreDocumentData().getProjectPane().getMpm().size() == 0) {
+                    this.panel.showNoPerformancePopUp(mouseEvent);
+                    return;
+                }
+                this.panel.makePlaceAndCreateContextMenu(this.noteMultiselect.getSelectedMsmNotes()).show(this.panel, mouseEvent.getX() - 25, mouseEvent.getY());
                 break;
             default:
                 break;
@@ -190,11 +205,19 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
             return;
         }
 
+        this.anchorNodeHelper.drawLinkedNodes(g2, Settings.scorePerformanceColorHighlighted);
+
         // draw the line between mouse pointer and anchor node
         if (this.anchorNodeHelper.getAnchorNode() != null) {
+            Composite savedComposite = g2.getComposite();
+            Stroke savedStroke = g2.getStroke();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.9f));
             g2.setColor(Settings.scorePerformanceColorHighlighted);
+            g2.setStroke(new BasicStroke(6.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g2.drawLine((int) this.anchorNodeHelper.getAnchorNode().getX(), (int) this.anchorNodeHelper.getAnchorNode().getY(), 
                         this.panel.getMousePositionInImage().x, this.panel.getMousePositionInImage().y);
+            g2.setStroke(savedStroke);
+            g2.setComposite(savedComposite);
         }
 
         // draw the performance annotation symbol at the mouse position (kind of preview)
