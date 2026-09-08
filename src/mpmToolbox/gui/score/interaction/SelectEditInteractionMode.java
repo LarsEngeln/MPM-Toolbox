@@ -160,6 +160,8 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
             this.draggedElement = null;
             updateMousePosition(mouseEvent);
             this.panel.repaint();
+
+            this.mouseMoved(mouseEvent);
         }
     }
 
@@ -222,6 +224,8 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
         if (this.panel.getMousePositionInImage() == null) {
             return;
         }
+
+        this.anchorNodeHelper.drawLinkedNodes(g2, Settings.editColorHighlighted);
 
         // draw a selection ring around the nearest draggable anchor (hover feedback)
         if (this.anchorNodeHelper.getAnchorNode() != null) {

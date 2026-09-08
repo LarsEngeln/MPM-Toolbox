@@ -51,6 +51,8 @@ public class Settings {
 //    protected static String symbolFontPath = "/resources/fonts/fa-solid-900.ttf";
 //    public static Font symbolFont = null;                               // a handle to the font to be used for most of the symbols/icons
 
+    public static int scoreHoverDateLineOffset = 18;                        // horizontal offset used to draw hover date markers to the left of notes
+
     public static double anchorSwitchOvershootThreshold = 0.3;          // in the score display, to switch the anchor from one nearest node to another the distance ratio (distance to nearest / distance to current anchorNode) must be at most this value, so the user has to overshoot, i.e. get much closer to the desired nearest node, to switch the anchor to it
 
     public static int tempoCurveTesselation = 20;                       // the tesselation of continuous tempo curves in the TempoMapPanel
@@ -110,6 +112,9 @@ public class Settings {
                     break;
                 case "anchorSwitchOvershootThreshold":
                     Settings.anchorSwitchOvershootThreshold = Double.parseDouble(line);
+                    break;
+                case "scoreHoverDateLineOffset":
+                    Settings.scoreHoverDateLineOffset = Integer.parseInt(line);
                     break;
                 case "tempoCurveTesselation":
                     Settings.tempoCurveTesselation = Integer.parseInt(line);
@@ -185,6 +190,7 @@ public class Settings {
                 + "\n\n# debug\n" + (Settings.debug ? "1" : "0")
                 + "\n\n# logfile\n" + (Settings.makeLogfile ? "1" : "0")
                 + "\n\n# anchorSwitchOvershootThreshold\n" + Settings.anchorSwitchOvershootThreshold
+                + "\n\n# scoreHoverDateLineOffset\n" + Settings.scoreHoverDateLineOffset
                 + "\n\n# tempoCurveTesselation\n" + Settings.tempoCurveTesselation
 //                + "\n\n# symbolFont\n" + Settings.symbolFontPath
                 + "\n\n# soundbank\n" + ((Settings.soundbank == null) ? "default" : Settings.soundbank.getAbsolutePath())

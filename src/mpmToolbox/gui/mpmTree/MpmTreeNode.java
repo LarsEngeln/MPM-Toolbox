@@ -8,7 +8,6 @@ import com.alee.laf.tree.TreeNodeParameters;
 import com.alee.laf.tree.UniqueNode;
 import meico.mei.Helper;
 import meico.mpm.elements.*;
-import meico.mpm.elements.maps.data.TemporalValue;
 import meico.mpm.elements.maps.GenericMap;
 import meico.mpm.elements.maps.ImprecisionMap;
 import meico.mpm.elements.metadata.Author;
@@ -17,7 +16,6 @@ import meico.mpm.elements.metadata.Metadata;
 import meico.mpm.elements.metadata.RelatedResource;
 import meico.mpm.elements.styles.*;
 import meico.mpm.elements.styles.defs.*;
-import mpmToolbox.gui.msmTree.MsmTreeNode;
 import mpmToolbox.projectData.ProjectData;
 import mpmToolbox.gui.MeasureNumberLookup;
 import mpmToolbox.gui.Settings;
@@ -727,19 +725,6 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
 
         GenericMap map = (GenericMap) this.getParent().getUserObject(); // get the map
         map.sort();                                                     // after changing the date it must reorder its elements
-    }
-
-    public void setNoteId(String noteId) {
-        switch (this.getType()) {
-            case ornament:
-            case articulation:
-                break;
-            default:
-                return;
-        }
-
-        Attribute noteIdAtt = new Attribute("noteid", noteId);    // get the date attribute
-        ((Element) this.getUserObject()).addAttribute(noteIdAtt);
     }
 
     /**

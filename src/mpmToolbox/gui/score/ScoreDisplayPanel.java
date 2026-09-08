@@ -6,8 +6,11 @@ import com.alee.laf.WebLookAndFeel;
 import com.alee.laf.label.WebLabel;
 import com.alee.laf.menu.WebPopupMenu;
 import com.alee.laf.panel.WebPanel;
+import meico.mei.Helper;
 import meico.mpm.elements.Performance;
 import meico.supplementary.KeyValue;
+import mpmToolbox.gui.Settings;
+import mpmToolbox.gui.audio.AudioDocumentData;
 import mpmToolbox.gui.mpmEditingTools.MpmEditingTools;
 import mpmToolbox.gui.mpmEditingTools.PlaceAndCreateContextMenu;
 import mpmToolbox.gui.mpmTree.MpmTree;
@@ -30,6 +33,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
+import java.util.Map;
 
 /**
  * This class displays the score pages and defines interaction with them.
@@ -105,6 +109,18 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         this.scoreDocumentData.getProjectPane().getMsmTree().addTreeSelectionListener(treeSelectionEvent -> {
             this.repaint();
+        });
+
+        this.scoreDocumentData.getProjectPane().getSyncPlayer().getPlaybackSlider().addChangeListener(changeEvent -> {
+            if (this.scoreDocumentData.getProjectPane().getSyncPlayer().getSelectedPerformance() != null) {
+                this.repaint();
+            }
+        });
+
+        this.scoreDocumentData.getProjectPane().getSyncPlayer().getPerformanceChooser().addItemListener(itemEvent -> {
+            if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
+                this.repaint();
+            }
         });
     }
 
@@ -265,6 +281,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             MpmTreeNode selectedMpmNode = this.getScoreDocumentData().getSelectedMpmNode();
             this.interactionModeManager.draw(g2, selectedMpmNode);
         }
+
+        this.drawPlaybackDateLine(g2);
     }
 
     /**
@@ -274,6 +292,100 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     @Override
     public void paint(Graphics g) {
         super.paint(g);
+    }
+
+    /**
+     * Draw a vertical line at the current playback date while a performance is playing.
+     * The line is drawn at the nearest score date on the currently visible page.
+     * @param g2 the graphics context in image coordinates
+     */
+    private void drawPlaybackDateLine(Graphics2D g2) {
+        if (this.scoreDocumentData.hideOverlay) {
+            return;
+        }
+
+        if ((this.scoreDocumentData.getProjectPane().getSyncPlayer().getSelectedPerformance() == null)
+                || !this.scoreDocumentData.getProjectPane().getSyncPlayer().getMidiPlayer().isPlaying()) {
+            return;
+        }
+
+        AudioDocumentData audioFrame = this.scoreDocumentData.getProjectPane().getAudioFrame();
+        if (audioFrame == null) {
+            return;
+        }
+
+        Double playbackDate = audioFrame.getPlaybackTickPosition();
+        if (playbackDate == null) {
+            return;
+        }
+
+        Double nearestDate = null;
+        double nearestDistance = Double.MAX_VALUE;
+        for (Map.Entry<Element, ScoreNode> entry : this.scorePage.getAllEntries().entrySet()) {
+            Element element = entry.getKey();
+            if (!"note".equals(element.getLocalName())) {
+                continue;
+            }
+
+            String dateString = Helper.getAttributeValue("date", element);
+            if (dateString.isEmpty()) {
+                continue;
+            }
+
+            double date = Double.parseDouble(dateString);
+            double distance = Math.abs(date - playbackDate);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestDate = date;
+            }
+        }
+
+        if (nearestDate == null) {
+            return;
+        }
+
+        boolean hasNoteAtDate = false;
+        double leftMost = Double.MAX_VALUE;
+        double topMost = Double.MAX_VALUE;
+        double bottomMost = -Double.MAX_VALUE;
+        for (Map.Entry<Element, ScoreNode> entry : this.scorePage.getAllEntries().entrySet()) {
+            String dateString = Helper.getAttributeValue("date", entry.getKey());
+            if (dateString.isEmpty() || (Double.compare(Double.parseDouble(dateString), nearestDate) != 0)) {
+                continue;
+            }
+
+            ScoreNode scoreNode = entry.getValue();
+            if ("note".equals(entry.getKey().getLocalName())) {
+                hasNoteAtDate = true;
+                if (scoreNode.getX() < leftMost) {
+                    leftMost = scoreNode.getX();
+                }
+            }
+            if (scoreNode.getY() < topMost) {
+                topMost = scoreNode.getY();
+            }
+            if (scoreNode.getY() > bottomMost) {
+                bottomMost = scoreNode.getY();
+            }
+        }
+
+        if (!hasNoteAtDate) {
+            return;
+        }
+
+        int padding = 50;
+        int x = (int) Math.round(leftMost - Settings.scoreHoverDateLineOffset);
+        int yStart = (int) Math.round(topMost - padding);
+        int yEnd = (int) Math.round(bottomMost + padding);
+
+        Composite savedComposite = g2.getComposite();
+        Stroke savedStroke = g2.getStroke();
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.9f));
+        g2.setColor(new Color(Settings.scoreNoteColorHighlighted.getRed(), Settings.scoreNoteColorHighlighted.getGreen(), Settings.scoreNoteColorHighlighted.getBlue()));
+        g2.setStroke(new BasicStroke(6.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.drawLine(x, yStart, x, yEnd);
+        g2.setStroke(savedStroke);
+        g2.setComposite(savedComposite);
     }
 
     /**

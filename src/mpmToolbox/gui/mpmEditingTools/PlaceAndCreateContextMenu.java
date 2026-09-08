@@ -17,6 +17,7 @@ import mpmToolbox.gui.mpmTree.MpmTree;
 import mpmToolbox.gui.mpmTree.MpmTreeNode;
 import mpmToolbox.gui.score.ScoreDisplayPanel;
 import mpmToolbox.projectData.score.ScoreNode;
+import mpmToolbox.projectData.score.ScorePage;
 import nu.xom.Attribute;
 import nu.xom.Element;
 
@@ -60,6 +61,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
         if (this.selectedMsmNotes.size() <= 1) {
             this.add(this.repositionPerformanceInstructionPopupSubmenu());  // place a performance instruction on the score
         }
+        this.add(this.tryPlaceAllUnplacedKidsMenuItem());
     }
 
     /**
@@ -252,6 +254,86 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
         }
 
         return placeInstructionHere;
+    }
+
+    /**
+     * Creates the batch-placement action for all unplaced dated children of the current performance.
+     * @return the menu item
+     */
+    private JMenuItem tryPlaceAllUnplacedKidsMenuItem() {
+        WebMenuItem item = new WebMenuItem("try to place all unplaced kids");
+        MpmTreeNode selectedNode = this.parent.getScoreDocumentData().getSelectedMpmNode();
+        MpmTree mpmTree = this.parent.getScoreDocumentData().getProjectPane().getMpmTree();
+        Performance selectedPerformance = (selectedNode == null) ? null : selectedNode.getPerformance();
+        MpmTreeNode performanceNode = (selectedPerformance == null) ? null : mpmTree.findNode(selectedPerformance, false);
+        if (performanceNode == null) {
+            item.setEnabled(false);
+            item.setToolTipText("Select a performance or one of its dated children first.");
+            return item;
+        }
+
+        if (this.collectUnplacedDatedNodes(performanceNode).isEmpty()) {
+            item.setEnabled(false);
+            item.setToolTipText("No unplaced dated nodes found in the current performance.");
+            return item;
+        }
+
+        item.addActionListener(actionEvent -> this.placeAllUnplacedKids(performanceNode));
+        item.setToolTipText("Places all unplaced dated nodes in the current performance.");
+        return item;
+    }
+
+    /**
+     * Places all unplaced dated nodes of the given performance using score-aware candidate positions.
+     * @param performanceNode the current performance node
+     */
+    private void placeAllUnplacedKids(MpmTreeNode performanceNode) {
+        boolean placedAny = false;
+
+        for (MpmTreeNode node : this.collectUnplacedDatedNodes(performanceNode)) {
+            Point placement = this.findPlacementPoint(node);
+            if (placement == null) {
+                continue;
+            }
+
+            this.placePerformanceInstruction(node, placement);
+            placedAny = true;
+        }
+        if (placedAny) {
+            this.parent.repaint();
+        }
+    }
+
+    /**
+     * Collects all dated map-entry nodes below the given performance that are not yet placed on the score page.
+     * @param performanceNode the performance to inspect
+     * @return the unplaced dated nodes
+     */
+    private ArrayList<MpmTreeNode> collectUnplacedDatedNodes(MpmTreeNode performanceNode) {
+        ArrayList<MpmTreeNode> result = new ArrayList<>();
+        if (performanceNode == null) {
+            return result;
+        }
+
+        MpmTree mpmTree = this.parent.getScoreDocumentData().getProjectPane().getMpmTree();
+        ArrayList<MpmTreeNode> nodes = mpmTree.getAllMapEntryNodes(performanceNode);
+        for (MpmTreeNode node : nodes) {
+            if ((node == null) || (node.getType() == MpmTreeNode.MpmNodeType.style)) {
+                continue;
+            }
+
+            Element element = (Element) node.getUserObject();
+            if (this.parent.getScoreDocumentData().getProjectPane().getScore().contains(element)) {
+                continue;
+            }
+
+            if (this.findReferenceScoreNode(node) == null) {
+                continue;
+            }
+
+            result.add(node);
+        }
+        return result;
     }
 
     /**
@@ -837,5 +919,196 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
             ((Dated) datedNode.getUserObject()).removeMap(mapType);
             mpmTree.reloadNode(mapNode.getParent());
         }
+    }
+
+    /**
+     * Places a single performance instruction at the specified score position.
+     * This does not change the tree selection.
+     * @param currentNode the node to place
+     * @param position the score position to use
+     */
+    private void placePerformanceInstruction(MpmTreeNode currentNode, Point position) {
+        Element object = (Element) currentNode.getUserObject();
+        this.parent.getScorePage().addEntry(position.getX(), position.getY(), object);
+        this.parent.getScoreDocumentData().getProjectPane().getMpmTree().updateNode(currentNode);
+    }
+
+    /**
+     * Resolves the score node that should serve as the reference for placing the given MPM node.
+     * noteid takes precedence; otherwise the topmost node at the same date is used.
+     * @param node the node to place
+     * @return the reference score node or null
+     */
+    private ScoreNode findReferenceScoreNode(MpmTreeNode node) {
+        Element element = (Element) node.getUserObject();
+        ScorePage scorePage = this.parent.getScorePage();
+
+        String noteId = normalizeReference(Helper.getAttributeValue("noteid", element));
+        if (!noteId.isEmpty()) {
+            for (java.util.Map.Entry<Element, ScoreNode> entry : scorePage.getAllEntries().entrySet()) {
+                Element candidate = entry.getKey();
+                if (!"note".equals(candidate.getLocalName())) {
+                    continue;
+                }
+                if (noteId.equals(getXmlId(candidate))) {
+                    return entry.getValue();
+                }
+            }
+            return null;
+        }
+
+        String dateStr = Helper.getAttributeValue("date", element);
+        if (dateStr.isEmpty()) {
+            return null;
+        }
+
+        double date = Double.parseDouble(dateStr);
+        ScoreNode result = null;
+        for (java.util.Map.Entry<Element, ScoreNode> entry : scorePage.getAllEntries().entrySet()) {
+            Element candidate = entry.getKey();
+            if (!sameDate(candidate, date) || !samePerformanceScope(candidate, element)) {
+                continue;
+            }
+
+            ScoreNode candidateNode = entry.getValue();
+            if ((result == null)
+                    || (candidateNode.getY() < result.getY())
+                    || ((candidateNode.getY() == result.getY()) && (candidateNode.getX() < result.getX()))) {
+                result = candidateNode;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Finds a free score position near the reference node by searching clockwise around it.
+     * @param node the node to place
+     * @return a candidate score position or null if none was found
+     */
+    private Point findPlacementPoint(MpmTreeNode node) {
+        ScoreNode referenceNode = this.findReferenceScoreNode(node);
+        if (referenceNode == null) {
+            return null;
+        }
+
+        int imgW = this.parent.getScorePage().getImage().getWidth();
+        int imgH = this.parent.getScorePage().getImage().getHeight();
+        double step = Math.max(this.parent.getOverlayXWidth(), this.parent.getOverlayYWidth());
+        double radius = step;
+        double maxRadius = Math.hypot(imgW, imgH);
+        double clearance = Math.max(this.parent.getOverlayXWidth(), this.parent.getOverlayYWidth()) + 5.0;
+        double clearanceSq = clearance * clearance;
+        double[][] directions = {
+                {0.0, -1.0},
+                {1.0, -1.0},
+                {1.0, 0.0},
+                {1.0, 1.0},
+                {0.0, 1.0},
+                {-1.0, 1.0},
+                {-1.0, 0.0},
+                {-1.0, -1.0}
+        };
+
+        while (radius <= maxRadius) {
+            for (double[] direction : directions) {
+                double candidateX = referenceNode.getX() + (direction[0] * radius);
+                double candidateY = referenceNode.getY() + (direction[1] * radius);
+                if (!this.isInsideImage(candidateX, candidateY, imgW, imgH)) {
+                    continue;
+                }
+                if (this.isPlacementFree(candidateX, candidateY, clearanceSq)) {
+                    return new Point((int) Math.round(candidateX), (int) Math.round(candidateY));
+                }
+            }
+            radius += step;
+        }
+
+        return null;
+    }
+
+    /**
+     * Checks whether a candidate point keeps the symbol fully inside the current score image.
+     * @param x x coordinate
+     * @param y y coordinate
+     * @param imgW image width
+     * @param imgH image height
+     * @return true if the point is inside the drawable area
+     */
+    private boolean isInsideImage(double x, double y, int imgW, int imgH) {
+        int xMargin = this.parent.getOverlayXOffset();
+        int yMargin = this.parent.getOverlayYOffset();
+        return (x >= xMargin) && (y >= yMargin) && (x <= (imgW - xMargin)) && (y <= (imgH - yMargin));
+    }
+
+    /**
+     * Checks whether another score node is too close to the candidate point.
+     * @param x x coordinate
+     * @param y y coordinate
+     * @param clearanceSq minimum allowed squared distance
+     * @return true when the point can be used
+     */
+    private boolean isPlacementFree(double x, double y, double clearanceSq) {
+        KeyValue<mpmToolbox.supplementary.orthantNeighborhoodGraph.ONGNode, Double> nearest = this.parent.getScorePage().findNearestNeighborOf(x, y);
+        return (nearest == null) || (nearest.getValue() > clearanceSq);
+    }
+
+    private static boolean sameDate(Element element, double date) {
+        String candidateDateStr = Helper.getAttributeValue("date", element);
+        if (candidateDateStr.isEmpty()) {
+            return false;
+        }
+        return Double.compare(Double.parseDouble(candidateDateStr), date) == 0;
+    }
+
+    private static boolean samePerformanceScope(Element candidate, Element reference) {
+        Element candidateScope = getAncestor(candidate, "global", "part");
+        Element referenceScope = getAncestor(reference, "global", "part");
+        if (referenceScope == null) {
+            return candidateScope == null;
+        }
+
+        if ("global".equals(referenceScope.getLocalName())) {
+            return true;
+        }
+
+        if ((candidateScope == null) || !"part".equals(candidateScope.getLocalName())) {
+            return false;
+        }
+
+        String candidateNumber = candidateScope.getAttributeValue("number");
+        String referenceNumber = referenceScope.getAttributeValue("number");
+        return (candidateNumber != null) && candidateNumber.equals(referenceNumber);
+    }
+
+    private static Element getAncestor(Element element, String... localNames) {
+        if (element == null) {
+            return null;
+        }
+
+        for (nu.xom.Node parent = element.getParent(); parent != null; parent = parent.getParent()) {
+            if (!(parent instanceof Element)) {
+                return null;
+            }
+            Element candidate = (Element) parent;
+            for (String localName : localNames) {
+                if (localName.equals(candidate.getLocalName())) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String getXmlId(Element element) {
+        String id = element.getAttributeValue("id", "http://www.w3.org/XML/1998/namespace");
+        return (id == null) ? "" : id;
+    }
+
+    private static String normalizeReference(String reference) {
+        if (reference == null) {
+            return "";
+        }
+        return reference.startsWith("#") ? reference.substring(1) : reference;
     }
 }
