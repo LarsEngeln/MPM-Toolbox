@@ -8,7 +8,7 @@ import com.alee.laf.tree.TreeNodeParameters;
 import com.alee.laf.tree.UniqueNode;
 import meico.mei.Helper;
 import meico.mpm.elements.*;
-import meico.mpm.elements.TemporalValue;
+import meico.mpm.elements.maps.data.TemporalValue;
 import meico.mpm.elements.maps.GenericMap;
 import meico.mpm.elements.maps.ImprecisionMap;
 import meico.mpm.elements.metadata.Author;
