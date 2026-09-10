@@ -510,6 +510,14 @@ public class AnnotationPanel extends WebPanel {
             });
             dataMenu.add(visItem);
 
+            // only MARKS annotations can act as a snap target for time alignment (e.g. note dragging)
+            if (data.hasMarksLine()) {
+                WebCheckBoxMenuItem snapItem = new WebCheckBoxMenuItem("snap to", data.isSnapTarget());
+                snapItem.setToolTipText("Snap dragged note/marker positions to this annotation's marks");
+                snapItem.addActionListener(ae -> data.setSnapTarget(!data.isSnapTarget()));
+                dataMenu.add(snapItem);
+            }
+
             WebMenuItem editItem = new WebMenuItem("edit");
             editItem.addActionListener(ae -> {
                 CsvImportDialog dialog = new CsvImportDialog(data, this.parent.getAnnotations());
@@ -528,6 +536,40 @@ public class AnnotationPanel extends WebPanel {
         }
         menu.addSeparator();
         menu.add(annotationMenu);
+    }
+
+    /**
+     * Snap a millisecond timestamp to the nearest mark of all currently visible, snap-enabled MARKS annotations
+     * (see {@link AnnotationData#isSnapTarget()}), if one lies within {@code maxDistanceMs}. Used during time
+     * alignment (e.g. dragging notes/markers) to align them precisely with annotated marks.
+     *
+     * @param ms            the millisecond position to snap
+     * @param maxDistanceMs the maximum distance (ms) within which a mark is considered for snapping
+     * @return the nearest mark's millisecond position if one was found within range, otherwise {@code ms} unchanged
+     */
+    protected double snapToMarks(double ms, double maxDistanceMs) {
+        double bestMs = ms;
+        double bestDist = maxDistanceMs;
+
+        for (AnnotationData data : this.parent.getAnnotations()) {
+            if (!data.isSnapTarget() || !data.hasMarksLine() || !isVisibleInPanel(data) || data.isEmpty())
+                continue;
+
+            double offsetMs = data.getOffsetMilliseconds();
+            for (int lineIdx : data.getLineIndicesOfType(AnnotationLine.Type.MARKS)) {
+                AnnotationLine marksLine = data.getLine(lineIdx);
+                for (int i = 0; i < marksLine.size(); i++) {
+                    double markMs = marksLine.getUnit().toMilliseconds(marksLine.getValue(i)) + offsetMs;
+                    double dist = Math.abs(markMs - ms);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestMs = markMs;
+                    }
+                }
+            }
+        }
+
+        return bestMs;
     }
 
     /**

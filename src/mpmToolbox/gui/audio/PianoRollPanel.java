@@ -379,7 +379,14 @@ public class PianoRollPanel extends AnnotationPanel implements ComponentListener
         double sampleOffset = (pixelOffset * samplesInFrame) / this.getWidth();
         double millisecOffset = (sampleOffset * 1000.0) / this.parent.getAudio().getFrameRate();
 
-        this.parent.getAlignment().reposition(this.dragGesture.note, this.dragGesture.note.getMillisecondsDate() + millisecOffset);    // move the note and do the timing transform
+        double newMillisecondsDate = this.dragGesture.note.getMillisecondsDate() + millisecOffset;
+
+        // snap to nearby marks of visible, snap-enabled MARKS annotations (within a small pixel tolerance)
+        double msPerPixel = (samplesInFrame * 1000.0) / (this.parent.getAudio().getFrameRate() * this.getWidth());
+        double snapToleranceMs = msPerPixel * 6.0;
+        newMillisecondsDate = this.snapToMarks(newMillisecondsDate, snapToleranceMs);
+
+        this.parent.getAlignment().reposition(this.dragGesture.note, newMillisecondsDate);    // move the note and do the timing transform
         this.parent.getAlignment().recomputePianoRoll();
 
         this.parent.communicateMousePositionToAllComponents(e);

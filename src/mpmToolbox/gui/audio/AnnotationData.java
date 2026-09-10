@@ -51,6 +51,32 @@ public class AnnotationData {
     public void   setOffsetMilliseconds(double offsetMs) { this.offsetMs = offsetMs; }
 
     // -------------------------------------------------------------------------
+    // Snapping
+    // -------------------------------------------------------------------------
+
+    private boolean snapTarget = false;  // whether this dataset's MARKS lines can be snapped to during time alignment (e.g. note dragging)
+
+    /**
+     * Whether this dataset is currently used as a snap target for time alignment (dragging notes/markers).
+     * Only meaningful for datasets that contain at least one MARKS line; see {@link #hasMarksLine()}.
+     * @return true if this dataset should be snapped to
+     */
+    public boolean isSnapTarget() { return this.snapTarget; }
+
+    /**
+     * Set whether this dataset is used as a snap target for time alignment.
+     * Only datasets with at least one MARKS line can meaningfully act as a snap target.
+     * @param snapTarget true to enable snapping to this dataset's marks
+     */
+    public void setSnapTarget(boolean snapTarget) { this.snapTarget = snapTarget; }
+
+    /**
+     * Whether this dataset contains at least one MARKS line, i.e. whether it could act as a snap target.
+     * @return true if a MARKS line is present
+     */
+    public boolean hasMarksLine() { return getFirstLineIndexOfType(AnnotationLine.Type.MARKS) >= 0; }
+
+    // -------------------------------------------------------------------------
     // Lines (columns)
     // -------------------------------------------------------------------------
 
