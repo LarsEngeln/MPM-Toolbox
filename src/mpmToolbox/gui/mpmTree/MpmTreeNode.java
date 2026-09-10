@@ -728,6 +728,38 @@ public class MpmTreeNode extends UniqueNode<MpmTreeNode, Object> implements Text
     }
 
     /**
+     * Sets the noteid attribute of note-bound performance instructions.
+     * This currently applies to articulation and ornament map entries.
+     * @param noteId MSM note xml:id, with or without leading '#'; empty removes the attribute
+     */
+    public void setNoteId(String noteId) {
+        switch (this.getType()) {
+            case articulation:
+            case ornament:
+                break;
+            default:
+                return;
+        }
+
+        Element element = (Element) this.getUserObject();
+        Attribute noteIdAttr = Helper.getAttribute("noteid", element);
+
+        if ((noteId == null) || noteId.isEmpty()) {
+            if (noteIdAttr != null) {
+                element.removeAttribute(noteIdAttr);
+            }
+            return;
+        }
+
+        String value = noteId.startsWith("#") ? noteId : "#" + noteId;
+        if (noteIdAttr == null) {
+            element.addAttribute(new Attribute("noteid", value));
+        } else {
+            noteIdAttr.setValue(value);
+        }
+    }
+
+    /**
      * This method creates the context menu when the node is right-clicked.
      * @param mpmTree the MpmTree instance that this node belongs to
      */

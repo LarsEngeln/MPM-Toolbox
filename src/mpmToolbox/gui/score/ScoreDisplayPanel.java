@@ -29,6 +29,7 @@ import mpmToolbox.supplementary.orthantNeighborhoodGraph.ONGNode;
 import nu.xom.Element;
 import nu.xom.Node;
 
+import javax.swing.SwingUtilities;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.Point2D;
@@ -113,13 +114,13 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         this.scoreDocumentData.getProjectPane().getSyncPlayer().getPlaybackSlider().addChangeListener(changeEvent -> {
             if (this.scoreDocumentData.getProjectPane().getSyncPlayer().getSelectedPerformance() != null) {
-                this.repaint();
+                SwingUtilities.invokeLater(this::repaint);
             }
         });
 
         this.scoreDocumentData.getProjectPane().getSyncPlayer().getPerformanceChooser().addItemListener(itemEvent -> {
             if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
-                this.repaint();
+                SwingUtilities.invokeLater(this::repaint);
             }
         });
     }

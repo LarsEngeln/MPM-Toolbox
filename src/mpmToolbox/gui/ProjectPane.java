@@ -16,6 +16,7 @@ import mpmToolbox.projectData.audio.Audio;
 import mpmToolbox.projectData.ProjectData;
 import mpmToolbox.gui.audio.AnnotationData;
 import mpmToolbox.gui.audio.AudioDocumentData;
+import mpmToolbox.gui.analytics.AnalyticsDocumentData;
 import mpmToolbox.gui.audio.utilities.CsvImportDialog;
 import mpmToolbox.gui.mpmTree.MpmDockableFrame;
 import mpmToolbox.gui.mpmTree.MpmTree;
@@ -58,6 +59,7 @@ public class ProjectPane extends WebDockablePane {
     private SyncPlayer syncPlayer = null;
     private ScoreDocumentData scoreFrame = null;
     private AudioDocumentData audioFrame = null;
+    private AnalyticsDocumentData analyticsFrame = null;
 
     /**
      * constructor
@@ -151,6 +153,7 @@ public class ProjectPane extends WebDockablePane {
 //        this.tabs.openDocument(new DocumentData<>("TestTab", "Test Tab", new WebButton("Test")));
         this.tabs.openDocument(this.makeScoreFrame());
         this.tabs.openDocument(this.makeAudioFrame());
+        this.tabs.openDocument(this.makeAnalyticsFrame());
         this.tabs.setSelected(this.scoreFrame);
 
         this.setContent(this.tabs);     // this will fill the free space of the docking pane that is not occupied by a WebDockableFrame, this can be anything JComponent-based
@@ -195,11 +198,28 @@ public class ProjectPane extends WebDockablePane {
     }
 
     /**
+     * this method sets up the analytics dock frame
+     * @return
+     */
+    private AnalyticsDocumentData makeAnalyticsFrame() {
+        this.analyticsFrame = new AnalyticsDocumentData(this);
+        return this.analyticsFrame;
+    }
+
+    /**
      * provides access to the audio analysis frame
      * @return
      */
     public AudioDocumentData getAudioFrame() {
         return this.audioFrame;
+    }
+
+    /**
+     * provides access to the analytics frame
+     * @return
+     */
+    public AnalyticsDocumentData getAnalyticsFrame() {
+        return this.analyticsFrame;
     }
 
     /**
@@ -243,6 +263,8 @@ public class ProjectPane extends WebDockablePane {
         this.mpmDockableFrame.setMpm(mpm);
 
         this.syncPlayer.updatePerformanceList();
+        if (this.analyticsFrame != null)
+            this.analyticsFrame.updatePerformanceList();
     }
 
     /**
@@ -253,6 +275,9 @@ public class ProjectPane extends WebDockablePane {
             return;
         this.mpmDockableFrame.removeMpm();
         this.data.removeMpm();
+        this.syncPlayer.updatePerformanceList();
+        if (this.analyticsFrame != null)
+            this.analyticsFrame.updatePerformanceList();
         this.repaintScoreDisplay();
     }
 
@@ -359,6 +384,8 @@ public class ProjectPane extends WebDockablePane {
     public boolean addAudio(Audio audio) {
         if (this.data.addAudio(audio)) {
             this.syncPlayer.addAudio(audio);
+            if (this.analyticsFrame != null)
+                this.analyticsFrame.updateAudioList();
             // switch to the Audio tab
             this.tabs.setSelected(this.audioFrame);
             // select the newly added audio in the SyncPlayer (last entry)
@@ -376,6 +403,8 @@ public class ProjectPane extends WebDockablePane {
         Audio audio = this.getAudio().get(index);
         this.syncPlayer.removeAudio(audio);
         this.data.removeAudio(index);
+        if (this.analyticsFrame != null)
+            this.analyticsFrame.updateAudioList();
     }
 
     /**
