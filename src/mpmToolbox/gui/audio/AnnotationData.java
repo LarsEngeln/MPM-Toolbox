@@ -12,6 +12,7 @@ public class AnnotationData {
 
     private String  name;
     private boolean visible = true;
+    private double  offsetMs = 0.0;  // time offset (in milliseconds) added to every time value when displaying this dataset
     private final ArrayList<AnnotationLine> lines = new ArrayList<>();  // one per CSV column
 
     // -------------------------------------------------------------------------
@@ -35,6 +36,19 @@ public class AnnotationData {
 
     public boolean isVisible()           { return this.visible; }
     public void    setVisible(boolean v) { this.visible = v; }
+
+    /**
+     * Get the time offset (in milliseconds) that is added to every time value of this dataset when displaying it.
+     * @return the offset in milliseconds
+     */
+    public double getOffsetMilliseconds()          { return this.offsetMs; }
+
+    /**
+     * Set the time offset (in milliseconds) that is added to every time value of this dataset when displaying it.
+     * This allows shifting the whole dataset earlier/later in time without modifying the underlying values.
+     * @param offsetMs the offset in milliseconds
+     */
+    public void   setOffsetMilliseconds(double offsetMs) { this.offsetMs = offsetMs; }
 
     // -------------------------------------------------------------------------
     // Lines (columns)

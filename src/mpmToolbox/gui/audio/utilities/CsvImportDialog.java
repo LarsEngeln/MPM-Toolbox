@@ -52,6 +52,9 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     private WebTextField newNameField;
     private final ArrayList<AnnotationData> existingData;
 
+    // time offset (seconds) added to every time value of this dataset when displaying it
+    private WebTextField offsetField;
+
     // preview table model, updated when columns are deleted
     private DefaultTableModel tableModel;
 
@@ -265,6 +268,16 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         this.newNameField.setVisible(this.targetChooser.getSelectedIndex() == 0);
         Tools.addComponentToGridBagLayout(targetPanel, targetLayout, this.newNameField, 2, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
 
+        WebLabel offsetLabel = new WebLabel("Time offset (s):");
+        offsetLabel.setFontStyle(Font.BOLD);
+        offsetLabel.setPadding(2, 4, 2, 8);
+        Tools.addComponentToGridBagLayout(targetPanel, targetLayout, offsetLabel, 3, 0, 1, 1, 0.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.LINE_START);
+
+        this.offsetField = new WebTextField(String.valueOf(Tools.round(this.annotationData.getOffsetMilliseconds() / 1000.0, 6)));
+        this.offsetField.setToolTipText("Time offset in seconds added to every time value of this dataset (e.g. to correct a temporal shift)");
+        this.offsetField.setHorizontalAlignment(WebTextField.CENTER);
+        Tools.addComponentToGridBagLayout(targetPanel, targetLayout, this.offsetField, 4, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
+
         Tools.addComponentToGridBagLayout(this, mainLayout, targetPanel, 0, row++, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.LINE_START);
 
         // --- Column configuration panel (rebuilt dynamically) ---
@@ -288,6 +301,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
                     dst.setType(src.getType());
                     dst.setUnit(src.getUnit());
                 }
+                this.offsetField.setText(String.valueOf(Tools.round(selected.getOffsetMilliseconds() / 1000.0, 6)));
             }
             this.rebuildConfigPanel();
             this.rebuildPreviewTable();
@@ -519,6 +533,14 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
 
         // apply current UI state (names, types, units) back onto the AnnotationData lines
         this.applyNamesTypesUnits();
+
+        // apply time offset (parsed from seconds, stored internally as milliseconds)
+        try {
+            double offsetSeconds = Double.parseDouble(this.offsetField.getText().trim().replace(',', '.'));
+            this.annotationData.setOffsetMilliseconds(offsetSeconds * 1000.0);
+        } catch (NumberFormatException e) {
+            this.annotationData.setOffsetMilliseconds(0.0);
+        }
 
         // determine name
         AnnotationData target = this.getTargetAnnotationData();

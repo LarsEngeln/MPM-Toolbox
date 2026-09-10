@@ -46,7 +46,7 @@ public class AnnotationPanel extends WebPanel {
     protected AnnotationPanel(AudioDocumentData parent) {
         super();
         this.parent = parent;
-        this.annotationPlaceholder = new WebLabel("No annotation data available.", WebLabel.CENTER);
+        this.annotationPlaceholder = new WebLabel("", WebLabel.CENTER);
         this.annotationPlaceholder.setOpaque(false);
         this.add(this.annotationPlaceholder);
         this.updateAnnotationPlaceholder();
@@ -225,7 +225,7 @@ public class AnnotationPanel extends WebPanel {
         // --- MARKS lines ---
         for (int lineIdx : data.getLineIndicesOfType(AnnotationLine.Type.MARKS)) {
             AnnotationLine marksLine = data.getLine(lineIdx);
-            drawMarks(g2, marksLine, withAlpha(color, 200), fromMs, toMs);
+            drawMarks(g2, marksLine, withAlpha(color, 200), fromMs, toMs, data.getOffsetMilliseconds());
         }
 
         // --- TEXT lines ---
@@ -373,11 +373,12 @@ public class AnnotationPanel extends WebPanel {
         minV -= margin; maxV += margin;
         double vRange = (maxV - minV) > 0.0 ? (maxV - minV) : 1.0;
 
+        double offsetMs = data.getOffsetMilliseconds();
         ArrayList<double[]> points = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            double ms = timeLine != null
+            double ms = (timeLine != null
                     ? timeLine.getUnit().toMilliseconds(timeLine.getValue(i))
-                    : valueLine.getUnit().toMilliseconds(valueLine.getValue(i));
+                    : valueLine.getUnit().toMilliseconds(valueLine.getValue(i))) + offsetMs;
             if (ms < fromMs || ms > toMs) continue;
             double x = alignTime(ms, fromMs, toMs, width);
             double y = height - ((valueLine.getValue(i) - minV) / vRange) * height;
@@ -406,10 +407,11 @@ public class AnnotationPanel extends WebPanel {
         if (count < 2) return;
 
         ArrayList<double[]> points = new ArrayList<>();
+        double offsetMs = data.getOffsetMilliseconds();
         for (int i = 0; i < count; i++) {
-            double ms = timeLine != null
+            double ms = (timeLine != null
                     ? timeLine.getUnit().toMilliseconds(timeLine.getValue(i))
-                    : valueLine.getUnit().toMilliseconds(valueLine.getValue(i));
+                    : valueLine.getUnit().toMilliseconds(valueLine.getValue(i))) + offsetMs;
             if (ms < fromMs || ms > toMs) continue;
             double hz = valueLine.getValue(i);
             double x = alignTime(ms, fromMs, toMs, width);
@@ -428,9 +430,10 @@ public class AnnotationPanel extends WebPanel {
       * @param color    base color for this dataset (alpha already set)
       * @param fromMs   the time (ms) at panel pixel x = 0
       * @param toMs     the time (ms) at panel pixel x = width-
+      * @param offsetMs the time offset (ms) added to every mark timestamp
      */
     private void drawMarks(Graphics2D g2, AnnotationLine marksLine, Color color,
-                           double fromMs, double toMs) {
+                           double fromMs, double toMs, double offsetMs) {
         int width  = this.getWidth();
         int height = this.getHeight();
 
@@ -439,7 +442,7 @@ public class AnnotationPanel extends WebPanel {
         g2.setColor(color);
 
         for (int i = 0; i < marksLine.size(); i++) {
-            double ms = marksLine.getUnit().toMilliseconds(marksLine.getValue(i));
+            double ms = marksLine.getUnit().toMilliseconds(marksLine.getValue(i)) + offsetMs;
             if (ms < fromMs || ms > toMs) continue;
             int x = (int) alignTime(ms, fromMs, toMs, width);
             g2.drawLine(x, 0, x, height);
@@ -471,10 +474,11 @@ public class AnnotationPanel extends WebPanel {
         g2.setColor(color);
         g2.setFont(g2.getFont().deriveFont((float) Settings.getDefaultFontSize()));
 
+        double offsetMs = data.getOffsetMilliseconds();
         for (int i = 0; i < count; i++) {
-            double ms = timeLine != null
+            double ms = (timeLine != null
                     ? timeLine.getUnit().toMilliseconds(timeLine.getValue(i))
-                    : textLine.getUnit().toMilliseconds(textLine.getValue(i));
+                    : textLine.getUnit().toMilliseconds(textLine.getValue(i))) + offsetMs;
             if (ms < fromMs || ms > toMs) continue;
             int x = (int) alignTime(ms, fromMs, toMs, width);
             String label = String.valueOf(textLine.getValue(i));
@@ -538,19 +542,20 @@ public class AnnotationPanel extends WebPanel {
         boolean isMarks = valueLine.getType() == AnnotationLine.Type.MARKS;
         int timeIdx = data.getFirstLineIndexOfType(AnnotationLine.Type.TIME);
         AnnotationLine timeLine = (!isMarks && timeIdx >= 0) ? data.getLine(timeIdx) : null;
+        double offsetMs = data.getOffsetMilliseconds();
 
         int count = (timeLine != null) ? Math.min(timeLine.size(), valueLine.size()) : valueLine.size();
         if (count == 0) return null;
 
-        double firstMs = msAt(timeLine, valueLine, isMarks, 0);
-        double lastMs  = msAt(timeLine, valueLine, isMarks, count - 1);
+        double firstMs = msAt(timeLine, valueLine, isMarks, 0, offsetMs);
+        double lastMs  = msAt(timeLine, valueLine, isMarks, count - 1, offsetMs);
 
         if (ms <= firstMs) return isMarks ? 1.0 : valueLine.getValue(0);
         if (ms >= lastMs)  return isMarks ? 1.0 : valueLine.getValue(count - 1);
 
         for (int i = 0; i < count - 1; i++) {
-            double msA = msAt(timeLine, valueLine, isMarks, i);
-            double msB = msAt(timeLine, valueLine, isMarks, i + 1);
+            double msA = msAt(timeLine, valueLine, isMarks, i, offsetMs);
+            double msB = msAt(timeLine, valueLine, isMarks, i + 1, offsetMs);
             if (ms >= msA && ms <= msB) {
                 double t  = (ms - msA) / (msB - msA);
                 double vA = isMarks ? 1.0 : valueLine.getValue(i);
@@ -561,9 +566,9 @@ public class AnnotationPanel extends WebPanel {
         return null;
     }
 
-    private static double msAt(AnnotationLine timeLine, AnnotationLine valueLine, boolean isMarks, int i) {
-        if (isMarks) return valueLine.getUnit().toMilliseconds(valueLine.getValue(i));
-        return timeLine.getUnit().toMilliseconds(timeLine.getValue(i));
+    private static double msAt(AnnotationLine timeLine, AnnotationLine valueLine, boolean isMarks, int i, double offsetMs) {
+        if (isMarks) return valueLine.getUnit().toMilliseconds(valueLine.getValue(i)) + offsetMs;
+        return timeLine.getUnit().toMilliseconds(timeLine.getValue(i)) + offsetMs;
     }
 }
 
