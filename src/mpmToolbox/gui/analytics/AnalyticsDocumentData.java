@@ -160,10 +160,31 @@ public class AnalyticsDocumentData extends DocumentData<WebPanel> {
         this.draw();
         this.updateAudioList();
         this.updatePerformanceList();
+        this.makeListeners();
+    }
+
+    /**
+     * a listener to keep the playback cursor in the VolumePanel in sync with the SyncPlayer
+     */
+    private void makeListeners() {
+        if (this.projectPane.getSyncPlayer() == null)
+            return;
+
+        this.projectPane.getSyncPlayer().getPlaybackSlider().addChangeListener(changeEvent -> this.volumePanel.repaint());
     }
 
     public ProjectPane getProjectPane() {
         return this.projectPane;
+    }
+
+    /**
+     * a helper method to compute the relative playback position for the analytics visualizations
+     * @return relative position in [0.0, 1.0] or null if no SyncPlayer is available
+     */
+    public Double getRelativePlaybackPosition() {
+        if (this.projectPane.getSyncPlayer() == null)
+            return null;
+        return this.projectPane.getSyncPlayer().getRelativePlaybackSliderPosition();
     }
 
     public VolumePanel getVolumePanel() {

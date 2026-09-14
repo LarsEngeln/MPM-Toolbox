@@ -58,7 +58,8 @@ public class VolumePanel extends WebPanel {
 
             this.drawGrid(g2, left, top, plotWidth, plotHeight, maxDuration);
             this.drawCurves(g2, sources, left, top, plotWidth, plotHeight, maxDuration);
-            this.drawLegend(g2, sources, left, top);
+            this.drawPlaybackCursor(g2, left, top, plotWidth, plotHeight);
+            //this.drawLegend(g2, sources, left, top);
         } finally {
             g2.dispose();
         }
@@ -79,7 +80,7 @@ public class VolumePanel extends WebPanel {
     private void drawGrid(Graphics2D g2, int left, int top, int plotWidth, int plotHeight, double maxDuration) {
         g2.setColor(new Color(180, 180, 180, 70));
 
-        for (int db = 0; db >= -120; db -= 20) {
+        for (int db = 0; db >= -120; db -= 10) {
             int y = top + (int) Math.round((1.0 - normalizeDb(db)) * plotHeight);
             g2.drawLine(left, y, left + plotWidth, y);
             g2.setColor(Color.LIGHT_GRAY);
@@ -120,6 +121,20 @@ public class VolumePanel extends WebPanel {
             g2.setStroke(new BasicStroke(2.0f));
             g2.draw(path);
         }
+    }
+
+    /**
+     * draw the playback cursor line in the Graphics2D object
+     * @param g2d
+     */
+    private void drawPlaybackCursor(Graphics2D g2d, int left, int top, int plotWidth, int plotHeight) {
+        Double pos = this.parent.getRelativePlaybackPosition();
+        if (pos == null)
+            return;
+
+        int x = left + (int) Math.round(plotWidth * pos);
+        g2d.setColor(Color.GRAY);
+        g2d.drawLine(x, top, x, top + plotHeight);
     }
 
     private void drawLegend(Graphics2D g2, ArrayList<SourceEntry> sources, int left, int top) {
@@ -223,12 +238,12 @@ public class VolumePanel extends WebPanel {
     private double chooseTimeStep(double maxDurationMs) {
         double durationSec = maxDurationMs / 1000.0;
         if (durationSec <= 5.0)
-            return 0.5;
+            return 500.0;
         if (durationSec <= 20.0)
-            return 2.0;
+            return 2000.0;
         if (durationSec <= 60.0)
-            return 5.0;
-        return 10.0;
+            return 5000.0;
+        return 10000.0;
     }
 
     private static String formatTime(double ms) {
