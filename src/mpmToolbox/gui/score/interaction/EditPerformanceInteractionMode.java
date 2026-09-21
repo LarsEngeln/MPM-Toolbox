@@ -6,6 +6,7 @@ import mpmToolbox.gui.mpmTree.MpmTreeNode;
 import mpmToolbox.gui.mpmEditingTools.MpmEditingTools;
 import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.score.ScoreDisplayPanel;
+import mpmToolbox.projectData.score.ScoreNode;
 import nu.xom.Element;
 
 import java.awt.AlphaComposite;
@@ -16,6 +17,7 @@ import java.awt.Cursor;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
 
 /**
  * Edit-performance mode places expressive performance data and selects performance nodes.
@@ -142,6 +144,14 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
         this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
         updateMousePosition(mouseEvent);
 
+        ArrayList<Element> selectedNotes = this.noteMultiselect.getSelectedMsmNotes();
+        if (selectedNotes.isEmpty()) {
+            ScoreNode node = this.anchorNodeHelper.getAnchorNode();
+            if (node != null) {
+                selectedNotes.addAll(node.getAssociatedElements());
+            }
+        }
+
         switch (mouseEvent.getButton()) {
             case MouseEvent.BUTTON1:
                 if (this.panel.getScoreDocumentData().getProjectPane().getMpm() == null) {
@@ -152,7 +162,7 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
                     this.panel.showNoPerformancePopUp(mouseEvent);
                     return;
                 }
-                this.panel.makePlaceAndCreateContextMenu(this.noteMultiselect.getSelectedMsmNotes()).show(this.panel, mouseEvent.getX() - 25, mouseEvent.getY());
+                this.panel.makePlaceAndCreateContextMenu(selectedNotes).show(this.panel, mouseEvent.getX() - 25, mouseEvent.getY());
                 break;
             case MouseEvent.BUTTON3:
                 Element selectedElement = this.panel.getOverlayElementAt(mouseEvent);
