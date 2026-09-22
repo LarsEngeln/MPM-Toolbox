@@ -37,16 +37,23 @@ public class SvgTree extends WebExTree<SvgTreeNode> {
         // corresponding element in the score display and repaint it.
         this.addTreeSelectionListener(event -> {
             TreePath path = event.getNewLeadSelectionPath();
-            if (path == null) {
-                svgData.setHighlightedElement(null);
-            } else {
+            Element selectedElement = null;
+            
+            if (path != null) {
                 SvgTreeNode node = this.getNodeForPath(path);
                 if (node != null && node.getUserObject() instanceof Element) {
-                    svgData.setHighlightedElement((Element) node.getUserObject());
+                    selectedElement = (Element) node.getUserObject();
+                    svgData.setHighlightedElement(selectedElement);
                 } else {
                     svgData.setHighlightedElement(null);
                 }
+            } else {
+                svgData.setHighlightedElement(null);
             }
+            
+            // Notify AddSvgLinkMode about selection if it exists
+            onSvgElementSelected(selectedElement);
+            
             projectPane.repaintScoreDisplay();
         });
 
@@ -99,6 +106,22 @@ public class SvgTree extends WebExTree<SvgTreeNode> {
     }
 
     // -------------------------------------------------------------------------
+
+    /**
+     * Called when an SVG element is selected in the tree.
+     * This method allows AddSvgLinkInteractionMode to be notified without
+     * creating circular dependencies (SvgTree doesn't access InteractionModeManager).
+     * Instead, AddSvgLinkInteractionMode can register a listener or poll this state.
+     *
+     * @param selectedElement the selected SVG element, or null if deselected
+     */
+    private void onSvgElementSelected(Element selectedElement) {
+        // This is a placeholder for notification logic.
+        // AddSvgLinkInteractionMode should call getHighlightedElement() on SvgData
+        // to detect when a <g> element is selected, rather than having SvgTree
+        // directly access the mode.
+        // See: SvgData.getHighlightedElement()
+    }
 
     private static SvgTreeNode findNodeForElement(SvgTreeNode node, Element element) {
         if (node.getUserObject() == element)

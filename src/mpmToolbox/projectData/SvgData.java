@@ -5,6 +5,7 @@ import com.kitfox.svg.SVGDiagram;
 import com.kitfox.svg.SVGElement;
 import com.kitfox.svg.SVGException;
 import com.kitfox.svg.SVGUniverse;
+import com.kitfox.svg.xml.StyleAttribute;
 import nu.xom.Attribute;
 import nu.xom.Builder;
 import nu.xom.Document;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -155,6 +157,13 @@ public class SvgData {
      * Pass {@code null} to clear the hover.
      */
     public void setHoveredElement(Element element) {
+        if(this.hoveredElement != null) {
+            String id = this.hoveredElement.getAttributeValue("id");
+            if (id != null && !id.isEmpty()) {
+                resetStrokeColor(this.diagram.getElement(id));
+            }
+        }
+
         this.hoveredElement = element;
     }
 
@@ -350,6 +359,113 @@ public class SvgData {
         g2.drawRect(imgX, imgY, imgW, imgH);
         g2.setColor(prevColor);
         g2.setStroke(prevStroke);
+    }
+
+    /**
+     * Render a bright yellow overlay for the currently hovered element.
+     * Renders the element directly in SVG space with bright yellow fill.
+     *
+     * @param g2           the Graphics2D context (already transformed to image space)
+     * @param targetWidth  the target width in pixels (same as passed to render())
+     * @param targetHeight the target height in pixels (same as passed to render())
+     */
+    public void renderHoverHighlight(Graphics2D g2, int targetWidth, int targetHeight) {
+        if (this.diagram == null || this.hoveredElement == null)
+            return;
+
+        float svgW = this.diagram.getWidth();
+        float svgH = this.diagram.getHeight();
+        if (svgW <= 0 || svgH <= 0)
+            return;
+
+        SVGElement svgEl = null;
+        String id = this.hoveredElement.getAttributeValue("id");
+        if (id != null && !id.isEmpty()) {
+            svgEl = this.diagram.getElement(id);
+        }
+        
+        if (!(svgEl instanceof RenderableElement))
+            return;
+
+        // Build cumulative AffineTransform from XOM ancestor chain
+        java.awt.geom.AffineTransform ancestorTransform = buildAncestorTransform(this.hoveredElement);
+
+        // Calculate scale factors for SVG → image space
+        double scaleX = targetWidth / svgW;
+        double scaleY = targetHeight / svgH;
+
+        // Save graphics state
+        Color prevColor = g2.getColor();
+        Composite savedComposite = g2.getComposite();
+        java.awt.geom.AffineTransform savedTransform = g2.getTransform();
+
+        // Set highlight style: hotpink, semi-transparent
+        g2.setColor(new Color(255, 105, 180)); // hotpink
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+
+        try {
+            // Apply the transform chain: scale to image space, then apply ancestor transform
+            java.awt.geom.AffineTransform renderTransform = new java.awt.geom.AffineTransform();
+            //renderTransform.scale(scaleX, scaleY);
+            renderTransform.concatenate(ancestorTransform);
+
+            setStrokeColor(svgEl, "#FF0064"); // bright yellow stroke for hover
+            
+            g2.transform(renderTransform);
+            ((RenderableElement) svgEl).render(g2);
+
+        } catch (SVGException ignored) {
+        } finally {
+            // Restore graphics state
+            g2.setTransform(savedTransform);
+            g2.setColor(prevColor);
+            g2.setComposite(savedComposite);
+        }
+    }
+
+    /**
+     * recursively sets the color of a SVGElement if that child has a stroke attribute
+     * @param svgElement
+     * @param color
+     */
+    private static void setStrokeColor(SVGElement svgElement, String color) {
+        com.kitfox.svg.xml.StyleAttribute styleAttribute = svgElement.getStyleAbsolute("stroke");
+        boolean hasOrigStroke = svgElement.getInlineAttributes().contains("orig-stroke");
+        if(styleAttribute != null) {
+            try {
+                if(!hasOrigStroke) {
+                    svgElement.addAttribute("orig-stroke", 0, styleAttribute.getStringValue());
+                }
+                svgElement.setAttribute("stroke", 0, color);
+            }
+            catch (SVGException ignored) {}
+        }
+
+        for (int i = 0; i < svgElement.getNumChildren(); i++) {
+            if (svgElement.getChild(i) instanceof SVGElement) {
+                setStrokeColor((SVGElement) svgElement.getChild(i), color);
+            }
+        }
+    }
+
+    /**
+     * resets the stroke color back to original
+     * @param svgElement
+     */
+    private static void resetStrokeColor(SVGElement svgElement) {
+        com.kitfox.svg.xml.StyleAttribute styleAttribute = svgElement.getStyleAbsolute("orig-stroke");
+        if(styleAttribute != null) {
+            try {
+                svgElement.setAttribute("stroke", 0, styleAttribute.getStringValue());
+            }
+            catch (SVGException ignored) {}
+        }
+
+        for (int i = 0; i < svgElement.getNumChildren(); i++) {
+            if (svgElement.getChild(i) instanceof SVGElement) {
+                resetStrokeColor((SVGElement) svgElement.getChild(i));
+            }
+        }
     }
 
     /**

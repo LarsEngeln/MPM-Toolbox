@@ -261,16 +261,11 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                         svg.renderHighlight(g2, imgW, imgH);
                     }
 
-                    // draw hover indicator: small hotpink rect in the top-left corner
+                    // draw hover highlight: bright cyan overlay for hovered element
                     for (SvgData svg : svgs) {
                         if (svg.getHoveredElement() == null)
                             continue;
-                        int indicatorSize = 10;
-                        Color prevColor = g2.getColor();
-                        g2.setColor(Color.decode("#FF69B4")); // hotpink
-                        g2.fillRect(2, 2, indicatorSize, indicatorSize);
-                        g2.setColor(prevColor);
-                        break; // one indicator is enough
+                        svg.renderHoverHighlight(g2, imgW, imgH);
                     }
                 }
             }
