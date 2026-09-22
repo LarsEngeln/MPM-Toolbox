@@ -261,7 +261,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
      * @return the menu item
      */
     private JMenuItem tryPlaceAllUnplacedKidsMenuItem() {
-        WebMenuItem item = new WebMenuItem("try to place all unplaced kids");
+        WebMenuItem item = new WebMenuItem("automatic placement");
         MpmTreeNode selectedNode = this.parent.getScoreDocumentData().getSelectedMpmNode();
         MpmTree mpmTree = this.parent.getScoreDocumentData().getProjectPane().getMpmTree();
         Performance selectedPerformance = (selectedNode == null) ? null : selectedNode.getPerformance();
@@ -279,7 +279,7 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
         }
 
         item.addActionListener(actionEvent -> this.placeAllUnplacedKids(performanceNode));
-        item.setToolTipText("Places all unplaced dated nodes in the current performance.");
+        item.setToolTipText("Places all unplaced dated MPM nodes in the current performance.");
         return item;
     }
 

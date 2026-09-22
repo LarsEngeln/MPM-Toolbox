@@ -210,7 +210,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
             this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         } else {
             this.panel.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
-            this.noteMultiselect.deselect();
+            //this.noteMultiselect.deselect();
         }
         this.panel.repaint();
     }
