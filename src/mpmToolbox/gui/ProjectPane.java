@@ -118,7 +118,35 @@ public class ProjectPane extends WebDockablePane {
     public ProjectPane(File file, MpmToolbox parent) throws SAXException, ParsingException, ParserConfigurationException, IOException {
         super();
         this.parent = parent;
-        this.data = new ProjectData(file);
+
+        byte[] emergencyMemory = new byte[10 * 1024 * 1024];
+        try {
+            Runtime rt = Runtime.getRuntime();
+
+            long max = rt.maxMemory();
+            long total = rt.totalMemory();
+            long free = rt.freeMemory();
+
+            System.out.printf("Max Heap: %.2f MB%n", max / 1024.0 / 1024.0);
+            System.out.printf("Allocated Heap: %.2f MB%n", total / 1024.0 / 1024.0);
+            System.out.printf("Free Heap: %.2f MB%n", free / 1024.0 / 1024.0);
+
+            this.data = new ProjectData(file);
+        } catch (OutOfMemoryError e) {
+            emergencyMemory = null;
+            System.gc();
+
+            // Show error message
+            WebOptionPane.showMessageDialog(
+                    this,
+                    "The project requires more memory than is available. "
+                            + "Please increase the JVM memory settings or load a smaller project.",
+                    "Out of Memory",
+                    WebOptionPane.ERROR_MESSAGE
+            );
+
+            e.printStackTrace();
+        }
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
         this.svgDockableFrame = new SvgDockableFrame(this);
