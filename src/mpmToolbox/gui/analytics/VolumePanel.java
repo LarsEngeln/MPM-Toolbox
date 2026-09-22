@@ -6,7 +6,6 @@ import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.analytics.AnalyticsDocumentData.SourceEntry;
 import mpmToolbox.gui.analytics.AnalyticsDocumentData.SourceType;
 import mpmToolbox.projectData.alignment.Note;
-import mpmToolbox.supplementary.Tools;
 
 import java.awt.*;
 import java.awt.geom.Path2D;
@@ -21,6 +20,11 @@ public class VolumePanel extends WebPanel {
 
     private final AnalyticsDocumentData parent;
     private final WebLabel placeholder = new WebLabel("Select at least one audio file or performance.", WebLabel.CENTER);
+
+    // cache of precomputed dB curves so paintComponent() does not have to recompute them on every repaint
+    private ArrayList<SourceEntry> cachedSources = null;
+    private double cachedMaxDuration = -1.0;
+    private double[][] cachedAvgDb = null;
 
     public VolumePanel(AnalyticsDocumentData parent) {
         super(new BorderLayout());
@@ -57,6 +61,7 @@ public class VolumePanel extends WebPanel {
             }
 
             this.drawGrid(g2, left, top, plotWidth, plotHeight, maxDuration);
+            this.ensureCurveData(sources, maxDuration);
             this.drawCurves(g2, sources, left, top, plotWidth, plotHeight, maxDuration);
             this.drawPlaybackCursor(g2, left, top, plotWidth, plotHeight);
             //this.drawLegend(g2, sources, left, top);
@@ -99,27 +104,52 @@ public class VolumePanel extends WebPanel {
         }
     }
 
+    private static final int SAMPLE_STEPS = 500;
+
+    /**
+     * (Re-)computes the average/max dB curves for the given sources if the sources or the duration changed
+     * since the last computation, so paintComponent() does not have to redo this expensive work on every repaint.
+     */
+    private void ensureCurveData(ArrayList<SourceEntry> sources, double maxDuration) {
+        if ((this.cachedSources != null) && this.cachedSources.equals(sources) && (this.cachedMaxDuration == maxDuration))
+            return;
+
+        this.cachedAvgDb = new double[sources.size()][SAMPLE_STEPS];
+
+        for (int s = 0; s < sources.size(); ++s) {
+            SourceEntry source = sources.get(s);
+            for (int i = 0; i < SAMPLE_STEPS; ++i) {
+                double time = (SAMPLE_STEPS <= 1) ? 0.0 : (maxDuration * i) / (SAMPLE_STEPS - 1.0);
+                this.cachedAvgDb[s][i] = this.computeDb(source, time, maxDuration);
+            }
+        }
+
+        this.cachedSources = new ArrayList<>(sources);
+        this.cachedMaxDuration = maxDuration;
+    }
+
     private void drawCurves(Graphics2D g2, ArrayList<SourceEntry> sources, int left, int top, int plotWidth, int plotHeight, double maxDuration) {
-        for (SourceEntry source : sources) {
-            Path2D path = new Path2D.Double();
+        for (int s = 0; s < sources.size(); ++s) {
+            SourceEntry source = sources.get(s);
+            double[] avgDb = this.cachedAvgDb[s];
+
+            Path2D avgPath = new Path2D.Double();
             boolean started = false;
-            for (int x = 0; x < plotWidth; ++x) {
-                double time = (plotWidth <= 1) ? 0.0 : (maxDuration * x) / (plotWidth - 1.0);
-                double db = this.computeDb(source, time, maxDuration);
-                double normalized = normalizeDb(db);
-                double y = top + (1.0 - normalized) * plotHeight;
-                double drawX = left + x;
+            for (int i = 0; i < SAMPLE_STEPS; ++i) {
+                double time = (SAMPLE_STEPS <= 1) ? 0.0 : (maxDuration * i) / (SAMPLE_STEPS - 1.0);
+                double avgY = top + (1.0 - normalizeDb(avgDb[i])) * plotHeight;
+                double drawX = left + (time / maxDuration) * plotWidth;
                 if (!started) {
-                    path.moveTo(drawX, y);
+                    avgPath.moveTo(drawX, avgY);
                     started = true;
                 } else {
-                    path.lineTo(drawX, y);
+                    avgPath.lineTo(drawX, avgY);
                 }
             }
 
             g2.setColor(source.getColor());
             g2.setStroke(new BasicStroke(2.0f));
-            g2.draw(path);
+            g2.draw(avgPath);
         }
     }
 
@@ -236,18 +266,15 @@ public class VolumePanel extends WebPanel {
     }
 
     private double chooseTimeStep(double maxDurationMs) {
-        double durationSec = maxDurationMs / 1000.0;
-        if (durationSec <= 5.0)
-            return 500.0;
-        if (durationSec <= 20.0)
-            return 2000.0;
-        if (durationSec <= 60.0)
-            return 5000.0;
-        return 10000.0;
+        double rawStep = maxDurationMs / 10.0;
+        double quantum = 10000.0; // 10 seconds
+        return Math.ceil(rawStep / quantum) * quantum;
     }
 
     private static String formatTime(double ms) {
-        double sec = ms / 1000.0;
-        return Tools.round(sec, 2) + " s";
+        long totalSec = Math.round(ms / 1000.0);
+        long min = totalSec / 60;
+        long sec = totalSec % 60;
+        return String.format("%d:%02d", min, sec);
     }
 }

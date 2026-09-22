@@ -6,6 +6,7 @@ import com.alee.extended.dock.WebDockableFrame;
 import com.alee.extended.dock.WebDockablePane;
 import com.alee.extended.tab.DocumentData;
 import com.alee.extended.tab.WebDocumentPane;
+import com.alee.laf.optionpane.WebOptionPane;
 import com.alee.laf.panel.WebPanel;
 import com.alee.managers.style.StyleId;
 import meico.mei.Mei;
@@ -48,7 +49,7 @@ import java.util.ArrayList;
 public class ProjectPane extends WebDockablePane {
     private final MpmToolbox parent;
 
-    private final ProjectData data;                                                         // the actual project data
+    private ProjectData data;                                                         // the actual project data
 
     private final WebDocumentPane<DocumentData<WebPanel>> tabs = new WebDocumentPane<>();   // this contains the components displayed in the center under certain tabs
 
