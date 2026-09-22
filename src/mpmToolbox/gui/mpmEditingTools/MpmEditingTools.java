@@ -806,13 +806,13 @@ public class MpmEditingTools {
 //                MpmEditingTools.editDef(self, mpmTree);
                 break;
             case ornamentDef:
-//                MpmEditingTools.editDef(self, mpmTree);
+                MpmEditingTools.editDef(self, mpmTree);
                 break;
             case dynamicsGradient:
-                // edit the ornamentDef instead of this element
+                MpmEditingTools.editDef(self.getParent(), mpmTree);
                 break;
             case temporalSpread:
-                // edit the ornamentDef instead of this element
+                MpmEditingTools.editDef(self.getParent(), mpmTree);
                 break;
             case articulationDef:
             case dynamicsDef:

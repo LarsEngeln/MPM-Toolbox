@@ -9,6 +9,8 @@ import com.alee.laf.tree.UniqueNode;
 import meico.mei.Helper;
 import meico.midi.EventMaker;
 import meico.midi.MidiPlayer;
+import mpmToolbox.gui.MeasureNumberLookup;
+import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.msmEditingTools.MsmEditingTools;
 import mpmToolbox.projectData.ProjectData;
 import nu.xom.Attribute;
@@ -62,7 +64,9 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
         this.project = project;
 
         // determine type
-        switch (xml.getLocalName()) {
+        if (xml instanceof MsmMeasureElement)
+            this.type = XmlNodeType.measure;
+        else switch (xml.getLocalName()) {
             case "msm":
                 this.type = XmlNodeType.msm;
                 break;
@@ -137,6 +141,9 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
             case sequencingMap:
                 this.name = "sequencingMap";
                 break;
+            case measure:
+                this.name = "<html>-- <i>Measure <b>" + ((MsmMeasureElement)this.getUserObject()).measureNumber + "</b> --</i></html>";
+                break;
             case note: {
                 int ppq = this.project.getMsm().getPPQ();
                 double duration = Double.parseDouble(((Element)this.getUserObject()).getAttributeValue("duration"));
@@ -154,12 +161,13 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
                         String oct = octave.getValue();
                         if (oct.endsWith(".0"))
                             oct = oct.replace(".0", "");
-                        pitchString = pitchString.concat(" " + oct);
+                        pitchString = pitchString.concat("&nbsp;" + oct);
                     }
                 }
                 Element note = (Element) this.getUserObject();
+                String measurePrefix = this.computeMeasurePrefix((Element) this.getUserObject());
 //                boolean hasMillisecondsDate = (note.getAttribute("milliseconds.date") != null);                             // this flag indicates if the note has a milliseconds date (is aligned with audio)
-                this.name = "<html><font size=\"+1\">" + Helper.decimalDuration2Utf16SurrogatePair(Helper.pulseDuration2decimal(duration, ppq), false) + "</font> "    // print a note symbol according to the note's value
+                this.name = "<html>" + measurePrefix + "&nbsp;<font size=\"+1\">&nbsp;"  + Helper.decimalDuration2Utf16SurrogatePair(Helper.pulseDuration2decimal(duration, ppq), false) + "</font>&nbsp;"    // print a note symbol according to the note's value
                         + pitchString                                                                                       // print the note's name
                         + "&nbsp;&nbsp;&nbsp;"
 //                        + (hasMillisecondsDate ? "<font color=\"lime\">&#9679;</font>" : "")                                // indicate whether the note has a milliseconds date (is aligned with audio)
@@ -170,17 +178,20 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
             case rest: {
                 int ppq = this.project.getMsm().getPPQ();
                 double duration = Double.parseDouble(((Element)this.getUserObject()).getAttributeValue("duration"));
-                this.name = "<html><font size=\"+1\">" + Helper.decimalDuration2Utf16SurrogatePair(Helper.pulseDuration2decimal(duration, ppq), true)+"</font></html>";
+                String measurePrefix = this.computeMeasurePrefix((Element) this.getUserObject());
+                this.name = "<html>" + measurePrefix + "<font size=\"+1\">" + Helper.decimalDuration2Utf16SurrogatePair(Helper.pulseDuration2decimal(duration, ppq), true)+"</font></html>";
                 break;
             }
-            case lyrics:
-                this.name = ((Element)this.getUserObject()).getLocalName() + " \"" + ((Element)this.getUserObject()).getValue() + "\"";
+            case lyrics: {
+                String measurePrefix = this.computeMeasurePrefix((Element) this.getUserObject());
+                String lyricsText = ((Element)this.getUserObject()).getLocalName() + " \"" + ((Element)this.getUserObject()).getValue() + "\"";
+                this.name = measurePrefix.isEmpty() ? lyricsText : "<html>" + measurePrefix + lyricsText + "</html>";
                 break;
+            }
             case element:
                 break;
             case attribute:
                 this.name = "<html><font size=\"+0\" color=\"silver\">@</font>  " + ((Attribute)this.getUserObject()).getLocalName() + " " + this.getUserObject().getValue() + "</html>";
-//                this.name = "@ " + ((Attribute)this.getUserObject()).getLocalName() + ": " + this.getUserObject().getValue();
                 break;
             case global:
             case dated:
@@ -188,6 +199,26 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
             default:
                 this.name = ((Element)this.getUserObject()).getLocalName();
         }
+    }
+
+    /**
+     * Compute an optional measure-number prefix string for a score element (note, rest, lyrics).
+     * Returns an empty string when PREFIX mode is not active or the date cannot be determined.
+     * @param scoreElement the note/rest/lyrics element
+     * @return HTML prefix such as "[42]"
+     */
+    private String computeMeasurePrefix(Element scoreElement) {
+        if (Settings.msmMeasureDisplayMode != Settings.MeasureDisplayMode.PREFIX)
+            return "";
+        if (this.project.getMsm() == null)
+            return "";
+        String dateStr = Helper.getAttributeValue("date", scoreElement);
+        if (dateStr.isEmpty())
+            return "";
+        double ticks = Double.parseDouble(dateStr);
+        Element tsMap = MeasureNumberLookup.getTimeSignatureMap(this.project.getMsm());
+        int mNum = MeasureNumberLookup.getMeasureNumber(ticks, tsMap, this.project.getMsm().getPPQ());
+        return "[" + mNum + "]&nbsp;";
     }
 
     /**
@@ -286,6 +317,9 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
         if (this.type == XmlNodeType.attribute)
             return ((Attribute)this.getUserObject()).toXML();
 
+        if (this.type == XmlNodeType.measure)
+            return "Virtual Structure, that is not in MSM!";
+
         String s = ((Element)this.getUserObject()).toXML();
         int i = s.indexOf(">") + 1;                         // get the index of the first ">"
         if (i > 0)                                          // if the element has children and the tooltip text would show the whole subtree (which is usually far too much, we want to see only the element/attribute itself)
@@ -354,6 +388,7 @@ public class MsmTreeNode extends UniqueNode<MsmTreeNode, Node> implements TextBr
         sequencingMap,      // a sequencingMap element
         note,               // a note element
         rest,               // a rest element
-        lyrics              // a lyrics element
+        lyrics,             // a lyrics element
+        measure             // a synthetic measure-group node (MEASURE_NODE display mode)
     }
 }

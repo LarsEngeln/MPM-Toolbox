@@ -45,8 +45,13 @@ public class Settings {
     public static Color scorePerformanceColorFaded = new Color(0.0f, 0.7f, 0.7f, 0.17f);        // the color of performance symbols when faded out because the MPM tree cursor is in another performance
     public static Color scorePerformanceColorHighlighted = new Color(0.2f, 1.0f, 1.0f, 0.6f);   // the highlight color of performance symbols that are annotated in a score image
 
+    public static Color editColor = new Color(0.9f, 0.75f, 0.05f, 0.8f);              // the color of anchors that are edited
+    public static Color editColorHighlighted = new Color(1.0f, 0.8f, 0.0f, 0.4f);   // the highlight color of anchors that are edited
+
 //    protected static String symbolFontPath = "/resources/fonts/fa-solid-900.ttf";
 //    public static Font symbolFont = null;                               // a handle to the font to be used for most of the symbols/icons
+
+    public static int scoreHoverDateLineOffset = 18;                        // horizontal offset used to draw hover date markers to the left of notes
 
     public static double anchorSwitchOvershootThreshold = 0.3;          // in the score display, to switch the anchor from one nearest node to another the distance ratio (distance to nearest / distance to current anchorNode) must be at most this value, so the user has to overshoot, i.e. get much closer to the desired nearest node, to switch the anchor to it
 
@@ -55,6 +60,21 @@ public class Settings {
     protected static File soundbank = null;                             // set this null to use the default soundbank
 
     public static RecentOpened recentOpened = new RecentOpened(10);     // this is the list of the last 10 recently opened files
+
+    /**
+     * Controls how measure/bar numbers are displayed in the MSM and MPM trees.
+     */
+    public enum MeasureDisplayMode {
+        NONE,           // no measure information shown (default)
+        PREFIX,         // measure number shown as a prefix, e.g. "[42] quarter note C4"
+        MEASURE_NODE    // elements are grouped under synthetic measure nodes
+    }
+
+    /** Current display mode for bar numbers in the MSM tree. */
+    public static MeasureDisplayMode msmMeasureDisplayMode = MeasureDisplayMode.NONE;
+
+    /** Current display mode for bar numbers in the MPM tree. */
+    public static MeasureDisplayMode mpmMeasureDisplayMode = MeasureDisplayMode.NONE;
 
     /**
      * read the settings file mpmToolbox.cfg
@@ -93,6 +113,9 @@ public class Settings {
                 case "anchorSwitchOvershootThreshold":
                     Settings.anchorSwitchOvershootThreshold = Double.parseDouble(line);
                     break;
+                case "scoreHoverDateLineOffset":
+                    Settings.scoreHoverDateLineOffset = Integer.parseInt(line);
+                    break;
                 case "tempoCurveTesselation":
                     Settings.tempoCurveTesselation = Integer.parseInt(line);
                     break;
@@ -120,6 +143,30 @@ public class Settings {
                     if (recent.exists())
                         recentOpenedFiles.add(recent);
                     break;
+                case "measureDisplayMode":          // legacy: apply to both trees
+                    try {
+                        MeasureDisplayMode mode = MeasureDisplayMode.valueOf(line);
+                        Settings.msmMeasureDisplayMode = mode;
+                        Settings.mpmMeasureDisplayMode = mode;
+                    } catch (IllegalArgumentException ignored) {
+                        Settings.msmMeasureDisplayMode = MeasureDisplayMode.NONE;
+                        Settings.mpmMeasureDisplayMode = MeasureDisplayMode.NONE;
+                    }
+                    break;
+                case "msmMeasureDisplayMode":
+                    try {
+                        Settings.msmMeasureDisplayMode = MeasureDisplayMode.valueOf(line);
+                    } catch (IllegalArgumentException ignored) {
+                        Settings.msmMeasureDisplayMode = MeasureDisplayMode.NONE;
+                    }
+                    break;
+                case "mpmMeasureDisplayMode":
+                    try {
+                        Settings.mpmMeasureDisplayMode = MeasureDisplayMode.valueOf(line);
+                    } catch (IllegalArgumentException ignored) {
+                        Settings.mpmMeasureDisplayMode = MeasureDisplayMode.NONE;
+                    }
+                    break;
                 default:
                     break;
             }
@@ -143,10 +190,13 @@ public class Settings {
                 + "\n\n# debug\n" + (Settings.debug ? "1" : "0")
                 + "\n\n# logfile\n" + (Settings.makeLogfile ? "1" : "0")
                 + "\n\n# anchorSwitchOvershootThreshold\n" + Settings.anchorSwitchOvershootThreshold
+                + "\n\n# scoreHoverDateLineOffset\n" + Settings.scoreHoverDateLineOffset
                 + "\n\n# tempoCurveTesselation\n" + Settings.tempoCurveTesselation
 //                + "\n\n# symbolFont\n" + Settings.symbolFontPath
                 + "\n\n# soundbank\n" + ((Settings.soundbank == null) ? "default" : Settings.soundbank.getAbsolutePath())
                 + "\n\n# recentOpened\n" + Settings.recentOpened.toString()
+                + "\n\n# msmMeasureDisplayMode\n" + Settings.msmMeasureDisplayMode.name()
+                + "\n\n# mpmMeasureDisplayMode\n" + Settings.mpmMeasureDisplayMode.name()
                 +"\n";
 
         PrintWriter writer;

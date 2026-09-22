@@ -21,7 +21,7 @@ import java.awt.event.*;
  * It is also the basis of classes WaveformPanel and SpectrogramPanel.
  * @author Axel Berndt
  */
-public class PianoRollPanel extends WebPanel implements ComponentListener, MouseListener, MouseMotionListener, MouseWheelListener {
+public class PianoRollPanel extends AnnotationPanel implements ComponentListener, MouseListener, MouseMotionListener, MouseWheelListener {
     public final AudioDocumentData parent;                  // the container
     protected final WebLabel noData;                        // to be displayed when no data is there to be visualized
     protected Integer mousePositionY = null;                  // if the mouse is in this panel, this is set to its y pixel coordinate
@@ -41,7 +41,7 @@ public class PianoRollPanel extends WebPanel implements ComponentListener, Mouse
      * @param noDataText
      */
     protected PianoRollPanel(AudioDocumentData parent, String noDataText) {
-        super();
+        super(parent);
         this.parent = parent;
 
         this.noData = new WebLabel(noDataText, WebLabel.CENTER);
@@ -237,6 +237,8 @@ public class PianoRollPanel extends WebPanel implements ComponentListener, Mouse
         });
         menu.add(playFromHere);
 
+        this.appendAnnotationMenu(menu);
+
         return menu;
     }
 
@@ -377,7 +379,14 @@ public class PianoRollPanel extends WebPanel implements ComponentListener, Mouse
         double sampleOffset = (pixelOffset * samplesInFrame) / this.getWidth();
         double millisecOffset = (sampleOffset * 1000.0) / this.parent.getAudio().getFrameRate();
 
-        this.parent.getAlignment().reposition(this.dragGesture.note, this.dragGesture.note.getMillisecondsDate() + millisecOffset);    // move the note and do the timing transform
+        double newMillisecondsDate = this.dragGesture.note.getMillisecondsDate() + millisecOffset;
+
+        // snap to nearby marks of visible, snap-enabled MARKS annotations (within a small pixel tolerance)
+        double msPerPixel = (samplesInFrame * 1000.0) / (this.parent.getAudio().getFrameRate() * this.getWidth());
+        double snapToleranceMs = msPerPixel * 6.0;
+        newMillisecondsDate = this.snapToMarks(newMillisecondsDate, snapToleranceMs);
+
+        this.parent.getAlignment().reposition(this.dragGesture.note, newMillisecondsDate);    // move the note and do the timing transform
         this.parent.getAlignment().recomputePianoRoll();
 
         this.parent.communicateMousePositionToAllComponents(e);

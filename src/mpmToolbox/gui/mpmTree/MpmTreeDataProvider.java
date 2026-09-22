@@ -12,12 +12,15 @@ import meico.mpm.elements.metadata.RelatedResource;
 import meico.mpm.elements.styles.*;
 import meico.mpm.elements.styles.defs.*;
 import mpmToolbox.projectData.ProjectData;
+import mpmToolbox.gui.MeasureNumberLookup;
+import mpmToolbox.gui.Settings;
 import nu.xom.Element;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * TreeDataProvider for MPM tree
@@ -32,6 +35,43 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
      */
     public MpmTreeDataProvider(ProjectData project) {
         this.project = project;
+    }
+
+    /**
+     * Build a list of MpmMeasureElement nodes for a GenericMap, grouping its entries by measure.
+     * @param map     the MPM map
+     * @param perfPpq the PPQ of the owning performance
+     * @return ordered list of measure-group nodes
+     */
+    private List<MpmTreeNode> buildMeasureGroupNodes(GenericMap map, int perfPpq) {
+        ArrayList<MpmTreeNode>              nodes         = new ArrayList<>();
+        Element                             tsMap         = MeasureNumberLookup.getTimeSignatureMap(this.project.getMsm());
+        int                                 msmPpq        = this.project.getMsm().getPPQ();
+        TreeMap<Integer, MpmMeasureElement> groups        = new TreeMap<>();
+
+        for (int i = 0; i < map.size(); ++i) {
+            Element e       = map.getElement(i);
+            double  ticks   = MeasureNumberLookup.getMsmTickDate(e, this.project.getMsm(), perfPpq);
+            int     mNum    = MeasureNumberLookup.getMeasureNumber(ticks, tsMap, msmPpq);
+            groups.computeIfAbsent(mNum, MpmMeasureElement::new).elements.add(e);
+        }
+        for (MpmMeasureElement group : groups.values())
+            nodes.add(new MpmTreeNode(group, this.project));
+
+        return nodes;
+    }
+
+    /**
+     * Determine the PPQ of the performance that owns the given tree node.
+     * Falls back to the MSM PPQ when the performance cannot be found.
+     * @param node an MpmTreeNode inside a performance
+     * @return PPQ value
+     */
+    private int getPerfPpq(MpmTreeNode node) {
+        Performance perf = node.getPerformance();
+        if (perf != null)
+            return perf.getPulsesPerQuarter();
+        return (this.project.getMsm() != null) ? this.project.getMsm().getPPQ() : 720;
     }
 
     /**
@@ -200,8 +240,7 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
 
             case articulationMap:
                 ArticulationMap articulationMap = (ArticulationMap) parent.getUserObject();
-                for (int i = 0; i < articulationMap.size(); ++i)
-                    childNodes.add(new MpmTreeNode(articulationMap.getElement(i), this.project));
+                addNodes(parent, childNodes, articulationMap);
                 break;
 
             case articulation:
@@ -209,8 +248,7 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
 
             case asynchronyMap:
                 AsynchronyMap asynchronyMap = (AsynchronyMap) parent.getUserObject();
-                for (int i = 0; i < asynchronyMap.size(); ++i)
-                    childNodes.add(new MpmTreeNode(asynchronyMap.getElement(i), this.project));
+                addNodes(parent, childNodes, asynchronyMap);
                 break;
 
             case asynchrony:
@@ -218,8 +256,7 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
 
             case dynamicsMap:
                 DynamicsMap dynamicsMap = (DynamicsMap) parent.getUserObject();
-                for (int i = 0; i < dynamicsMap.size(); ++i)
-                    childNodes.add(new MpmTreeNode(dynamicsMap.getElement(i), this.project));
+                addNodes(parent, childNodes, dynamicsMap);
                 break;
 
             case dynamics:
@@ -227,14 +264,12 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
 
             case genericMap:
                 GenericMap genericMap = (GenericMap) parent.getUserObject();
-                for (int i = 0; i < genericMap.size(); ++i)
-                    childNodes.add(new MpmTreeNode(genericMap.getElement(i), this.project));
+                addNodes(parent, childNodes, genericMap);
                 break;
 
             case imprecisionMap:
                 ImprecisionMap imprecisionMap = (ImprecisionMap) parent.getUserObject();
-                for (int i = 0; i < imprecisionMap.size(); ++i)
-                    childNodes.add(new MpmTreeNode(imprecisionMap.getElement(i), this.project));
+                addNodes(parent, childNodes, imprecisionMap);
                 break;
 
             case distributionUniform:
@@ -251,8 +286,7 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
 
             case metricalAccentuationMap:
                 MetricalAccentuationMap metricalAccentuationMap = (MetricalAccentuationMap) parent.getUserObject();
-                for (int i = 0; i < metricalAccentuationMap.size(); ++i)
-                    childNodes.add(new MpmTreeNode(metricalAccentuationMap.getElement(i), this.project));
+                addNodes(parent, childNodes, metricalAccentuationMap);
                 break;
 
             case accentuationPattern:
@@ -260,8 +294,7 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
 
             case ornamentationMap:
                 OrnamentationMap ornamentationMap = (OrnamentationMap) parent.getUserObject();
-                for (int i = 0; i < ornamentationMap.size(); ++i)
-                    childNodes.add(new MpmTreeNode(ornamentationMap.getElement(i), this.project));
+                addNodes(parent, childNodes, ornamentationMap);
                 break;
 
             case ornament:
@@ -277,8 +310,7 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
 
             case rubatoMap:
                 RubatoMap rubatoMap = (RubatoMap) parent.getUserObject();
-                for (int i = 0; i < rubatoMap.size(); ++i)
-                    childNodes.add(new MpmTreeNode(rubatoMap.getElement(i), this.project));
+                addNodes(parent, childNodes, rubatoMap);
                 break;
 
             case rubato:
@@ -286,14 +318,19 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
 
             case tempoMap:
                 TempoMap tempoMap = (TempoMap) parent.getUserObject();
-                for (int i = 0; i < tempoMap.size(); ++i)
-                    childNodes.add(new MpmTreeNode(tempoMap.getElement(i), this.project));
+                addNodes(parent, childNodes, tempoMap);
                 break;
 
             case tempo:
                 break;
 
             case style:
+                break;
+
+            case measure:
+                MpmMeasureElement measure = (MpmMeasureElement) parent.getUserObject();
+                for (Element e : measure.elements)
+                    childNodes.add(new MpmTreeNode(e, this.project));
                 break;
 
             case xmlElement:
@@ -307,5 +344,13 @@ public class MpmTreeDataProvider extends AbstractExTreeDataProvider<MpmTreeNode>
         }
 
         return childNodes;
+    }
+
+    private void addNodes(MpmTreeNode parent, ArrayList<MpmTreeNode> childNodes, GenericMap map) {
+        if (Settings.mpmMeasureDisplayMode == Settings.MeasureDisplayMode.MEASURE_NODE && this.project.getMsm() != null)
+            childNodes.addAll(this.buildMeasureGroupNodes(map, this.getPerfPpq(parent)));
+        else
+            for (int i = 0; i < map.size(); ++i)
+                childNodes.add(new MpmTreeNode(map.getElement(i), this.project));
     }
 }

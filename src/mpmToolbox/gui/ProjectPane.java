@@ -6,26 +6,33 @@ import com.alee.extended.dock.WebDockableFrame;
 import com.alee.extended.dock.WebDockablePane;
 import com.alee.extended.tab.DocumentData;
 import com.alee.extended.tab.WebDocumentPane;
+import com.alee.laf.optionpane.WebOptionPane;
 import com.alee.laf.panel.WebPanel;
 import com.alee.managers.style.StyleId;
 import meico.mei.Mei;
 import meico.midi.Midi;
-import meico.midi.MidiPlayer;
 import meico.mpm.Mpm;
-import meico.mpm.elements.Performance;
 import meico.msm.Msm;
 import mpmToolbox.projectData.audio.Audio;
 import mpmToolbox.projectData.ProjectData;
+import mpmToolbox.gui.audio.AnnotationData;
 import mpmToolbox.gui.audio.AudioDocumentData;
+import mpmToolbox.gui.analytics.AnalyticsDocumentData;
+import mpmToolbox.gui.audio.utilities.CsvImportDialog;
 import mpmToolbox.gui.mpmTree.MpmDockableFrame;
 import mpmToolbox.gui.mpmTree.MpmTree;
+import mpmToolbox.gui.mpmTree.MpmTreeNode;
 import mpmToolbox.gui.msmTree.MsmTree;
+import mpmToolbox.gui.msmTree.MsmTreeNode;
 import mpmToolbox.gui.svgTree.SvgDockableFrame;
 import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.gui.score.ScoreDocumentData;
 import mpmToolbox.projectData.score.ScorePage;
 import mpmToolbox.gui.syncPlayer.SyncPlayer;
+import mpmToolbox.supplementary.Tools;
+import nu.xom.Element;
+import nu.xom.Elements;
 import nu.xom.ParsingException;
 import org.xml.sax.SAXException;
 
@@ -42,7 +49,7 @@ import java.util.ArrayList;
 public class ProjectPane extends WebDockablePane {
     private final MpmToolbox parent;
 
-    private final ProjectData data;                                                         // the actual project data
+    private ProjectData data;                                                         // the actual project data
 
     private final WebDocumentPane<DocumentData<WebPanel>> tabs = new WebDocumentPane<>();   // this contains the components displayed in the center under certain tabs
 
@@ -53,6 +60,7 @@ public class ProjectPane extends WebDockablePane {
     private SyncPlayer syncPlayer = null;
     private ScoreDocumentData scoreFrame = null;
     private AudioDocumentData audioFrame = null;
+    private AnalyticsDocumentData analyticsFrame = null;
 
     /**
      * constructor
@@ -113,7 +121,35 @@ public class ProjectPane extends WebDockablePane {
     public ProjectPane(File file, MpmToolbox parent) throws SAXException, ParsingException, ParserConfigurationException, IOException {
         super();
         this.parent = parent;
-        this.data = new ProjectData(file);
+
+        byte[] emergencyMemory = new byte[10 * 1024 * 1024];
+        try {
+            Runtime rt = Runtime.getRuntime();
+
+            long max = rt.maxMemory();
+            long total = rt.totalMemory();
+            long free = rt.freeMemory();
+
+            System.out.printf("Max Heap: %.2f MB%n", max / 1024.0 / 1024.0);
+            System.out.printf("Allocated Heap: %.2f MB%n", total / 1024.0 / 1024.0);
+            System.out.printf("Free Heap: %.2f MB%n", free / 1024.0 / 1024.0);
+
+            this.data = new ProjectData(file);
+        } catch (OutOfMemoryError e) {
+            emergencyMemory = null;
+            System.gc();
+
+            // Show error message
+            WebOptionPane.showMessageDialog(
+                    this,
+                    "The project requires more memory than is available. "
+                            + "Please increase the JVM memory settings or load a smaller project.",
+                    "Out of Memory",
+                    WebOptionPane.ERROR_MESSAGE
+            );
+
+            e.printStackTrace();
+        }
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
         this.svgDockableFrame = new SvgDockableFrame(this);
@@ -146,6 +182,7 @@ public class ProjectPane extends WebDockablePane {
 //        this.tabs.openDocument(new DocumentData<>("TestTab", "Test Tab", new WebButton("Test")));
         this.tabs.openDocument(this.makeScoreFrame());
         this.tabs.openDocument(this.makeAudioFrame());
+        this.tabs.openDocument(this.makeAnalyticsFrame());
         this.tabs.setSelected(this.scoreFrame);
 
         this.setContent(this.tabs);     // this will fill the free space of the docking pane that is not occupied by a WebDockableFrame, this can be anything JComponent-based
@@ -190,11 +227,28 @@ public class ProjectPane extends WebDockablePane {
     }
 
     /**
+     * this method sets up the analytics dock frame
+     * @return
+     */
+    private AnalyticsDocumentData makeAnalyticsFrame() {
+        this.analyticsFrame = new AnalyticsDocumentData(this);
+        return this.analyticsFrame;
+    }
+
+    /**
      * provides access to the audio analysis frame
      * @return
      */
     public AudioDocumentData getAudioFrame() {
         return this.audioFrame;
+    }
+
+    /**
+     * provides access to the analytics frame
+     * @return
+     */
+    public AnalyticsDocumentData getAnalyticsFrame() {
+        return this.analyticsFrame;
     }
 
     /**
@@ -238,6 +292,8 @@ public class ProjectPane extends WebDockablePane {
         this.mpmDockableFrame.setMpm(mpm);
 
         this.syncPlayer.updatePerformanceList();
+        if (this.analyticsFrame != null)
+            this.analyticsFrame.updatePerformanceList();
     }
 
     /**
@@ -248,6 +304,9 @@ public class ProjectPane extends WebDockablePane {
             return;
         this.mpmDockableFrame.removeMpm();
         this.data.removeMpm();
+        this.syncPlayer.updatePerformanceList();
+        if (this.analyticsFrame != null)
+            this.analyticsFrame.updatePerformanceList();
         this.repaintScoreDisplay();
     }
 
@@ -322,6 +381,8 @@ public class ProjectPane extends WebDockablePane {
     public void addScorePdf(File pdf) {
         for (ScorePage scorePage : this.data.addScorePdf(pdf))
             this.scoreFrame.addScorePage(scorePage.getFile());
+        // switch to the Score tab
+        this.tabs.setSelected(this.scoreFrame);
     }
 
     /**
@@ -352,6 +413,12 @@ public class ProjectPane extends WebDockablePane {
     public boolean addAudio(Audio audio) {
         if (this.data.addAudio(audio)) {
             this.syncPlayer.addAudio(audio);
+            if (this.analyticsFrame != null)
+                this.analyticsFrame.updateAudioList();
+            // switch to the Audio tab
+            this.tabs.setSelected(this.audioFrame);
+            // select the newly added audio in the SyncPlayer (last entry)
+            this.syncPlayer.getAudioChooser().setSelectedIndex(this.syncPlayer.getAudioChooser().getItemCount() - 1);
             return true;
         }
         return false;
@@ -365,6 +432,8 @@ public class ProjectPane extends WebDockablePane {
         Audio audio = this.getAudio().get(index);
         this.syncPlayer.removeAudio(audio);
         this.data.removeAudio(index);
+        if (this.analyticsFrame != null)
+            this.analyticsFrame.updateAudioList();
     }
 
     /**
@@ -397,6 +466,33 @@ public class ProjectPane extends WebDockablePane {
     }
 
     /**
+     * Load annotation data from a CSV file into the AnnotationPanel.
+     * Opens a dialog to let the user configure column types and units.
+     * @param file the CSV file
+     */
+    public void loadAnnotationCsv(File file) {
+        CsvImportDialog dialog = new CsvImportDialog(file, this.audioFrame.getAnnotations());
+        if (!dialog.showDialog())
+            return;
+
+        AnnotationData built = dialog.buildAnnotationData();
+        if (built == null) {
+            System.err.println("No valid annotation data found in " + file.getAbsolutePath());
+            return;
+        }
+
+        System.out.println("Loaded " + built.getRowCount() + " rows from " + file.getAbsolutePath());
+
+        AnnotationData target = dialog.getTargetAnnotationData();
+        if (target != null)
+            this.audioFrame.replaceAnnotation(target, built);
+        else
+            this.audioFrame.addAnnotation(built);
+
+        this.tabs.setSelected(this.audioFrame);
+    }
+
+    /**
      * Save the project under its already defined filename. If it is not defined (in this.xml) it returns false.
      * @return
      */
@@ -412,5 +508,74 @@ public class ProjectPane extends WebDockablePane {
      */
     public boolean saveProjectAs(File file) {
         return this.data.saveProjectAs(file);
+    }
+    /**
+     * Refresh both the MSM and MPM trees to reflect a changed measure display mode.
+     * Instead of rebuilding the entire tree (which loses expansion state) or reloading
+     * the root (which can double-insert nodes due to ExTreeModel event ordering), we
+     * reload only the structural container nodes whose children change between modes.
+     */
+    public void refreshTreeDisplayMode() {
+        refreshMsmTreeDisplayMode();
+        MpmTree mpmTree = this.getMpmTree();
+        if (mpmTree != null)
+            refreshMpmTreeDisplayMode(mpmTree);
+    }
+
+    /** Walk the MSM tree and reload every score node (and update note/rest/lyrics labels). */
+    private void refreshMsmTreeDisplayMode() {
+        MsmTreeNode root = this.msmTree.getRootNode();
+        if (root != null)
+            refreshMsmSubtree(root);
+    }
+
+    private void refreshMsmSubtree(MsmTreeNode node) {
+        switch (node.getType()) {
+            case score:
+                // Reload children: flat notes ↔ measure groups depending on mode.
+                // reloadNode() preserves the expansion of 'score' itself.
+                this.msmTree.reloadNode(node);
+                return; // reloadNode already handles the whole subtree
+            case note:
+            case rest:
+            case lyrics:
+                // Only the label text changes (PREFIX mode) – no structural change.
+                this.msmTree.updateNode(node);
+                return;
+            default:
+                // Recurse into children (global, part, header, dated, measure, …)
+                for (int i = 0; i < node.getChildCount(); i++)
+                    refreshMsmSubtree((MsmTreeNode) node.getChildAt(i));
+        }
+    }
+
+    /** Walk the MPM tree and reload every dated-map node (and update map-entry labels). */
+    private void refreshMpmTreeDisplayMode(MpmTree mpmTree) {
+        MpmTreeNode root = mpmTree.getRootNode();
+        if (root != null)
+            refreshMpmSubtree(mpmTree, root);
+    }
+
+    private void refreshMpmSubtree(MpmTree mpmTree, MpmTreeNode node) {
+        switch (node.getType()) {
+            // Dated maps: children switch between flat entries and measure groups.
+            // reloadNode() replaces their children entirely, so no further recursion needed.
+            case articulationMap:
+            case asynchronyMap:
+            case dynamicsMap:
+            case genericMap:
+            case imprecisionMap:
+            case metricalAccentuationMap:
+            case ornamentationMap:
+            case rubatoMap:
+            case tempoMap:
+                mpmTree.reloadNode(node);
+                return;
+            default:
+                // For all other nodes (mpm, performance, global, part, dated, header,
+                // style collections, measure groups, etc.) recurse into loaded children.
+                for (int i = 0; i < node.getChildCount(); i++)
+                    refreshMpmSubtree(mpmTree, (MpmTreeNode) node.getChildAt(i));
+        }
     }
 }

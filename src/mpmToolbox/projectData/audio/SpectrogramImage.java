@@ -66,6 +66,14 @@ public class SpectrogramImage extends BufferedImage {
         return this.windowFunction;
     }
 
+    public float getMinFrequency() {
+        return this.minFrequency;
+    }
+
+    public float getMaxFrequency() {
+        return this.maxFrequency;
+    }
+
     public File getFile() {
         return this.file;
     }

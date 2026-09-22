@@ -68,6 +68,14 @@ public class MpmToolbox {
             public void run() {
                 MpmToolbox self = MpmToolbox.this;
 
+                // WebLookAndFeel.globalControlFont = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalTextFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalMenuFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalWindowFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalMessageFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalMenuSmallFont    = new Font("Open Sans", Font.PLAIN, 20);
+                // WebLookAndFeel.globalTooltipFont    = new Font("Open Sans", Font.PLAIN, 20);
+
                 WebLookAndFeel.install(WebDarkSkin.class);                                          // Install WebLaF as application L&F
 //                WebLookAndFeel.install(WebLightSkin.class);
                 self.frame = new WebFrame<>(MpmToolbox.baseTitle);
@@ -272,6 +280,10 @@ public class MpmToolbox {
         });
         edit.add(this.playStop);
 
+        WebMenuItem settingsItem = new WebMenuItem("Measure Display Option", 'm');
+        settingsItem.addActionListener(actionEvent -> new MeasureDisplayDialog(this.getFrame(), this.getProjectPane()));
+        edit.add(settingsItem);
+
         // help menu
         WebMenu help = new WebMenu("Help");
         help.setMnemonic('h');
@@ -357,6 +369,7 @@ public class MpmToolbox {
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("XML", "xml"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("MIDI", "mid", "midi"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Audio files", "wav", "mp3"));
+        fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Annotations", "csv"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Images", "pdf", "jpg", "jpeg", "png", "gif", "bmp"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("SVG", "svg"));
         fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Soundfonts", "dls", "sf2"));
@@ -458,6 +471,12 @@ public class MpmToolbox {
                         System.err.println("No project loaded to add the audio.");
                     else
                         this.projectPane.addAudio(new Audio(file, this.getProjectPane().getMsm()));
+                    break;
+                case ".csv":
+                    if (this.projectPane == null)
+                        System.err.println("No project loaded to add the annotation data.");
+                    else
+                        this.projectPane.loadAnnotationCsv(file);
                     break;
                 case ".jpg":
                 case ".jpeg":

@@ -14,10 +14,14 @@ import mpmToolbox.gui.ProjectPane;
 import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.mpmEditingTools.editDialogs.ornament.Note;
 import mpmToolbox.gui.mpmEditingTools.editDialogs.ornament.NoteOrderComponent;
+import mpmToolbox.gui.mpmEditingTools.editDialogs.ornamentDef.NotePoolComponent;
+import mpmToolbox.gui.mpmEditingTools.editDialogs.supplementary.EditDialogToggleButton;
 import mpmToolbox.supplementary.Tools;
 import nu.xom.Element;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -34,7 +38,10 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
     private WebToggleButton descendingPitchToggle;
     private WebToggleButton noteOrderToggle;
     private NoteOrderComponent noteOrderComponent;
+    private EditDialogToggleButton notePoolButton;
+    private NotePoolComponent notePoolComponent;
     private WebSpinner scale;
+    private OrnamentData currentOrnamentData = null;
 
     /**
      * constructor
@@ -57,11 +64,13 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
             this.fullNameRefUpdate(Mpm.ORNAMENTATION_STYLE);
             this.updateMsmDate();
             this.updateNoteList();
+            this.syncNotePoolFromSelectedDefinition();
         });
 
         /////////////
 
         this.addNameRef("Select Ornament:", 1, true);
+        this.installNameRefTracking();
 
         // note.order
         WebLabel noteOrderLabel = new WebLabel("Note Order:");
@@ -86,12 +95,20 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
         GroupPane noteOrderMode = new GroupPane(this.ascendingPitchToggle, this.descendingPitchToggle, this.noteOrderToggle);
         this.addToContentPanel(noteOrderMode, 1, 2, 2, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
 
+        // notePool
+        this.notePoolComponent = new NotePoolComponent();
+        this.addToContentPanel(this.notePoolComponent, 1, 4, 3, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.notePoolButton = new EditDialogToggleButton("Note Pool:", new JComponent[]{this.notePoolComponent}, false);
+        this.notePoolButton.addChangeListener(changeEvent -> this.notePoolComponent.setEnabled(this.notePoolButton.isSelected() && this.notePoolButton.isEnabled()));
+        this.addToContentPanel(this.notePoolButton, 0, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.notePoolComponent.setEnabled(false);
+
         // scale
         WebLabel scaleLabel = new WebLabel("Scale Dynamics Gradient:");
         scaleLabel.setHorizontalAlignment(WebLabel.RIGHT);
         scaleLabel.setPadding(Settings.paddingInDialogs);
         scaleLabel.setToolTip("The dynamics gradient is defined in [-1, 1] as part of the ornament's definition.\nHere it is scaled to actual loudness or MIDI velocity values.");
-        this.addToContentPanel(scaleLabel, 0, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.addToContentPanel(scaleLabel, 0, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
 
         this.scale = new WebSpinner(new SpinnerNumberModel(0.0, -99999999999999999.9, 99999999999999999.9, 1.0));
         int width = getFontMetrics(this.scale.getFont()).stringWidth("999.999.999.999.999");
@@ -100,16 +117,16 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
         scaleEditor.getFormat().setRoundingMode(RoundingMode.HALF_UP);
         this.scale.setMinimumWidth(width);
         this.scale.setMaximumWidth(width);
-        this.addToContentPanel(this.scale, 1, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.addToContentPanel(this.scale, 1, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
 
         WebLabel scaleComment = new WebLabel("for MIDI compatibility stay in [-127, 127]");
         scaleComment.setHorizontalAlignment(WebLabel.LEFT);
         scaleComment.setPadding(Settings.paddingInDialogs);
-        this.addToContentPanel(scaleComment, 2, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.addToContentPanel(scaleComment, 2, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
 
         /////////////
 
-        this.addIdInput(5);
+        this.addIdInput(6);
     }
 
     /**
@@ -121,6 +138,7 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
     public OrnamentData edit(OrnamentData input) {
         this.ascendingPitchToggle.setSelected(true);    // the default state of note.order may be changed when parsing input
         boolean initNoteOrder = false;                  // this is set true when the note.order attribute of the input object contains a sequence of IDs, so we can later initialize the NoteOrderComponent
+        this.currentOrnamentData = input;
 
         if (input != null) {
             this.date.setValue(input.date);
@@ -153,6 +171,7 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
         if (this.nameRef.isEmpty())                                     // the user MUST choose an ornament; so, if the nameRef field is empty, write something in it that will be marked red
             this.nameRef.setText("Choose an ornament!");
         this.fullNameRefUpdate(Mpm.ORNAMENTATION_STYLE);
+        this.syncNotePoolFromSelectedDefinition();
 //        this.nameRef.selectAll();
 
         this.setVisible(true);  // start the dialog
@@ -175,18 +194,66 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
 
         output.scale = Tools.round((double) this.scale.getValue(), 10);
         output.xmlId = id;
+        
+// Copy notes from currentOrnamentData if available
+if ((this.currentOrnamentData != null) && (this.currentOrnamentData.notes != null))
+    output.notes = new ArrayList<>(this.currentOrnamentData.notes);
 
-        // note.order
-        if (this.descendingPitchToggle.isSelected()) {
-            output.noteOrder = new ArrayList<>();
-            output.noteOrder.add("descending pitch");
-        } else if (this.noteOrderToggle.isSelected()) {
-            output.noteOrder = this.noteOrderComponent.getNoteOrder();
-        } //else if (this.ascendingPitchToggle.isSelected()) {
+// note.order
+if (this.descendingPitchToggle.isSelected()) {
+    output.noteOrder = new ArrayList<>();
+    output.noteOrder.add("descending pitch");
+} else if (this.noteOrderToggle.isSelected()) {
+    output.noteOrder = this.noteOrderComponent.getNoteOrder();
+} //else if (this.ascendingPitchToggle.isSelected()) {
 //            output.noteOrder = null;                          // unnecessary
 //        }
 
-        return output;
+return output;
+    }
+
+    private void installNameRefTracking() {
+        this.nameRef.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                syncNotePoolFromSelectedDefinition();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                syncNotePoolFromSelectedDefinition();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                syncNotePoolFromSelectedDefinition();
+            }
+        });
+    }
+
+    private void syncNotePoolFromSelectedDefinition() {
+        String ornamentName = this.nameRef.getText().trim();
+        
+        // Delegate to NotePoolComponent to sync from the alteration
+        this.notePoolComponent.syncFromOrnamentData(this.currentOrnamentData, ornamentName, this.projectPane);
+        
+        // Update UI state based on whether notePool is populated
+        boolean hasNotePool = !this.notePoolComponent.getNotePool().isEmpty();
+        this.notePoolButton.setEnabled(hasNotePool || (this.currentOrnamentData != null));
+        this.notePoolButton.setSelected(hasNotePool);
+        this.notePoolComponent.setEnabled(this.notePoolButton.isSelected());
+
+        // Update NoteOrder toggle state based on synced notes
+        if (hasNotePool) {
+            this.noteOrderToggle.setEnabled(true);
+            if (this.noteOrderToggle.isSelected() && (this.currentOrnamentData != null) && (this.currentOrnamentData.noteOrder != null) && (this.currentOrnamentData.noteOrder.size() > 0)) {
+                this.noteOrderComponent.setEnabled(true);
+                this.noteOrderComponent.setNoteOrder(this.currentOrnamentData.noteOrder);
+            }
+        } else {
+            this.noteOrderToggle.setEnabled(false);
+            this.noteOrderComponent.clear();
+        }
     }
 
     /**

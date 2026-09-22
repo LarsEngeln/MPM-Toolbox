@@ -308,7 +308,7 @@ public class SyncPlayer extends WebPanel {
         if (selectThis != null)
             this.performanceChooser.setSelectedItem(selectThis);
         else                                                        // if the previously selected item could not be found in the newly assembled list
-            this.performanceChooser.setSelectedIndex(0);            // select item 0 by default
+            this.performanceChooser.setSelectedIndex(this.performanceChooser.getItemCount() - 1);            // select most recent item by default
     }
 
     /**
@@ -603,6 +603,7 @@ public class SyncPlayer extends WebPanel {
             this.runnable = new PlaybackRunnable(this);
             this.runnable.start(relativePosition);                      // start the new runnable
         }
+        this.parent.repaintScoreDisplay();
     }
 
     /**
@@ -631,6 +632,8 @@ public class SyncPlayer extends WebPanel {
             this.runnable.jumpTo(relativePosition);
         else
             this.runnable.start(relativePosition);                      // start the new runnable
+
+        this.parent.repaintScoreDisplay();
     }
 
     /**
@@ -642,6 +645,7 @@ public class SyncPlayer extends WebPanel {
             this.playButton.setText("<html><p style=\"font-size:  large\">\u25B6</p></html>");                          // set the playButton's symbol to ▶
             this.runnable.stop();                                       // terminate the current runnable/thread, this will also stop the players
             this.runnable = null;
+            this.parent.repaintScoreDisplay();
             return true;
         }
         return false;
