@@ -13,7 +13,7 @@ import java.io.IOException;
  * @author Axel Berndt
  */
 public class Main {
-    public static final String version = "0.1.43 (alpha) - dateLine";
+    public static final String version = "0.1.43 (alpha) - volCurve";
 
     public static void main(String[] args) {
         // read the application settings from file
