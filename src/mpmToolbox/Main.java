@@ -16,6 +16,18 @@ public class Main {
     public static final String version = "0.1.43 (alpha) - volCurve";
 
     public static void main(String[] args) {
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+            System.err.println("Uncaught exception in thread: " + thread.getName());
+            error.printStackTrace();
+        });
+
+        System.out.println("java.version = " + System.getProperty("java.version"));
+        System.out.println("java.home = " + System.getProperty("java.home"));
+        System.out.println("user.dir = " + System.getProperty("user.dir"));
+        System.out.println("classpath = " + System.getProperty("java.class.path"));
+
+        System.out.println("maxHeap = " + Runtime.getRuntime().maxMemory() / 1024 / 1024 + " MiB");
+
         // read the application settings from file
         try {
             Settings.readSettings();
