@@ -19,6 +19,8 @@ import mpmToolbox.gui.msmEditingTools.MsmEditingTools;
 import mpmToolbox.gui.msmTree.MsmTree;
 import mpmToolbox.gui.msmTree.MsmTreeNode;
 import mpmToolbox.gui.score.interaction.*;
+import mpmToolbox.gui.svgTree.SvgDockableFrame;
+import mpmToolbox.gui.svgTree.SvgTree;
 import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.projectData.score.ScoreNode;
@@ -754,6 +756,133 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                         break;
                 }
             }
+        }
+    }
+
+    /**
+     * Picks SVG Element at mouseEvent and selects in SvgTree
+     * @param mouseEvent Position to pick Element
+     * @return The picked SVG Element, or null if none was found
+     */
+    public Element handleSvgSelection(MouseEvent mouseEvent) {
+        SvgData svgData = getScorePage().getSvg();
+        if (svgData == null) {
+            return null;
+        }
+
+        Point mousePoint = mouse2PixelPosition(mouseEvent);
+        int imgW = getScorePage().getImage().getWidth(this);
+        int imgH = getScorePage().getImage().getHeight(this);
+        if ((imgW <= 0) || (imgH <= 0)) {
+            return null;
+        }
+
+        SvgDockableFrame svgFrame = getScoreDocumentData().getProjectPane().getSvgDockableFrame();
+        if (svgFrame == null) {
+            return null;
+        }
+
+        Element picked = svgData.pickElementAt(mousePoint.x, mousePoint.y, imgW, imgH);
+        if (picked != null) {
+            svgData.setHighlightedElement(picked);
+            svgData.setHoveredElement(picked);
+
+            SvgTree svgTree = svgFrame.getSvgTree();
+            if (svgTree != null) {
+                svgTree.selectNodeForElement(picked);
+            }
+            repaint();
+            return picked;
+        }
+
+        svgData.setHighlightedElement(null);
+        svgData.setHoveredElement(null);
+        repaint();
+        return null;
+    }
+
+    /**
+     * Checks if the SVG element selection has changed via SvgData.highlightedElement.
+     * This allows the mode to detect when user selects a <g> element in the SVG tree
+     * without requiring SvgTree to access the InteractionModeManager.
+     * Called periodically (e.g., in mouseMoved) to detect changes.
+     */
+    public void updateSelectedSvgElement() {
+        SvgDockableFrame svgFrame = getScoreDocumentData().getProjectPane().getSvgDockableFrame();
+        if (svgFrame == null) {
+            return;
+        }
+
+        SvgTree svgTree = svgFrame.getSvgTree();
+        if (svgTree == null || svgTree.getSvgData() == null) {
+            return;
+        }
+
+        Element highlighted = svgTree.getSvgData().getHighlightedElement();
+
+        // Update selected element if it's a <g> group
+        /*if (highlighted != null && "g".equals(highlighted.getLocalName())) {
+            this.selectedSvgElement = highlighted;
+        } else {
+            this.selectedSvgElement = null;
+        }*/
+    }
+
+    /**
+     * Updates the hovered SVG element based on the mouse position.
+     * If the mouse is over an overlay element, clears the hovered SVG element.
+     * @param mouseEvent The mouse event containing the current mouse position.
+     */
+    public void updateHoveredSvgElement(MouseEvent mouseEvent) {
+        SvgData svgData = getScorePage().getSvg();
+        if (svgData == null) {
+            clearHoveredSvgElements();
+            return;
+        }
+        if (getOverlayElementAt(mouseEvent) != null) {
+            clearHoveredSvgElements();
+            return;
+        }
+
+        Point mousePoint = mouse2PixelPosition(mouseEvent);
+        int imgW = getScorePage().getImage().getWidth(this);
+        int imgH = getScorePage().getImage().getHeight(this);
+        if ((imgW <= 0) || (imgH <= 0)) {
+            clearHoveredSvgElements();
+            return;
+        }
+
+        Element picked = svgData.pickElementAt(mousePoint.x, mousePoint.y, imgW, imgH);
+        if (picked != null) {
+            svgData.setHoveredElement(picked);
+        } else {
+            svgData.setHoveredElement(null);
+        }
+    }
+
+    /**
+     * Clears the selected SVG element state.
+     */
+    public void clearSvgSelection() {
+        SvgDockableFrame svgFrame = getScoreDocumentData().getProjectPane().getSvgDockableFrame();
+        if (svgFrame != null) {
+            SvgTree svgTree = svgFrame.getSvgTree();
+            if (svgTree != null) {
+                svgTree.clearSelection();
+            }
+        }
+
+        clearHoveredSvgElements();
+        this.repaint();
+    }
+
+    /**
+     * Clears the hovered SVG element state.
+     */
+    public void clearHoveredSvgElements() {
+        SvgData svgData = this.getScorePage().getSvg();
+        if (svgData != null) {
+            svgData.setHoveredElement(null);
         }
     }
 

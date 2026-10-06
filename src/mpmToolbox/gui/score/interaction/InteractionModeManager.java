@@ -57,6 +57,7 @@ public class InteractionModeManager implements MouseInput, KeyInput {
         modes.add(new PanAndZoomInteractionMode(panel));
         modes.add(new MarkNotesInteractionMode(panel));
         modes.add(new EditPerformanceInteractionMode(panel));
+        modes.add(new AddSvgLinkInteractionMode(panel));
         modes.add(new SelectEditInteractionMode(panel));
     }
 
@@ -78,6 +79,9 @@ public class InteractionModeManager implements MouseInput, KeyInput {
      */
     public void setCurrentMode(AbstractInteractionMode mode) {
         if (modes.contains(mode)) {
+            if (this.currentMode instanceof AddSvgLinkInteractionMode) {
+                ((AddSvgLinkInteractionMode) this.currentMode).clearHoveredSvgElements();
+            }
             this.currentMode = mode;
             panel.onInteractionModeChange();
             getAnchorNodeHelper().reset();
