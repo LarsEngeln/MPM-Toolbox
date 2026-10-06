@@ -87,6 +87,14 @@ public class InteractionModeManager implements MouseInput, KeyInput {
     }
 
     /**
+     * returns the current mode
+     * @return the current mode
+     */
+    public AbstractInteractionMode getCurrentMode() {
+        return currentMode;
+    }
+
+    /**
      * Generates the popup menu from all modes' captions.
      * This creates WebMenuItems dynamically from the LinkedList of modes.
      *
@@ -176,111 +184,9 @@ public class InteractionModeManager implements MouseInput, KeyInput {
      *
      * @param g2 the Graphics2D context for drawing
      */
-    public void draw(Graphics2D g2, MpmTreeNode selectedMpmNode) {
+    public void draw(Graphics2D g2) {
         if ((this.currentMode == null) || this.panel.isOverlayHidden()) {
             return;
-        }
-
-        ScorePage scorePage = this.panel.getScorePage();
-        if (scorePage == null) {
-            return;
-        }
-
-        ArrayList<Element> selectedMsmNotes = this.noteMultiselect.getSelectedMsmNotes();
-
-        g2.setStroke(new BasicStroke(this.panel.getOverlayYWidth() / 3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g2.setFont(this.panel.getPerformanceSymbolFont());
-
-        for (Map.Entry<Element, ScoreNode> overlayElement : scorePage.getAllEntries().entrySet()) {
-            Element element = overlayElement.getKey();
-            if (this.currentMode.shouldSkipOverlayElement(element)) {
-                continue;
-            }
-
-            ScoreNode scoreNode = overlayElement.getValue();
-
-            if ("note".equals(element.getLocalName())) {
-                if (getNoteMultiselect().containsReference(selectedMsmNotes, element)) {
-                    g2.setColor(Settings.scoreNoteColorHighlighted);
-                } else {
-                    g2.setColor(Settings.scoreNoteColor);
-                }
-                g2.fillOval(((int) scoreNode.getX()) - this.panel.getOverlayXOffset(), ((int) scoreNode.getY()) - this.panel.getOverlayYOffset(), this.panel.getOverlayXWidth(), this.panel.getOverlayYWidth());
-            } else {
-                if ((selectedMpmNode != null) && (element == selectedMpmNode.getUserObject())) {
-                    g2.setColor(Settings.scorePerformanceColorHighlighted);
-                } else if (ScoreDisplayPanel.samePerformance(element, selectedMpmNode)) {
-                    g2.setColor(Settings.scorePerformanceColor);
-                } else {
-                    g2.setColor(Settings.scorePerformanceColorFaded);
-                }
-
-                if ("style".equals(element.getLocalName())) {
-                    GeneralPath diamond = Tools.generateDiamondShape(scoreNode.getX(), scoreNode.getY(), this.panel.getOverlayXWidth(), this.panel.getOverlayXWidth());
-                    g2.fill(diamond);
-                    if (ScoreDisplayPanel.isGlobal(element)) {
-                        float outlineWidth = this.panel.getOverlayYWidth() / 5.0f;
-                        BasicStroke outlineStroke = new BasicStroke(outlineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-                        g2.setStroke(outlineStroke);
-                        g2.setColor(g2.getColor().brighter());
-                        g2.draw(diamond);
-                    }
-                } else {
-                    int xUpperLeft = (int) scoreNode.getX() - this.panel.getOverlayXOffset();
-                    int yUpperLeft = (int) scoreNode.getY() - this.panel.getOverlayXOffset();
-                    g2.fillRect(xUpperLeft, yUpperLeft, this.panel.getOverlayXWidth(), this.panel.getOverlayXWidth());
-
-                    if (ScoreDisplayPanel.isGlobal(element)) {
-                        float outlineWidth = this.panel.getOverlayYWidth() / 5.0f;
-                        BasicStroke outlineStroke = new BasicStroke(outlineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-                        g2.setStroke(outlineStroke);
-                        g2.setColor(g2.getColor().brighter());
-                        g2.drawRect(((int) scoreNode.getX()) - this.panel.getOverlayXOffset(), ((int) scoreNode.getY()) - this.panel.getOverlayXOffset(), this.panel.getOverlayXWidth(), this.panel.getOverlayXWidth());
-                    }
-
-                    String performanceSymbol = null;
-                    switch (element.getLocalName()) {
-                        case "accentuationPattern":
-                            performanceSymbol = "M";
-                            break;
-                        case "articulation":
-                            performanceSymbol = "A";
-                            break;
-                        case "asynchrony":
-                            performanceSymbol = "\u21C4";
-                            break;
-                        case "dynamics":
-                            performanceSymbol = "D";
-                            break;
-                        case "ornament":
-                            performanceSymbol = "O";
-                            break;
-                        case "rubato":
-                            performanceSymbol = "R";
-                            break;
-                        case "tempo":
-                            performanceSymbol = "T";
-                            break;
-                        default:
-                            break;
-                    }
-                    if (performanceSymbol != null) {
-                        FontMetrics metrics = g2.getFontMetrics(this.panel.getPerformanceSymbolFont());
-                        g2.setColor(g2.getColor().darker().darker());
-                        int xFont = xUpperLeft + (this.panel.getOverlayXWidth() - metrics.stringWidth(performanceSymbol)) / 2;
-                        int yFont = yUpperLeft + ((this.panel.getOverlayXWidth() - metrics.getHeight()) / 2) + metrics.getAscent();
-                        g2.drawString(performanceSymbol, xFont, yFont);
-                    }
-                }
-            }
-
-            if (Settings.debug) {
-                for (ONGNode neighbor : scoreNode.neighbors) {
-                    if (neighbor != null) {
-                        g2.drawLine((int) scoreNode.getX(), (int) scoreNode.getY(), (int) neighbor.getX(), (int) neighbor.getY());
-                    }
-                }
-            }
         }
 
         this.currentMode.drawModeSpecificOverlay(g2);

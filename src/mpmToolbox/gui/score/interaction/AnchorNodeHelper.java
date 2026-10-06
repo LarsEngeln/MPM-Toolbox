@@ -323,7 +323,7 @@ public class AnchorNodeHelper {
 
     private static boolean isDirectLinkedPerformance(Element element) {
         String localName = element.getLocalName();
-        return "articulation".equals(localName) || "ornament".equals(localName);
+        return "articulation".equals(localName) || "ornament".equals(localName) || "svg".equals(localName);
     }
 
     private static boolean samePerformanceScope(Element candidate, Element reference) {

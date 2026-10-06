@@ -56,9 +56,9 @@ public class AnnotationLine {
     /**
      * Returns the set of {@link Unit} values that are valid for the given {@link Type}.
      * <ul>
-     *   <li>TIME / MARKS → SECONDS, MILLISECONDS</li>
-     *   <li>CURVE        → HZ, PERCENT</li>
-     *   <li>TEXT         → (none)</li>
+     *   <li>TIME / MARKS -> SECONDS, MILLISECONDS</li>
+     *   <li>CURVE        -> HZ, PERCENT</li>
+     *   <li>TEXT         -> (none)</li>
      * </ul>
      * @param type the column type
      * @return array of valid units; never {@code null}

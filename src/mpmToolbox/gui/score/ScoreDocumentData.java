@@ -35,10 +35,14 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
     private ScoreDisplayPanel scoreDisplay = null;                                                              // this displays the score
     private final WebLabel placeholder = new WebLabel("Place score images here.", WebLabel.CENTER);
     private final WebPopupMenu scorePagesPopupMenu = new WebPopupMenu();                                        // this is filled with the file names of the score pages, then used by the WebSplitButton for pages selection
+    private final WebPopupMenu hideShowPopupMenu = new WebPopupMenu();                                        // used for WebSplitButton "Hide/Show"
     private final WebSplitButton interactionModeSplitBtn = new WebSplitButton();                                        // with this button we switch between interaction modes
     protected final WebSpinner annotationSizeSpinner = new WebSpinner(new SpinnerNumberModel(0, -999, 999, 1)); // this spinner allows scaling the size of overlay elements in the score display
     boolean hideScore = false;
     boolean hideOverlay = false;
+    boolean hideOverlayNotes = false;
+    boolean hideOverlayPerformance = false;
+    boolean hideOverlaySVG = false;
 
     /**
      * constructor
@@ -101,17 +105,71 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
         deleteButton.setToolTip("delete page");
 //        nextButton.addHotkey(Hotkey.DELETE);         // deactivated because handled in the scorePanel's keyboard listener
 
-        // the hide overlay button
-        final WebButton hideOverlayButton = new WebButton(this.hideOverlay ? "Show Overlay" : "Hide Overlay");
-        hideOverlayButton.setToolTip("hide/show the overlay on the score image");
-        hideOverlayButton.setPadding(Settings.paddingInDialogs);
-        hideOverlayButton.addActionListener(actionEvent -> {
+//-------------------------
+
+        WebMenuItem hideNotesMenuItem = new WebMenuItem(this.hideOverlayNotes ? "Show Notes" : "Hide Notes");   // the popup menu item gets the file path
+        this.hideShowPopupMenu.add(hideNotesMenuItem);                                     // add the item to the popup menu
+        // and set the behaviour when clicked
+        hideNotesMenuItem.addActionListener(actionEvent -> {
+            if (this.scoreDisplay == null)
+                return;
+            this.hideOverlayNotes = !this.hideOverlayNotes;
+            this.scoreDisplay.repaint();
+            hideNotesMenuItem.setText(this.hideOverlayNotes ? "Show Notes" : "Hide Notes");
+        });
+
+        WebMenuItem hidePerformanceMenuItem = new WebMenuItem(this.hideOverlayPerformance ? "Show Performance" : "Hide Performance");   // the popup menu item gets the file path
+        this.hideShowPopupMenu.add(hidePerformanceMenuItem);                                     // add the item to the popup menu
+        // and set the behaviour when clicked
+        hidePerformanceMenuItem.addActionListener(actionEvent -> {
+            if (this.scoreDisplay == null)
+                return;
+            this.hideOverlayPerformance = !this.hideOverlayPerformance;
+            this.scoreDisplay.repaint();
+            hidePerformanceMenuItem.setText(this.hideOverlayPerformance ? "Show Performance" : "Hide Performance");
+        });
+
+        WebMenuItem hideSVGMenuItem = new WebMenuItem(this.hideOverlaySVG ? "Show SVG" : "Hide SVG");   // the popup menu item gets the file path
+        this.hideShowPopupMenu.add(hideSVGMenuItem);                                     // add the item to the popup menu
+        // and set the behaviour when clicked
+        hideSVGMenuItem.addActionListener(actionEvent -> {
+            if (this.scoreDisplay == null)
+                return;
+            this.hideOverlaySVG = !this.hideOverlaySVG;
+            this.scoreDisplay.repaint();
+            hideSVGMenuItem.setText(this.hideOverlaySVG ? "Show SVG" : "Hide SVG");
+        });
+
+        WebMenuItem hideAllMenuItem = new WebMenuItem(this.hideOverlay ? "Show All" : "Hide All");   // the popup menu item gets the file path
+        this.hideShowPopupMenu.add(hideAllMenuItem);                                     // add the item to the popup menu
+        // and set the behaviour when clicked
+        hideAllMenuItem.addActionListener(actionEvent -> {
             if (this.scoreDisplay == null)
                 return;
             this.hideOverlay = !this.hideOverlay;
+            if (this.hideOverlay) {
+                this.hideOverlayNotes = true;
+                this.hideOverlayPerformance = true;
+                this.hideOverlaySVG = true;
+            }
+            else {
+                this.hideOverlayNotes = false;
+                this.hideOverlayPerformance = false;
+                this.hideOverlaySVG = false;
+            }
             this.scoreDisplay.repaint();
-            hideOverlayButton.setText(this.hideOverlay ? "Show Overlay" : "Hide Overlay");
+            hideAllMenuItem.setText(this.hideOverlay ? "Show All" : "Hide All");
+            hideNotesMenuItem.setText(this.hideOverlayNotes ? "Show Notes" : "Hide Notes");
+            hidePerformanceMenuItem.setText(this.hideOverlayPerformance ? "Show Performance" : "Hide Performance");
+            hideSVGMenuItem.setText(this.hideOverlaySVG ? "Show SVG" : "Hide SVG");
         });
+
+        WebSplitButton hideShowButton = new WebSplitButton("Hide/Show Overlay");
+        hideShowButton.setPadding(Settings.paddingInDialogs);
+        hideShowButton.setPopupMenuWay(PopupMenuWay.aboveEnd);
+        hideShowButton.setPopupMenu(this.hideShowPopupMenu);
+        hideShowButton.setToolTip("hide/show the overlay on the score image");
+//-------------------------
 
         // the hide score button
         final WebButton hideScoreButton = new WebButton(this.hideScore ? "Show Score" : "Hide Score");
@@ -142,7 +200,7 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
         GridBagLayout scoreButtonPanelLayout = new GridBagLayout();
         final WebPanel scoreButtonPanel = new WebPanel(scoreButtonPanelLayout);
         scoreButtonPanel.setPadding(Settings.paddingInDialogs);
-        final GroupPane buttonGroup = new GroupPane(GroupPane.CENTER, previousButton, deleteButton, hideScoreButton, hideOverlayButton, pageSelectButton, this.interactionModeSplitBtn, nextButton);    // the GroupPane groups the buttons
+        final GroupPane buttonGroup = new GroupPane(GroupPane.CENTER, previousButton, deleteButton, hideScoreButton, hideShowButton, pageSelectButton, this.interactionModeSplitBtn, nextButton);    // the GroupPane groups the buttons
         Tools.addComponentToGridBagLayout(scoreButtonPanel, scoreButtonPanelLayout, buttonGroup, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
         Tools.addComponentToGridBagLayout(scoreButtonPanel, scoreButtonPanelLayout, this.annotationSizeSpinner, 1, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
 
@@ -155,6 +213,9 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
             this.scoreDisplay = new ScoreDisplayPanel(this);
             this.initInteractionModeButton();
             Tools.addComponentToGridBagLayout(this.scorePanel, gridBagLayout, this.scoreDisplay, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
+            if (this.projectPane.getSvgDockableFrame() != null) {
+                this.projectPane.getSvgDockableFrame().refreshForCurrentPage();
+            }
         } else {
             Tools.addComponentToGridBagLayout(this.scorePanel, gridBagLayout, this.placeholder, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
         }
@@ -214,6 +275,9 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
             this.initInteractionModeButton();
             this.getComponent().remove(this.placeholder);
             Tools.addComponentToGridBagLayout(this.getComponent(), (GridBagLayout) this.getComponent().getLayout(), this.scoreDisplay, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.CENTER);
+            if (this.projectPane.getSvgDockableFrame() != null) {
+                this.projectPane.getSvgDockableFrame().refreshForCurrentPage();
+            }
         }
 
         WebMenuItem menuItem = new WebMenuItem(file.getAbsolutePath());

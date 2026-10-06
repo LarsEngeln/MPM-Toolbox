@@ -5,23 +5,24 @@ import com.kitfox.svg.SVGDiagram;
 import com.kitfox.svg.SVGElement;
 import com.kitfox.svg.SVGException;
 import com.kitfox.svg.SVGUniverse;
-import com.kitfox.svg.xml.StyleAttribute;
 import nu.xom.Attribute;
 import nu.xom.Builder;
 import nu.xom.Document;
 import nu.xom.Element;
 import nu.xom.ParsingException;
+import mpmToolbox.projectData.score.ScorePage;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
-import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
+
+import static mpmToolbox.gui.Settings.scoreBackgroundColor;
+import static mpmToolbox.gui.Settings.scoreSvgColorHighlighted;
 
 /**
  * Data model for an SVG file used in MPM Toolbox.
@@ -31,12 +32,20 @@ import java.util.UUID;
  * @author Lars Engeln
  */
 public class SvgData {
+    private enum SVGColorMode {
+        HIDDEN,
+        PICKED,
+        ORIGINAL
+    }
 
     private final File file;
     private final Element xmlRoot;      // nu.xom root element for tree display
     private final SVGDiagram diagram;   // svg-salamander diagram for rendering
+    private ScorePage scorePage = null;  // the score page this SVG belongs to
     private Element highlightedElement = null;  // the currently highlighted XOM element (tree ↔ score sync)
-    private Element hoveredElement = null;       // the currently hovered XOM element (hover in svg tree → score glow)
+    private Element hoveredElement = null;       // the currently hovered XOM element (hover in svg tree -> score glow)
+    private Color scoreColor = null;   // picked recolor for whole SVG overlay
+    private SVGColorMode svgColorMode = SVGColorMode.HIDDEN;
 
     /**
      * Constructor – parses the given SVG file.
@@ -56,6 +65,8 @@ public class SvgData {
         // ensure every element has an id so that svg-salamander can look it up
         ensureIds(this.xmlRoot);
 
+        scoreColor = scoreBackgroundColor;
+
         // parse via svg-salamander for rendering – use the ID-enriched XML so that
         // every element is addressable via its (possibly newly assigned) id.
         SVGUniverse universe = new SVGUniverse();
@@ -64,6 +75,10 @@ public class SvgData {
         this.diagram = universe.getDiagram(svgUri);
         if (this.diagram != null) {
             this.diagram.setIgnoringClipHeuristic(true);
+            String rootId = this.xmlRoot.getAttributeValue("id");
+            if (rootId != null && !rootId.isEmpty()) {
+                setStrokeColor(this.diagram.getElement(rootId), "");
+            }
         }
     }
 
@@ -100,6 +115,22 @@ public class SvgData {
     }
 
     /**
+     * Get the score page this SVG belongs to.
+     * @return score page or null
+     */
+    public ScorePage getScorePage() {
+        return this.scorePage;
+    }
+
+    /**
+     * Set the score page this SVG belongs to.
+     * @param scorePage score page or null
+     */
+    public void setScorePage(ScorePage scorePage) {
+        this.scorePage = scorePage;
+    }
+
+    /**
      * Render this SVG scaled to the given target width and height using Graphics2D.
      * The SVG is scaled uniformly to fit within the target rectangle.
      *
@@ -121,6 +152,22 @@ public class SvgData {
 
         Graphics2D g2Copy = (Graphics2D) g2.create();
         try {
+            String rootId = this.xmlRoot.getAttributeValue("id");
+            if (rootId != null && !rootId.isEmpty()) {
+                SVGElement rootElement = this.diagram.getElement(rootId);
+                switch (this.svgColorMode) {
+                    case PICKED:
+                        setStrokeColor(rootElement, toSvgHexColor(this.scoreColor));
+                        break;
+                    case ORIGINAL:
+                        resetStrokeColor(rootElement);
+                        break;
+                    case HIDDEN:
+                    default:
+                        setStrokeColor(rootElement, "");
+                        break;
+                }
+            }
             g2Copy.scale(scaleX, scaleY);
             this.diagram.render(g2Copy);
         } catch (SVGException e) {
@@ -128,6 +175,29 @@ public class SvgData {
         } finally {
             g2Copy.dispose();
         }
+    }
+
+    /**
+     * sets the color of the whole SVG overlay to the given color and switches to PICKED mode to display the set color.
+     * @param scoreColor color for the whole SVG
+     */
+    public void setScoreColor(Color scoreColor) {
+        this.scoreColor = scoreColor;
+        this.svgColorMode = SVGColorMode.PICKED;
+    }
+
+    /**
+     * Switches to ORIGINAL mode to display the original SVG color.
+     */
+    public void useOriginalSVGColor() {
+        this.svgColorMode = SVGColorMode.ORIGINAL;
+    }
+
+    /**
+     * Switches to HIDDEN mode to hide the SVG color.
+     */
+    public void useHiddenSVGColor() {
+        this.svgColorMode = SVGColorMode.HIDDEN;
     }
 
     /**
@@ -139,9 +209,15 @@ public class SvgData {
 
     /**
      * Set the currently highlighted XOM element.
-     * Pass {@code null} to clear the highlight.
+     * @param element Element to be highlighted, pass {@code null} to clear the highlight.
      */
     public void setHighlightedElement(Element element) {
+        if(this.highlightedElement != null) {
+            String id = this.highlightedElement.getAttributeValue("id");
+            if (id != null && !id.isEmpty()) {
+                setStrokeColor(this.diagram.getElement(id), "");
+            }
+        }
         this.highlightedElement = element;
     }
 
@@ -154,13 +230,13 @@ public class SvgData {
 
     /**
      * Set the currently hovered XOM element.
-     * Pass {@code null} to clear the hover.
+     * @param element Element that is hovered, pass {@code null} to clear the hover.
      */
     public void setHoveredElement(Element element) {
         if(this.hoveredElement != null) {
             String id = this.hoveredElement.getAttributeValue("id");
             if (id != null && !id.isEmpty()) {
-                resetStrokeColor(this.diagram.getElement(id));
+                setStrokeColor(this.diagram.getElement(id), "");
             }
         }
 
@@ -168,209 +244,13 @@ public class SvgData {
     }
 
     /**
-     * Returns the bounding rectangle of the SVG element with the given {@code id},
-     * scaled to image-pixel coordinates (using {@code imageW}/{@code imageH}).
-     * Returns {@code null} if the element cannot be found or has no bounding box.
-     */
-    public Rectangle2D getBoundsInImageSpace(String id, int imageW, int imageH) {
-        if (this.diagram == null || id == null || id.isEmpty())
-            return null;
-        float svgW = this.diagram.getWidth();
-        float svgH = this.diagram.getHeight();
-        if (svgW <= 0 || svgH <= 0)
-            return null;
-        SVGElement svgEl = this.diagram.getElement(id);
-        if (svgEl == null || !(svgEl instanceof RenderableElement))
-            return null;
-        try {
-            Rectangle2D bounds = ((RenderableElement) svgEl).getBoundingBox();
-            if (bounds == null)
-                return null;
-            double scaleX = imageW / svgW;
-            double scaleY = imageH / svgH;
-            return new Rectangle2D.Double(
-                    bounds.getX()      * scaleX,
-                    bounds.getY()      * scaleY,
-                    bounds.getWidth()  * scaleX,
-                    bounds.getHeight() * scaleY);
-        } catch (SVGException e) {
-            return null;
-        }
-    }
-
-    /**
-     * Returns the bounding rectangle for a XOM {@link Element}, scaled to image-pixel
-     * coordinates. If the element has no {@code id} attribute (or its id is not known
-     * to svg-salamander), the method walks up the XOM parent chain until it finds an
-     * ancestor with a usable bounding box.
-     *
-     * @param element the XOM element to look up
-     * @param imageW  total image width in pixels
-     * @param imageH  total image height in pixels
-     * @return bounds in image-pixel space, or {@code null} if nothing could be resolved
-     */
-    public Rectangle2D getBoundsInImageSpace(nu.xom.Node element, int imageW, int imageH) {
-        if (this.diagram == null || imageW <= 0 || imageH <= 0)
-            return null;
-        float svgW = this.diagram.getWidth();
-        float svgH = this.diagram.getHeight();
-        if (svgW <= 0 || svgH <= 0)
-            return null;
-
-        // walk up the XOM tree until we find a node whose id svg-salamander knows
-        nu.xom.Node current = element;
-        while (current instanceof Element) {
-            String id = ((Element) current).getAttributeValue("id");
-            if (id != null && !id.isEmpty()) {
-                SVGElement svgEl = this.diagram.getElement(id);
-                if (svgEl instanceof RenderableElement) {
-                    try {
-                        Rectangle2D bounds = ((RenderableElement) svgEl).getBoundingBox();
-                        if (bounds != null && bounds.getWidth() > 0 && bounds.getHeight() > 0) {
-                            double scaleX = imageW / svgW;
-                            double scaleY = imageH / svgH;
-                            return new Rectangle2D.Double(
-                                    bounds.getX()      * scaleX,
-                                    bounds.getY()      * scaleY,
-                                    bounds.getWidth()  * scaleX,
-                                    bounds.getHeight() * scaleY);
-                        }
-                    } catch (SVGException e) {
-                        // try parent
-                    }
-                }
-            }
-            current = current.getParent();
-        }
-        return null;
-    }
-
-    /**
-     * Render a hotpink stroke highlight bounding box for the currently highlighted element.
-     * If the element is a {@code <g>} group, all leaf descendants are included.
-     * Builds the cumulative SVG transform chain from the XOM ancestor tree so that
-     * elements inside nested {@code <g transform="...">} groups are positioned correctly.
-     *
-     * @param g2           the Graphics2D context (already transformed to image space)
-     * @param targetWidth  the target width in pixels (same as passed to render())
-     * @param targetHeight the target height in pixels (same as passed to render())
-     */
-    public void renderHighlight(Graphics2D g2, int targetWidth, int targetHeight) {
-        if (this.diagram == null || this.highlightedElement == null)
-            return;
-
-        float svgW = this.diagram.getWidth();
-        float svgH = this.diagram.getHeight();
-        if (svgW <= 0 || svgH <= 0)
-            return;
-
-        // Collect all leaf XOM elements (traverses into <g> groups)
-        List<Element> leaves = new ArrayList<>();
-        collectLeafElements(this.highlightedElement, leaves);
-        if (leaves.isEmpty())
-            return;
-
-        // Build cumulative AffineTransform from XOM ancestor chain (root → element parent).
-        // This corrects the position when leaf elements are inside <g transform="..."> groups.
-        java.awt.geom.AffineTransform ancestorTransform = buildAncestorTransform(this.highlightedElement);
-
-        // Use a small temp image for pixel-scanning (performance: avoid full-res scan)
-        int tempW = Math.min(targetWidth,  600);
-        int tempH = Math.min(targetHeight, 800);
-        double tempScaleX = (double) tempW / svgW;
-        double tempScaleY = (double) tempH / svgH;
-
-        int overallMinX = tempW, overallMinY = tempH, overallMaxX = -1, overallMaxY = -1;
-
-        for (Element el : leaves) {
-            String id = el.getAttributeValue("id");
-            if (id == null || id.isEmpty())
-                continue;
-            SVGElement svgEl = this.diagram.getElement(id);
-            if (!(svgEl instanceof RenderableElement))
-                continue;
-
-            // --- fast path: try getBoundingBox() first (SVG user coordinates) ---
-            Rectangle2D svgBounds = null;
-            try {
-                svgBounds = ((RenderableElement) svgEl).getBoundingBox();
-            } catch (SVGException ignored) { }
-
-            if (svgBounds != null && svgBounds.getWidth() > 0 && svgBounds.getHeight() > 0) {
-                // Transform SVG bounding box through the ancestor chain → SVG root coords
-                java.awt.geom.Point2D tl = ancestorTransform.transform(
-                        new java.awt.geom.Point2D.Double(svgBounds.getX(), svgBounds.getY()), null);
-                java.awt.geom.Point2D br = ancestorTransform.transform(
-                        new java.awt.geom.Point2D.Double(svgBounds.getMaxX(), svgBounds.getMaxY()), null);
-                // Convert SVG root coords → temp image coords
-                int px1 = (int)(tl.getX() * tempScaleX);
-                int py1 = (int)(tl.getY() * tempScaleY);
-                int px2 = (int)(br.getX() * tempScaleX);
-                int py2 = (int)(br.getY() * tempScaleY);
-                overallMinX = Math.min(overallMinX, Math.min(px1, px2));
-                overallMinY = Math.min(overallMinY, Math.min(py1, py2));
-                overallMaxX = Math.max(overallMaxX, Math.max(px1, px2));
-                overallMaxY = Math.max(overallMaxY, Math.max(py1, py2));
-                continue;
-            }
-
-            // --- fallback: render element to temp image and scan pixels ---
-            java.awt.image.BufferedImage tempImg = new java.awt.image.BufferedImage(
-                    tempW, tempH, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-            Graphics2D tg = tempImg.createGraphics();
-            tg.scale(tempScaleX, tempScaleY);
-            tg.transform(ancestorTransform);
-            try {
-                ((RenderableElement) svgEl).render(tg);
-            } catch (SVGException e) {
-                tg.dispose();
-                continue;
-            }
-            tg.dispose();
-
-            for (int y = 0; y < tempH; y++) {
-                for (int x = 0; x < tempW; x++) {
-                    if ((tempImg.getRGB(x, y) & 0xFF000000) != 0) {
-                        if (x < overallMinX) overallMinX = x;
-                        if (y < overallMinY) overallMinY = y;
-                        if (x > overallMaxX) overallMaxX = x;
-                        if (y > overallMaxY) overallMaxY = y;
-                    }
-                }
-            }
-        }
-
-        if (overallMaxX < overallMinX || overallMaxY < overallMinY)
-            return; // nothing found
-
-        // Scale found bounds from temp image space → target image space, then draw on g2.
-        // g2 has affineTransform applied (pan/zoom), so drawing in image-pixel coords is correct.
-        double scaleBackX = (double) targetWidth  / tempW;
-        double scaleBackY = (double) targetHeight / tempH;
-        int imgX = (int)(overallMinX * scaleBackX);
-        int imgY = (int)(overallMinY * scaleBackY);
-        int imgW = (int)((overallMaxX - overallMinX) * scaleBackX);
-        int imgH = (int)((overallMaxY - overallMinY) * scaleBackY);
-
-        Color prevColor = g2.getColor();
-        Stroke prevStroke = g2.getStroke();
-        g2.setColor(Color.decode("#FF69B4")); // hotpink
-        g2.setStroke(new BasicStroke(3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g2.drawRect(imgX, imgY, imgW, imgH);
-        g2.setColor(prevColor);
-        g2.setStroke(prevStroke);
-    }
-
-    /**
      * Render a bright yellow overlay for the currently hovered element.
-     * Renders the element directly in SVG space with bright yellow fill.
-     *
+     * Renders the element directly in SVG space.
      * @param g2           the Graphics2D context (already transformed to image space)
-     * @param targetWidth  the target width in pixels (same as passed to render())
-     * @param targetHeight the target height in pixels (same as passed to render())
+     * @param svgElement   the XOM element to highlight
      */
-    public void renderHoverHighlight(Graphics2D g2, int targetWidth, int targetHeight) {
-        if (this.diagram == null || this.hoveredElement == null)
+    public void renderHighlight(Graphics2D g2, Element svgElement) {
+        if (this.diagram == null || svgElement == null)
             return;
 
         float svgW = this.diagram.getWidth();
@@ -379,7 +259,7 @@ public class SvgData {
             return;
 
         SVGElement svgEl = null;
-        String id = this.hoveredElement.getAttributeValue("id");
+        String id = svgElement.getAttributeValue("id");
         if (id != null && !id.isEmpty()) {
             svgEl = this.diagram.getElement(id);
         }
@@ -388,34 +268,30 @@ public class SvgData {
             return;
 
         // Build cumulative AffineTransform from XOM ancestor chain
-        java.awt.geom.AffineTransform ancestorTransform = buildAncestorTransform(this.hoveredElement);
-
-        // Calculate scale factors for SVG → image space
-        double scaleX = targetWidth / svgW;
-        double scaleY = targetHeight / svgH;
+        java.awt.geom.AffineTransform ancestorTransform = buildAncestorTransform(svgElement);
 
         // Save graphics state
         Color prevColor = g2.getColor();
         Composite savedComposite = g2.getComposite();
         java.awt.geom.AffineTransform savedTransform = g2.getTransform();
 
-        // Set highlight style: hotpink, semi-transparent
-        g2.setColor(new Color(255, 105, 180)); // hotpink
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
-
         try {
             // Apply the transform chain: scale to image space, then apply ancestor transform
             java.awt.geom.AffineTransform renderTransform = new java.awt.geom.AffineTransform();
-            //renderTransform.scale(scaleX, scaleY);
             renderTransform.concatenate(ancestorTransform);
 
-            setStrokeColor(svgEl, "#FF0064"); // bright yellow stroke for hover
+            if (shouldUseSelectedHoverColor(svgElement)) {
+                setStrokeColor(svgEl, toSvgHexColor(scoreSvgColorHighlighted));
+            } else {
+                resetStrokeColor(svgEl); // show original stroke/fill
+            }
             
             g2.transform(renderTransform);
             ((RenderableElement) svgEl).render(g2);
 
         } catch (SVGException ignored) {
         } finally {
+            setStrokeColor(svgEl, ""); // hide again after hover/highlight rendering
             // Restore graphics state
             g2.setTransform(savedTransform);
             g2.setColor(prevColor);
@@ -424,21 +300,52 @@ public class SvgData {
     }
 
     /**
-     * recursively sets the color of a SVGElement if that child has a stroke attribute
-     * @param svgElement
-     * @param color
+     * Checks whether to use the hotpink hover color, if svgElement is selected.
+     * @param svgElement the XOM element to check
+     * @return true if svgElement is selected and hovered
+     */
+    private boolean shouldUseSelectedHoverColor(Element svgElement) {
+        if (svgElement == null || svgElement != this.hoveredElement || this.highlightedElement == null)
+            return false;
+
+        for (nu.xom.Node current = svgElement; current instanceof Element; current = current.getParent()) {
+            if (current == this.highlightedElement)
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * recursively sets the color of a SVGElement if that child has a stroke attribute. The original color is preserved as "orig-stroke" attribute.
+     * @param svgElement SVG sub-branch to set the stroke color for
+     * @param color Color-String to be set
      */
     private static void setStrokeColor(SVGElement svgElement, String color) {
+        if (svgElement == null)
+            return;
+        if (color == null)
+            color = "";
         com.kitfox.svg.xml.StyleAttribute styleAttribute = svgElement.getStyleAbsolute("stroke");
-        boolean hasOrigStroke = svgElement.getInlineAttributes().contains("orig-stroke");
         if(styleAttribute != null) {
             try {
-                if(!hasOrigStroke) {
+                if(!svgElement.getInlineAttributes().contains("orig-stroke")) {
                     svgElement.addAttribute("orig-stroke", 0, styleAttribute.getStringValue());
                 }
                 svgElement.setAttribute("stroke", 0, color);
             }
             catch (SVGException ignored) {}
+        }
+        else {
+            styleAttribute = svgElement.getStyleAbsolute("fill");
+            if (styleAttribute != null) {
+                try {
+                    if (!svgElement.getInlineAttributes().contains("orig-fill")) {
+                        svgElement.addAttribute("orig-fill", 0, styleAttribute.getStringValue());
+                    }
+                    svgElement.setAttribute("fill", 0, color);
+                } catch (SVGException ignored) {
+                }
+            }
         }
 
         for (int i = 0; i < svgElement.getNumChildren(); i++) {
@@ -450,13 +357,23 @@ public class SvgData {
 
     /**
      * resets the stroke color back to original
-     * @param svgElement
+     * @param svgElement SVG sub-branch to reset the stroke color for
      */
     private static void resetStrokeColor(SVGElement svgElement) {
+        if (svgElement == null)
+            return;
         com.kitfox.svg.xml.StyleAttribute styleAttribute = svgElement.getStyleAbsolute("orig-stroke");
         if(styleAttribute != null) {
             try {
                 svgElement.setAttribute("stroke", 0, styleAttribute.getStringValue());
+            }
+            catch (SVGException ignored) {}
+        }
+
+        styleAttribute = svgElement.getStyleAbsolute("orig-fill");
+        if(styleAttribute != null) {
+            try {
+                svgElement.setAttribute("fill", 0, styleAttribute.getStringValue());
             }
             catch (SVGException ignored) {}
         }
@@ -472,6 +389,8 @@ public class SvgData {
      * Builds a cumulative {@link java.awt.geom.AffineTransform} by walking up the XOM ancestor
      * chain of {@code element} and composing all {@code transform} attributes found on ancestors.
      * The resulting transform converts from the element's local coordinate space to SVG root space.
+     * @param element the XOM element whose ancestor transforms to accumulate
+     * @return cumulative AffineTransform from element's local space to SVG root space
      */
     private static java.awt.geom.AffineTransform buildAncestorTransform(Element element) {
         java.util.Deque<java.awt.geom.AffineTransform> stack = new java.util.ArrayDeque<>();
@@ -484,7 +403,7 @@ public class SvgData {
             }
         }
         java.awt.geom.AffineTransform result = new java.awt.geom.AffineTransform();
-        // apply in order outermost → innermost (descendingIterator gives back→front = outermost first)
+        // apply in order outermost -> innermost (descendingIterator gives back->front = outermost first)
         java.util.Iterator<java.awt.geom.AffineTransform> it = stack.descendingIterator();
         while (it.hasNext())
             result.concatenate(it.next());
@@ -495,6 +414,8 @@ public class SvgData {
      * Parses an SVG {@code transform} attribute string into an {@link java.awt.geom.AffineTransform}.
      * Supports {@code translate}, {@code scale}, {@code rotate}, {@code matrix}, {@code skewX}, {@code skewY}.
      * Returns {@code null} if the string contains no recognised transforms.
+     * @param transform SVG instruction of a transform as String
+     * @return parsed AffineTransfrom from transform
      */
     private static java.awt.geom.AffineTransform parseSvgTransform(String transform) {
         java.awt.geom.AffineTransform result = new java.awt.geom.AffineTransform();
@@ -531,6 +452,8 @@ public class SvgData {
     /**
      * Recursively collects all non-group leaf elements from the subtree rooted at {@code element}.
      * {@code <g>} elements are traversed but not added themselves.
+     * @param element Element to search in
+     * @param result List to add the found elements to
      */
     private static void collectLeafElements(Element element, List<Element> result) {
         if (element.getLocalName().equals("g")) {
@@ -542,6 +465,12 @@ public class SvgData {
         } else {
             result.add(element);
         }
+    }
+
+    private static String toSvgHexColor(Color color) {
+        if (color == null)
+            return scoreSvgColorHighlighted.toString();
+        return String.format("#%02X%02X%02X", color.getRed(), color.getGreen(), color.getBlue());
     }
 
     /**
@@ -591,8 +520,7 @@ public class SvgData {
     /**
      * Recursively ensures that every {@link Element} in the XOM subtree has an
      * {@code id} attribute. Elements that already carry an {@code id} are left
-     * untouched; all others receive a freshly generated UUID via
-     * {@link Helper#addUUID(Element)}.
+     * untouched; all others receive a freshly generated UUID via.
      *
      * @param element the root of the subtree to process
      */
@@ -635,5 +563,3 @@ public class SvgData {
         return this.getName();
     }
 }
-
-

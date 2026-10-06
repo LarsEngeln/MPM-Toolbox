@@ -46,7 +46,7 @@ public final class MarkNotesInteractionMode extends AbstractInteractionMode {
     @Override
     public void mouseExited(MouseEvent mouseEvent) {
         if (!mouseEvent.isControlDown()) {
-            clearTransientState();
+            clearStates();
         }
     }
 

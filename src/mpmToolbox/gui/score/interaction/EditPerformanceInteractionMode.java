@@ -67,7 +67,7 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
     @Override
     public void mouseExited(MouseEvent mouseEvent) {
         if (!mouseEvent.isControlDown()) {
-            clearTransientState();
+            clearStates();
         }
     }
 
@@ -243,8 +243,8 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
      * Clears transient edit-performance state when leaving the panel.
      */
     @Override
-    protected void clearTransientState() {
-        super.clearTransientState();
+    protected void clearStates() {
+        super.clearStates();
         this.anchorNodeHelper.reset();
         this.noteMultiselect.clear();
     }

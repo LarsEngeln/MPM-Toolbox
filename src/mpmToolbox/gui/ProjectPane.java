@@ -393,8 +393,14 @@ public class ProjectPane extends WebDockablePane {
         if (this.getScore().isEmpty())
             return;
 
+        ScorePage page = this.getScore().getPage(index);
+        if (page != null) {
+            this.removeSvg(page.getSvg());
+        }
+
         this.data.removeScorePage(index);                       // delete the page from the project data structure
         this.scoreFrame.removeScorePage(index);
+        this.svgDockableFrame.refreshForCurrentPage();
     }
 
     /**
@@ -449,8 +455,16 @@ public class ProjectPane extends WebDockablePane {
      * @param svg
      */
     public void addSvg(SvgData svg) {
-        if (this.data.addSvg(svg)) {
-            this.svgDockableFrame.addSvg(svg);
+        ScorePage scorePage = this.getCurrentScorePage();
+        if (scorePage == null) {
+            if (this.data.addSvg(svg)) {
+                this.svgDockableFrame.refreshForCurrentPage();
+                this.repaintScoreDisplay();
+            }
+            return;
+        }
+        if (this.data.addSvg(svg, scorePage)) {
+            this.svgDockableFrame.showSvgsForPage(scorePage, svg);
             this.repaintScoreDisplay();
         }
     }
@@ -461,8 +475,29 @@ public class ProjectPane extends WebDockablePane {
      */
     public void removeSvg(int index) {
         this.data.removeSvg(index);
-        this.svgDockableFrame.removeSvg(index);
+        this.svgDockableFrame.refreshForCurrentPage();
         this.repaintScoreDisplay();
+    }
+
+    /**
+     * Remove a specific SVG overlay from the project.
+     * @param svg the SVG to remove
+     */
+    public void removeSvg(SvgData svg) {
+        this.data.removeSvg(svg);
+        this.svgDockableFrame.refreshForCurrentPage();
+        this.repaintScoreDisplay();
+    }
+
+    /**
+     * Get the score page currently shown in the score display, or the first page if none is shown.
+     * @return current score page or null
+     */
+    public ScorePage getCurrentScorePage() {
+        if ((this.scoreFrame != null) && (this.scoreFrame.getScoreDisplay() != null)) {
+            return this.scoreFrame.getScoreDisplay().getScorePage();
+        }
+        return this.getScore().isEmpty() ? null : this.getScore().getPage(0);
     }
 
     /**

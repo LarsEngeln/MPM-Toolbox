@@ -1,23 +1,13 @@
 package mpmToolbox.gui.score.interaction;
 
-import mpmToolbox.gui.Settings;
-import mpmToolbox.gui.mpmTree.MpmTreeNode;
 import mpmToolbox.gui.score.ScoreDisplayPanel;
-import mpmToolbox.projectData.score.ScoreNode;
 import nu.xom.Element;
-import meico.mpm.elements.Performance;
-import mpmToolbox.supplementary.Tools;
-import mpmToolbox.supplementary.orthantNeighborhoodGraph.ONGNode;
 
-import java.awt.BasicStroke;
 import java.awt.Cursor;
-import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
-import java.awt.geom.GeneralPath;
-import java.util.ArrayList;
 
 /**
  * Shared base for score interaction modes.
@@ -200,7 +190,7 @@ public abstract class AbstractInteractionMode implements MouseInput, KeyInput {
     /**
      * Clears state that should not survive leaving the panel.
      */
-    protected void clearTransientState() {
+    protected void clearStates() {
         this.panel.setMousePositionInImage(null);
         this.panel.repaint();
     }

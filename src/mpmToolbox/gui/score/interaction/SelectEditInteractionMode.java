@@ -62,7 +62,7 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
     @Override
     public void mouseExited(MouseEvent mouseEvent) {
         if (!mouseEvent.isControlDown()) {
-            clearTransientState();
+            clearStates();
         }
     }
 
@@ -254,8 +254,8 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
     }
 
     @Override
-    protected void clearTransientState() {
-        super.clearTransientState();
+    protected void clearStates() {
+        super.clearStates();
         this.draggedElement = null;
         this.currentSelection = null;
         this.noteMultiselect.clear();

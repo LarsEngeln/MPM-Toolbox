@@ -23,6 +23,7 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
 
     /**
      * Constructor for element nodes.
+     * @param element the SVG XML Element represented by this node
      */
     public SvgTreeNode(@NotNull Element element) {
         super(element);
@@ -31,6 +32,7 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
 
     /**
      * Constructor for attribute nodes.
+     * @param attribute the SVG XML Attribute represented by this node
      */
     public SvgTreeNode(@NotNull Attribute attribute) {
         super(attribute);
@@ -39,6 +41,9 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
 
     // -------------------------------------------------------------------------
 
+    /**
+     * Generates this node's name to be displayed in SvgTree
+     */
     private void generateMyName() {
         Node obj = this.getUserObject();
 
@@ -57,15 +62,17 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
 
         switch (localName) {
             case "svg": {
-                this.name = "<html><font size=\"-2\" color=\"silver\">&lt;/&gt;</font></html>";
+                this.name = "<html><font size=\"-2\" color=\"silver\">&lt;/&gt;</font> svg</html>";
                 break;
             }
             case "g": {
                 String id    = e.getAttributeValue("id");
                 String label = e.getAttributeValue("label");
+                String numOfChildren = String.valueOf(countSvgElementChildren(e));
                 if (label == null) label = e.getAttributeValue("label", "http://www.inkscape.org/namespaces/inkscape");
                 String display = (label != null) ? label : (id != null ? id : "");
                 this.name = "<html><b>g</b>"
+                        + " <font color=\"silver\">(" + numOfChildren + ")</font>"
                         + (display.isEmpty() ? "" : "  <font color=\"silver\">" + display + "</font>")
                         + "</html>";
                 break;
@@ -110,7 +117,7 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                 String x1 = e.getAttributeValue("x1"), y1 = e.getAttributeValue("y1");
                 String x2 = e.getAttributeValue("x2"), y2 = e.getAttributeValue("y2");
                 this.name = "<html>line"
-                        + ((x1 != null) ? " <font color=\"silver\">(" + x1 + "," + y1 + ")→(" + x2 + "," + y2 + ")</font>" : "")
+                        + ((x1 != null) ? " <font color=\"silver\">(" + x1 + "," + y1 + ")->(" + x2 + "," + y2 + ")</font>" : "")
                         + "</html>";
                 break;
             }
@@ -181,6 +188,23 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
                 break;
             }
         }
+
+    }
+
+
+    /**
+     * Counts the number of child elements of the given SVG element.
+     * @param element the SVG element to count children of
+     * @return the number of child elements
+     */
+    private static int countSvgElementChildren(Element element) {
+        int count = 0;
+        for (int i = 0; i < element.getChildCount(); i++) {
+            if (element.getChild(i) instanceof Element) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -190,21 +214,28 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
         this.generateMyName();
     }
 
-    // -------------------------------------------------------------------------
-    // TextBridge / UniqueNode overrides
-    // -------------------------------------------------------------------------
-
+    /**
+     * returns name as the TreeNode's 'text'
+     * @param parameters
+     * @return name of this node
+     */
     @Override
     public String getText(TreeNodeParameters<SvgTreeNode, WebExTree<SvgTreeNode>> parameters) {
         return this.name;
     }
 
+    /**
+     * return special icon of this node
+     * @param parameters
+     * @return null (as it has no special icon)
+     */
     public Icon getNodeIcon(TreeNodeParameters<SvgTreeNode, WebExTree<SvgTreeNode>> parameters) {
         return null;
     }
 
     /**
      * Tooltip text showing the raw XML of this node.
+     * @return tooltip text
      */
     public String getTooltipText() {
         Node obj = this.getUserObject();
@@ -217,6 +248,10 @@ public class SvgTreeNode extends UniqueNode<SvgTreeNode, Node>
         return s;
     }
 
+    /**
+     * Returns the string representation of this node.
+     * @return the node's name
+     */
     @Override
     public String toString() {
         return this.name;

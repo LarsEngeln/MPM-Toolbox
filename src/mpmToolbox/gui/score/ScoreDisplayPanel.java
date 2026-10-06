@@ -19,12 +19,11 @@ import mpmToolbox.gui.msmEditingTools.MsmEditingTools;
 import mpmToolbox.gui.msmTree.MsmTree;
 import mpmToolbox.gui.msmTree.MsmTreeNode;
 import mpmToolbox.gui.score.interaction.*;
-import mpmToolbox.gui.svgTree.SvgDockableFrame;
-import mpmToolbox.gui.svgTree.SvgTree;
 import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.projectData.score.ScoreNode;
 import mpmToolbox.projectData.score.ScorePage;
+import mpmToolbox.supplementary.Tools;
 import mpmToolbox.supplementary.orthantNeighborhoodGraph.ONGNode;
 import nu.xom.Element;
 import nu.xom.Node;
@@ -32,9 +31,12 @@ import nu.xom.Node;
 import javax.swing.SwingUtilities;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.geom.GeneralPath;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.Map;
+
+import static mpmToolbox.gui.Settings.scoreBackgroundColor;
 
 /**
  * This class displays the score pages and defines interaction with them.
@@ -168,11 +170,38 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     }
 
     /**
-     * Indicates whether overlay rendering should be hidden.
+     * Indicates whether the score should be hidden.
+     * @return true when score is hidden
+     */
+    public boolean isScoreHidden() {
+        return this.scoreDocumentData.hideScore;
+    }
+
+    /**
+     * Indicates whether all overlay renderings should be hidden.
      * @return true when overlays are hidden
      */
     public boolean isOverlayHidden() {
         return this.scoreDocumentData.hideOverlay;
+    }
+    /**
+     * Indicates whether notes overlay rendering should be hidden.
+     * @return true when overlays are hidden
+     */
+    public boolean isNotesOverlayHidden() {
+        return this.scoreDocumentData.hideOverlayNotes;
+    }
+    /**
+     * Indicates whether performance overlay rendering should be hidden.
+     * @return true when overlays are hidden
+     */
+    public boolean isPerformanceOverlayHidden() { return this.scoreDocumentData.hideOverlayPerformance; }
+    /**
+     * Indicates whether SVG overlay rendering should be hidden.
+     * @return true when overlays are hidden
+     */
+    public boolean isSVGOverlayHidden() {
+        return this.scoreDocumentData.hideOverlaySVG;
     }
 
     /**
@@ -233,49 +262,27 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         {
             int imgW = this.scorePage.getImage().getWidth(this);
             int imgH = this.scorePage.getImage().getHeight(this);
-            g2.setColor(new Color(210, 210, 210));
+            g2.setColor(scoreBackgroundColor);
             g2.fillRect(0, 0, imgW, imgH);
         }
 
-        if (!this.scoreDocumentData.hideScore)
+        // draw score
+        if (!this.isScoreHidden()) {
             g2.drawImage(this.scorePage.getImage(), 0, 0, this);    // draw image
+        }
 
         // draw SVG overlays
-        if (!this.scoreDocumentData.hideOverlay) {
-            java.util.ArrayList<SvgData> svgs = this.scoreDocumentData.projectPane.getProjectData().getSvgs();
-            if (!svgs.isEmpty()) {
-                int imgW = this.scorePage.getImage().getWidth(this);
-                int imgH = this.scorePage.getImage().getHeight(this);
-                if (imgW > 0 && imgH > 0) {
-                    for (SvgData svg : svgs) {
-                        Composite originalComposite = g2.getComposite();
-                        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.65f));
-                        svg.render(g2, imgW, imgH);
-                        g2.setComposite(originalComposite);
-                    }
+        this.drawSVG(g2);
 
-                    // draw highlight for the selected SVG element (tree → score)
-                    for (SvgData svg : svgs) {
-                        if (svg.getHighlightedElement() == null)
-                            continue;
-                        svg.renderHighlight(g2, imgW, imgH);
-                    }
+        // draw score nodes
+        this.drawScoreNodes(g2);
 
-                    // draw hover highlight: bright cyan overlay for hovered element
-                    for (SvgData svg : svgs) {
-                        if (svg.getHoveredElement() == null)
-                            continue;
-                        svg.renderHoverHighlight(g2, imgW, imgH);
-                    }
-                }
-            }
-        }
-
+        // draw interaction feedback
         if (this.interactionModeManager != null) {
-            MpmTreeNode selectedMpmNode = this.getScoreDocumentData().getSelectedMpmNode();
-            this.interactionModeManager.draw(g2, selectedMpmNode);
+            this.interactionModeManager.draw(g2);
         }
 
+        // draw playback
         this.drawPlaybackDateLine(g2);
     }
 
@@ -289,12 +296,147 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     }
 
     /**
+     * Draw SVG on top of the Score image
+     * @param g2 the graphics context in image coordinates
+     */
+    private void drawSVG(Graphics2D g2) {
+        if (!this.isSVGOverlayHidden()) {
+            SvgData currentSvg = this.scorePage.getSvg();
+            if (currentSvg != null) {
+                int imgW = this.scorePage.getImage().getWidth(this);
+                int imgH = this.scorePage.getImage().getHeight(this);
+                if (imgW > 0 && imgH > 0) {
+                    Composite originalComposite = g2.getComposite();
+                    currentSvg.render(g2, imgW, imgH);
+                    g2.setComposite(originalComposite);
+
+                    if (currentSvg.getHighlightedElement() != null) {
+                        currentSvg.renderHighlight(g2, currentSvg.getHighlightedElement());
+                    }
+                    if (currentSvg.getHoveredElement() != null) {
+                        currentSvg.renderHighlight(g2, currentSvg.getHoveredElement());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Draw Score nodes on top of the Score image and the SVG annotations
+     * @param g2 the graphics context in image coordinates
+     */
+    private void drawScoreNodes(Graphics2D g2) {
+        ScorePage scorePage = this.getScorePage();
+        if (scorePage == null) {
+            return;
+        }
+
+        ArrayList<Element> selectedMsmNotes = this.interactionModeManager.getNoteMultiselect().getSelectedMsmNotes();
+
+        g2.setStroke(new BasicStroke(this.getOverlayYWidth() / 3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.setFont(this.getPerformanceSymbolFont());
+
+        for (Map.Entry<Element, ScoreNode> overlayElement : scorePage.getAllEntries().entrySet()) {
+            Element element = overlayElement.getKey();
+            if (this.interactionModeManager.getCurrentMode().shouldSkipOverlayElement(element)) {
+                continue;
+            }
+
+            ScoreNode scoreNode = overlayElement.getValue();
+
+            if (!this.isNotesOverlayHidden() && "note".equals(element.getLocalName())) {
+                if (this.interactionModeManager.getNoteMultiselect().containsReference(selectedMsmNotes, element)) {
+                    g2.setColor(Settings.scoreNoteColorHighlighted);
+                } else {
+                    g2.setColor(Settings.scoreNoteColor);
+                }
+                g2.fillOval(((int) scoreNode.getX()) - this.getOverlayXOffset(), ((int) scoreNode.getY()) - this.getOverlayYOffset(), this.getOverlayXWidth(), this.getOverlayYWidth());
+            } else if (!this.isPerformanceOverlayHidden()) {
+                MpmTreeNode selectedMpmNode = this.getScoreDocumentData().getSelectedMpmNode();
+                if ((selectedMpmNode != null) && (element == selectedMpmNode.getUserObject())) {
+                    g2.setColor(Settings.scorePerformanceColorHighlighted);
+                } else if (samePerformance(element, selectedMpmNode)) {
+                    g2.setColor(Settings.scorePerformanceColor);
+                } else {
+                    g2.setColor(Settings.scorePerformanceColorFaded);
+                }
+
+                if ("style".equals(element.getLocalName())) {
+                    GeneralPath diamond = Tools.generateDiamondShape(scoreNode.getX(), scoreNode.getY(), this.getOverlayXWidth(), this.getOverlayXWidth());
+                    g2.fill(diamond);
+                    if (isGlobal(element)) {
+                        float outlineWidth = this.getOverlayYWidth() / 5.0f;
+                        BasicStroke outlineStroke = new BasicStroke(outlineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+                        g2.setStroke(outlineStroke);
+                        g2.setColor(g2.getColor().brighter());
+                        g2.draw(diamond);
+                    }
+                } else {
+                    int xUpperLeft = (int) scoreNode.getX() - this.getOverlayXOffset();
+                    int yUpperLeft = (int) scoreNode.getY() - this.getOverlayXOffset();
+                    g2.fillRect(xUpperLeft, yUpperLeft, this.getOverlayXWidth(), this.getOverlayXWidth());
+
+                    if (isGlobal(element)) {
+                        float outlineWidth = this.getOverlayYWidth() / 5.0f;
+                        BasicStroke outlineStroke = new BasicStroke(outlineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+                        g2.setStroke(outlineStroke);
+                        g2.setColor(g2.getColor().brighter());
+                        g2.drawRect(((int) scoreNode.getX()) - this.getOverlayXOffset(), ((int) scoreNode.getY()) - this.getOverlayXOffset(), this.getOverlayXWidth(), this.getOverlayXWidth());
+                    }
+
+                    String performanceSymbol = null;
+                    switch (element.getLocalName()) {
+                        case "accentuationPattern":
+                            performanceSymbol = "M";
+                            break;
+                        case "articulation":
+                            performanceSymbol = "A";
+                            break;
+                        case "asynchrony":
+                            performanceSymbol = "\u21C4";
+                            break;
+                        case "dynamics":
+                            performanceSymbol = "D";
+                            break;
+                        case "ornament":
+                            performanceSymbol = "O";
+                            break;
+                        case "rubato":
+                            performanceSymbol = "R";
+                            break;
+                        case "tempo":
+                            performanceSymbol = "T";
+                            break;
+                        default:
+                            break;
+                    }
+                    if (performanceSymbol != null) {
+                        FontMetrics metrics = g2.getFontMetrics(this.getPerformanceSymbolFont());
+                        g2.setColor(g2.getColor().darker().darker());
+                        int xFont = xUpperLeft + (this.getOverlayXWidth() - metrics.stringWidth(performanceSymbol)) / 2;
+                        int yFont = yUpperLeft + ((this.getOverlayXWidth() - metrics.getHeight()) / 2) + metrics.getAscent();
+                        g2.drawString(performanceSymbol, xFont, yFont);
+                    }
+                }
+            }
+
+            if (Settings.debug) {
+                for (ONGNode neighbor : scoreNode.neighbors) {
+                    if (neighbor != null) {
+                        g2.drawLine((int) scoreNode.getX(), (int) scoreNode.getY(), (int) neighbor.getX(), (int) neighbor.getY());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Draw a vertical line at the current playback date while a performance is playing.
      * The line is drawn at the nearest score date on the currently visible page.
      * @param g2 the graphics context in image coordinates
      */
     private void drawPlaybackDateLine(Graphics2D g2) {
-        if (this.scoreDocumentData.hideOverlay) {
+        if (this.isOverlayHidden()) {
             return;
         }
 
@@ -488,6 +630,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         this.pageIndex++;
         this.scorePage = score.getPage(this.pageIndex);
+        if (this.scoreDocumentData.getProjectPane().getSvgDockableFrame() != null) {
+            this.scoreDocumentData.getProjectPane().getSvgDockableFrame().showSvgsForPage(this.scorePage);
+        }
 
         this.repaint();
     }
@@ -501,6 +646,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         this.pageIndex--;
         this.scorePage = this.scoreDocumentData.projectPane.getScore().getPage(this.pageIndex);
+        if (this.scoreDocumentData.getProjectPane().getSvgDockableFrame() != null) {
+            this.scoreDocumentData.getProjectPane().getSvgDockableFrame().showSvgsForPage(this.scorePage);
+        }
 
         this.repaint();
     }
@@ -517,6 +665,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         this.pageIndex = index;
         this.scorePage = score.getPage(this.pageIndex);
+        if (this.scoreDocumentData.getProjectPane().getSvgDockableFrame() != null) {
+            this.scoreDocumentData.getProjectPane().getSvgDockableFrame().showSvgsForPage(this.scorePage);
+        }
 
         this.repaint();
     }
@@ -560,35 +711,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         // it was a click into the score (mouseClicked() also fires) and the user might have selected something
         Element selectedElement = this.getOverlayElementAt(mouseEvent);         // get the overlay element that the mouse click selects
-        if (selectedElement == null) {                                          // click was over nothing
-            // Score → SVG Tree: try to pick an SVG element at this position
-            Point mousePoint = this.panZoomHelper.getPixelPosition(mouseEvent.getPoint());
-            int imgW = this.scorePage.getImage().getWidth(this);
-            int imgH = this.scorePage.getImage().getHeight(this);
-            boolean svgHit = false;
-            if (imgW > 0 && imgH > 0) {
-                SvgDockableFrame svgFrame = this.scoreDocumentData.projectPane.getSvgDockableFrame();
-                java.util.ArrayList<SvgData> svgs = this.scoreDocumentData.projectPane.getProjectData().getSvgs();
-                for (SvgData svg : svgs) {
-                    nu.xom.Element picked = svg.pickElementAt(mousePoint.x, mousePoint.y, imgW, imgH);
-                    if (picked != null) {
-                        svg.setHighlightedElement(picked);
-                        // select in the SVG tree (activate the frame's tab for this SVG first)
-                        SvgTree svgTree = svgFrame.getTreeForSvg(svg);
-                        if (svgTree != null) {
-                            svgFrame.showTabForSvg(svg);
-                            svgTree.selectNodeForElement(picked);
-                        }
-                        svgHit = true;
-                        break;
-                    }
-                }
-            }
-            if (!svgHit) {
-                this.scoreDocumentData.projectPane.getMsmTree().clearSelection();               // deselect anything in the MSM tree
-                this.scoreDocumentData.projectPane.getMpmTree().clearSelection();               // deselect anything in the MPM tree
-            }
-            this.repaint();
+        if (selectedElement == null) {
             return;
         }
 

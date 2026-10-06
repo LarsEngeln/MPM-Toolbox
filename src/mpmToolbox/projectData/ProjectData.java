@@ -108,15 +108,30 @@ public class ProjectData {
             }
         }
 
-        // load SVG overlays
+        // load SVG overlays and assign them to their score pages
         Element svgsElt = this.xml.getRootElement().getFirstChildElement("svgs");
         if (svgsElt != null) {
             Elements svgElts = svgsElt.getChildElements("svg");
             for (int i = 0; i < svgElts.size(); ++i) {
-                String localSvgPath = svgElts.get(i).getAttributeValue("file");
-                if (localSvgPath == null) continue;
+                Element svgElt = svgElts.get(i);
+                String localSvgPath = svgElt.getAttributeValue("file");
+                if (localSvgPath == null)
+                    continue;
+
                 try {
-                    this.addSvg(new SvgData(new File(Tools.uniformPath(basePath + localSvgPath))));
+                    SvgData svg = new SvgData(new File(resolveProjectPath(basePath, localSvgPath)));
+                    String localPagePath = svgElt.getAttributeValue("page");
+                    if (localPagePath != null) {
+                        String absPagePath = resolveProjectPath(basePath, localPagePath);
+                        ScorePage svgPage = this.score.getPage(absPagePath);
+                        this.addSvg(svg, svgPage);
+                    } else {
+                        ScorePage svgPage = this.getFirstScorePageWithoutSvg();
+                        if (svgPage == null && !this.score.isEmpty()) {
+                            svgPage = this.score.getPage(0);
+                        }
+                        this.addSvg(svg, svgPage);
+                    }
                 } catch (nu.xom.ParsingException | IOException ex) {
                     ex.printStackTrace();
                 }
@@ -363,6 +378,14 @@ public class ProjectData {
         this.audio.remove(index);
     }
 
+    private static String resolveProjectPath(String basePath, String path) {
+        File file = new File(path);
+        if (file.isAbsolute()) {
+            return file.getAbsolutePath();
+        }
+        return Tools.uniformPath(basePath + path);
+    }
+
     // ---- SVG ----
 
     /**
@@ -379,10 +402,38 @@ public class ProjectData {
      * @return true if added, false if already present or null
      */
     public synchronized boolean addSvg(SvgData svg) {
+        ScorePage scorePage = (svg == null) ? null : svg.getScorePage();
+        if (scorePage == null) {
+            scorePage = this.score.getPage(0);
+        }
+        return this.addSvg(svg, scorePage);
+    }
+
+    /**
+     * Add an SVG overlay to the project and attach it to a score page.
+     * @param svg the SvgData to add
+     * @param scorePage the score page this SVG belongs to
+     * @return true if added, false if already present or null
+     */
+    public synchronized boolean addSvg(SvgData svg, ScorePage scorePage) {
         if (svg == null)
             return false;
-        if (this.svgs.contains(svg))
+        if (scorePage == null) {
             return false;
+        }
+
+        if (svg.getScorePage() != null && svg.getScorePage() != scorePage) {
+            svg.getScorePage().removeSvg(svg);
+        }
+
+        SvgData previous = scorePage.setSvg(svg);
+        if (previous != null && previous != svg) {
+            this.svgs.remove(previous);
+        }
+
+        if (this.svgs.contains(svg)) {
+            return true;
+        }
         return this.svgs.add(svg);
     }
 
@@ -391,7 +442,32 @@ public class ProjectData {
      * @param index list index
      */
     public synchronized void removeSvg(int index) {
-        this.svgs.remove(index);
+        SvgData svg = this.svgs.remove(index);
+        if (svg != null && svg.getScorePage() != null) {
+            svg.getScorePage().removeSvg(svg);
+        }
+    }
+
+    /**
+     * Remove the given SVG overlay from the project.
+     * @param svg the SVG overlay to remove
+     */
+    public synchronized void removeSvg(SvgData svg) {
+        if (svg == null) {
+            return;
+        }
+        if (this.svgs.remove(svg) && svg.getScorePage() != null) {
+            svg.getScorePage().removeSvg(svg);
+        }
+    }
+
+    private ScorePage getFirstScorePageWithoutSvg() {
+        for (ScorePage scorePage : this.score.getAllPages()) {
+            if (scorePage.getSvg() == null) {
+                return scorePage;
+            }
+        }
+        return null;
     }
 
     /**
@@ -479,6 +555,10 @@ public class ProjectData {
                 Element svgElt = new Element("svg");
                 Path relativeSvgPath = Paths.get(file.getParent()).relativize(svg.getFile().toPath());
                 svgElt.addAttribute(new Attribute("file", relativeSvgPath.toString()));
+                if (svg.getScorePage() != null) {
+                    Path relativePagePath = Paths.get(file.getParent()).relativize(svg.getScorePage().getFile().toPath());
+                    svgElt.addAttribute(new Attribute("page", relativePagePath.toString()));
+                }
                 svgsElt.appendChild(svgElt);
             }
         }

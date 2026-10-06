@@ -2,6 +2,7 @@ package mpmToolbox.projectData.score;
 
 import meico.mei.Helper;
 import meico.supplementary.KeyValue;
+import mpmToolbox.projectData.SvgData;
 import mpmToolbox.supplementary.Tools;
 import mpmToolbox.supplementary.orthantNeighborhoodGraph.ONGNode;
 import mpmToolbox.supplementary.orthantNeighborhoodGraph.OrthantNeighborhoodGraph;
@@ -22,6 +23,7 @@ public class ScorePage extends OrthantNeighborhoodGraph {
     private final File file;                                                    // the score file (image file) behind this score page
     private final BufferedImage image;                                          // the image of the score page
     private final LinkedHashMap<Element, ScoreNode> object2Node = new LinkedHashMap<>();    // this maps elements to ONGNodes
+    private SvgData svg = null;                                                // SVG overlay that belongs to this score page
 
     /**
      * constructor
@@ -41,7 +43,11 @@ public class ScorePage extends OrthantNeighborhoodGraph {
      * @throws IOException
      */
     protected ScorePage(Element pageElement, String basePath, LinkedHashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> noteAnnotations, LinkedHashMap<String, KeyValue<ScorePage, KeyValue<Double, Double>>> performanceAnnotations) throws IOException {
-        this.file = new File(Tools.uniformPath(basePath + pageElement.getAttributeValue("file")));     // get the image file
+        String pageFilePath = pageElement.getAttributeValue("file");
+        File pageFile = new File(pageFilePath);
+        this.file = pageFile.isAbsolute()
+                ? pageFile
+                : new File(Tools.uniformPath(basePath + pageFilePath));     // get the image file
         if (!file.exists())
             throw new IOException("Score image file " + this.file.getAbsolutePath() + " does not exist.");
 
@@ -187,6 +193,75 @@ public class ScorePage extends OrthantNeighborhoodGraph {
      */
     public LinkedHashMap<Element, ScoreNode> getAllEntries() {
         return this.object2Node;
+    }
+
+    /**
+     * Get the SVG overlays that belong to this score page.
+     * @return SVG overlays for this page
+     */
+    public ArrayList<SvgData> getSvgs() {
+        ArrayList<SvgData> svgs = new ArrayList<>();
+        if (this.svg != null) {
+            svgs.add(this.svg);
+        }
+        return svgs;
+    }
+
+    /**
+     * Get the SVG overlay that belongs to this score page.
+     * @return SVG overlay or null
+     */
+    public SvgData getSvg() {
+        return this.svg;
+    }
+
+    /**
+     * Set the SVG overlay for this score page.
+     * @param svg the SVG overlay
+     * @return the previous SVG overlay or null
+     */
+    public SvgData setSvg(SvgData svg) {
+        if (this.svg == svg) {
+            return this.svg;
+        }
+
+        SvgData previous = this.svg;
+        if (previous != null && previous.getScorePage() == this) {
+            previous.setScorePage(null);
+        }
+
+        this.svg = svg;
+        if (svg != null) {
+            if (svg.getScorePage() != null && svg.getScorePage() != this) {
+                svg.getScorePage().setSvg(null);
+            }
+            svg.setScorePage(this);
+        }
+        return previous;
+    }
+
+    /**
+     * Add an SVG overlay to this score page.
+     * @param svg the SVG overlay
+     * @return true if set
+     */
+    public boolean addSvg(SvgData svg) {
+        this.setSvg(svg);
+        return this.svg == svg;
+    }
+
+    /**
+     * Remove an SVG overlay from this score page.
+     * @param svg the SVG overlay
+     */
+    public void removeSvg(SvgData svg) {
+        if (svg == null || this.svg != svg) {
+            return;
+        }
+        this.svg = null;
+        if (svg.getScorePage() == this) {
+            svg.setScorePage(null);
+        }
     }
 
     /**

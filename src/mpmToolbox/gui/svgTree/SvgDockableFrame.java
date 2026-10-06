@@ -4,25 +4,25 @@ import com.alee.api.data.CompassDirection;
 import com.alee.extended.dock.WebDockableFrame;
 import com.alee.laf.label.WebLabel;
 import com.alee.laf.scroll.WebScrollPane;
-import com.alee.laf.tabbedpane.WebTabbedPane;
 import com.alee.managers.icon.Icons;
-import com.alee.managers.style.StyleId;
 import mpmToolbox.gui.ProjectPane;
 import mpmToolbox.projectData.SvgData;
+import mpmToolbox.projectData.score.ScorePage;
 
-import java.awt.*;
+import java.awt.BorderLayout;
+import javax.swing.*;
 
 /**
- * Dockable frame on the east side that shows one SVG tree per loaded SVG file.
- * Multiple SVGs are displayed as tabs inside this frame.
+ * Dockable frame on the east side that shows the SVG tree for the current score page.
  *
  * @author Lars Engeln
  */
 public class SvgDockableFrame extends WebDockableFrame {
 
     private final ProjectPane parent;
-    private final WebTabbedPane tabs = new WebTabbedPane();
+    private final JPanel contentPanel;
     private final WebLabel placeholder;
+    private SvgTree svgTree;
 
     /**
      * Constructor.
@@ -32,106 +32,80 @@ public class SvgDockableFrame extends WebDockableFrame {
         super("svgFrame", "Scalable Vector Graphics");
         this.parent = parent;
 
+        this.setTitle("Scalable Vector Graphics");
         this.setIcon(Icons.table);
         this.setClosable(false);
         this.setMaximizable(false);
         this.setPosition(CompassDirection.east);
 
+        this.contentPanel = new JPanel(new BorderLayout());
+        this.add(this.contentPanel);
         this.placeholder = new WebLabel("Drop an SVG file.", WebLabel.CENTER);
-
-        if (this.parent.getProjectData().getSvgs().isEmpty()) {
-            this.add(this.placeholder);
-            this.minimize();
-        } else {
-            // add a tab for each already-loaded SVG (e.g. from project file)
-            for (SvgData svg : this.parent.getProjectData().getSvgs()) {
-                this.addTab(svg);
-            }
-            this.add(this.tabs);
-        }
+        this.refreshForCurrentPage();
     }
 
     /**
-     * Add a new SVG and show it in a new tab.
-     * @param svg the SVG data to add
+     * Refresh the SVG view for the current score page.
      */
-    public synchronized void addSvg(SvgData svg) {
-        if (this.parent.getProjectData().getSvgs().size() == 1) {
-            // first SVG: replace placeholder with tabs
-            this.remove(this.placeholder);
-            this.add(this.tabs);
-        }
-        this.addTab(svg);
-        this.restore();
-        this.validate();
-        this.repaint();
+    public synchronized void refreshForCurrentPage() {
+        this.showSvgsForPage(this.parent.getCurrentScorePage(), null);
     }
 
-    /** Remove the SVG tab at the given index. */
-    public synchronized void removeSvg(int index) {
-        if (index < 0 || index >= this.tabs.getTabCount())
+    /**
+     * Refresh the SVG view for the given score page.
+     * @param scorePage the page to show
+     */
+    public synchronized void showSvgsForPage(ScorePage scorePage) {
+        this.showSvgsForPage(scorePage, null);
+    }
+
+    /**
+     * Refresh the SVG view for the given score page and try to select a specific SVG element.
+     * @param scorePage the page to show
+     * @param selectedSvg SVG to select after rebuilding, or null
+     */
+    public synchronized void showSvgsForPage(ScorePage scorePage, SvgData selectedSvg) {
+        this.contentPanel.removeAll();
+
+        SvgData svg = (scorePage == null) ? null : scorePage.getSvg();
+        if (svg == null) {
+            this.svgTree = null;
+            this.contentPanel.add(this.placeholder, BorderLayout.CENTER);
+            this.restore();
+            this.contentPanel.revalidate();
+            this.validate();
+            this.repaint();
             return;
-        this.tabs.removeTabAt(index);
-        if (this.tabs.getTabCount() == 0) {
-            this.remove(this.tabs);
-            this.add(this.placeholder);
         }
+
+        this.svgTree = new SvgTree(svg, this.parent);
+        WebScrollPane scroll = this.createScrollPane(this.svgTree);
+        this.contentPanel.add(scroll, BorderLayout.CENTER);
+
+        if (selectedSvg != null && selectedSvg == svg && selectedSvg.getHighlightedElement() != null) {
+            this.svgTree.selectNodeForElement(selectedSvg.getHighlightedElement());
+        }
+        this.restore();
+        this.contentPanel.revalidate();
         this.validate();
         this.repaint();
     }
 
-    /** Returns the currently selected SvgTree, or null if none. */
-    public SvgTree getSelectedSvgTree() {
-        Component c = this.tabs.getSelectedComponent();
-        if (c instanceof WebScrollPane) {
-            Component view = ((WebScrollPane) c).getViewport().getView();
-            if (view instanceof SvgTree)
-                return (SvgTree) view;
-        }
-        return null;
+    /**
+     * Returns the currently displayed SvgTree, or null if none.
+     */
+    public SvgTree getSvgTree() {
+        return this.svgTree;
     }
 
     /**
-     * Returns the SvgTree that displays the given SvgData, or null if not found.
+     * Creates the scrollable pane where the SvgTree tree lives in
+     * @param tree SvgTree to be displayed
+     * @return scrollable pane
      */
-    public SvgTree getTreeForSvg(SvgData svg) {
-        for (int i = 0; i < this.tabs.getTabCount(); i++) {
-            Component c = this.tabs.getComponentAt(i);
-            if (c instanceof WebScrollPane) {
-                Component view = ((WebScrollPane) c).getViewport().getView();
-                if (view instanceof SvgTree && ((SvgTree) view).getSvgData() == svg)
-                    return (SvgTree) view;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Brings the tab for the given SvgData to the front.
-     */
-    public void showTabForSvg(SvgData svg) {
-        for (int i = 0; i < this.tabs.getTabCount(); i++) {
-            Component c = this.tabs.getComponentAt(i);
-            if (c instanceof WebScrollPane) {
-                Component view = ((WebScrollPane) c).getViewport().getView();
-                if (view instanceof SvgTree && ((SvgTree) view).getSvgData() == svg) {
-                    this.tabs.setSelectedIndex(i);
-                    return;
-                }
-            }
-        }
-    }
-
-    // ---- private helpers ----
-
-    private void addTab(SvgData svg) {
-        SvgTree tree = new SvgTree(svg, this.parent);
+    private WebScrollPane createScrollPane(SvgTree tree) {
         WebScrollPane scroll = new WebScrollPane(tree);
-        scroll.setStyleId(StyleId.scrollpaneUndecoratedButtonless);
-        this.tabs.addTab(svg.getName(), scroll);
-        this.tabs.setSelectedIndex(this.tabs.getTabCount() - 1);
+        scroll.setStyleId(com.alee.managers.style.StyleId.scrollpaneUndecoratedButtonless);
+        return scroll;
     }
 }
-
-
-

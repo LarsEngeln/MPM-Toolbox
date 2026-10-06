@@ -45,13 +45,16 @@ public class Settings {
     public static Color scorePerformanceColorFaded = new Color(0.0f, 0.7f, 0.7f, 0.17f);        // the color of performance symbols when faded out because the MPM tree cursor is in another performance
     public static Color scorePerformanceColorHighlighted = new Color(0.2f, 1.0f, 1.0f, 0.6f);   // the highlight color of performance symbols that are annotated in a score image
 
-    public static Color editColor = new Color(0.9f, 0.75f, 0.05f, 0.8f);              // the color of anchors that are edited
-    public static Color editColorHighlighted = new Color(1.0f, 0.8f, 0.0f, 0.4f);   // the highlight color of anchors that are edited
+    public static Color editColor = new Color(0.9f, 0.75f, 0.05f, 0.8f);                // the color of anchors that are edited
+    public static Color editColorHighlighted = new Color(1.0f, 0.8f, 0.0f, 0.4f);       // the highlight color of anchors that are edited
+
+    public static Color scoreSvgColorHighlighted = Color.decode("#FF0064");         // the highlight color of SVG elements that are annotated in a score image
+    public static Color scoreBackgroundColor = new Color(190, 185, 180);      // the background color of score images
 
 //    protected static String symbolFontPath = "/resources/fonts/fa-solid-900.ttf";
-//    public static Font symbolFont = null;                               // a handle to the font to be used for most of the symbols/icons
+//    public static Font symbolFont = null;                             // a handle to the font to be used for most of the symbols/icons
 
-    public static int scoreHoverDateLineOffset = 18;                        // horizontal offset used to draw hover date markers to the left of notes
+    public static int scoreHoverDateLineOffset = 18;                    // horizontal offset used to draw hover date markers to the left of notes
 
     public static double anchorSwitchOvershootThreshold = 0.3;          // in the score display, to switch the anchor from one nearest node to another the distance ratio (distance to nearest / distance to current anchorNode) must be at most this value, so the user has to overshoot, i.e. get much closer to the desired nearest node, to switch the anchor to it
 
