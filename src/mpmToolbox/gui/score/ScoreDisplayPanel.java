@@ -858,6 +858,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         Element picked = svgData.pickElementAt(mousePoint.x, mousePoint.y, imgW, imgH);
         if (picked != null) {
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             svgData.setHoveredElement(picked);
         } else {
             svgData.setHoveredElement(null);
