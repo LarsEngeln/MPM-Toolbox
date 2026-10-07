@@ -795,9 +795,13 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             return picked;
         }
 
+        if(svgData.getHoveredElement() != null || svgData.getHighlightedElement() != null) {
+            repaint();
+        }
+
         svgData.setHighlightedElement(null);
         svgData.setHoveredElement(null);
-        repaint();
+
         return null;
     }
 
