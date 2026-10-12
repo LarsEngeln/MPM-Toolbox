@@ -15,9 +15,11 @@ import meico.mpm.Mpm;
 import meico.msm.Msm;
 import mpmToolbox.projectData.audio.Audio;
 import mpmToolbox.projectData.ProjectData;
-import mpmToolbox.gui.audio.AnnotationData;
+import mpmToolbox.gui.audio.MeasurementData;
 import mpmToolbox.gui.audio.AudioDocumentData;
 import mpmToolbox.gui.analytics.AnalyticsDocumentData;
+import mpmToolbox.gui.annotations.AnnotationDockableFrame;
+import mpmToolbox.gui.annotations.AnnotationManager;
 import mpmToolbox.gui.audio.utilities.CsvImportDialog;
 import mpmToolbox.gui.mpmTree.MpmDockableFrame;
 import mpmToolbox.gui.mpmTree.MpmTree;
@@ -30,9 +32,6 @@ import mpmToolbox.projectData.score.Score;
 import mpmToolbox.gui.score.ScoreDocumentData;
 import mpmToolbox.projectData.score.ScorePage;
 import mpmToolbox.gui.syncPlayer.SyncPlayer;
-import mpmToolbox.supplementary.Tools;
-import nu.xom.Element;
-import nu.xom.Elements;
 import nu.xom.ParsingException;
 import org.xml.sax.SAXException;
 
@@ -56,6 +55,8 @@ public class ProjectPane extends WebDockablePane {
     private final MsmTree msmTree;
     private final MpmDockableFrame mpmDockableFrame;
     private final SvgDockableFrame svgDockableFrame;
+    private final AnnotationManager annotationManager = new AnnotationManager(this);   // manages the annotations; must exist before any view that listens to it is created
+    private final AnnotationDockableFrame annotationDockableFrame;
     private final WebDockableFrame playerFrame = new WebDockableFrame("playerFrame", "Sync Player");
     private SyncPlayer syncPlayer = null;
     private ScoreDocumentData scoreFrame = null;
@@ -74,6 +75,7 @@ public class ProjectPane extends WebDockablePane {
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
         this.svgDockableFrame = new SvgDockableFrame(this);
+        this.annotationDockableFrame = new AnnotationDockableFrame(this);
         this.makeGUI();
     }
 
@@ -89,6 +91,7 @@ public class ProjectPane extends WebDockablePane {
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
         this.svgDockableFrame = new SvgDockableFrame(this);
+        this.annotationDockableFrame = new AnnotationDockableFrame(this);
         this.makeGUI();
     }
 
@@ -106,6 +109,7 @@ public class ProjectPane extends WebDockablePane {
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
         this.svgDockableFrame = new SvgDockableFrame(this);
+        this.annotationDockableFrame = new AnnotationDockableFrame(this);
         this.makeGUI();
     }
 
@@ -153,6 +157,7 @@ public class ProjectPane extends WebDockablePane {
         this.msmTree = new MsmTree(this);
         this.mpmDockableFrame = new MpmDockableFrame(this);
         this.svgDockableFrame = new SvgDockableFrame(this);
+        this.annotationDockableFrame = new AnnotationDockableFrame(this);
         this.makeGUI();
     }
 
@@ -175,6 +180,7 @@ public class ProjectPane extends WebDockablePane {
         this.makePlayerFrame();                                             // the Sync Player in a dockable pane
 
         this.addFrame(this.msmTree.getDockableFrame());                     // add the MSM tree to the UI
+        this.addFrame(this.annotationDockableFrame);                        // project annotations panel
         this.addFrame(this.mpmDockableFrame);                               // the MPM tree is displayed in a dockable pane
         this.addFrame(this.svgDockableFrame);                               // the SVG tree is displayed in a dockable pane
 
@@ -370,8 +376,10 @@ public class ProjectPane extends WebDockablePane {
      * @param file
      */
     public void addScorePage(File file) {
-        if (this.data.addScorePage(file) != null)
+        if (this.data.addScorePage(file) != null) {
             this.scoreFrame.addScorePage(file);
+            this.annotationDockableFrame.refreshTree();
+        }
     }
 
     /**
@@ -381,6 +389,7 @@ public class ProjectPane extends WebDockablePane {
     public void addScorePdf(File pdf) {
         for (ScorePage scorePage : this.data.addScorePdf(pdf))
             this.scoreFrame.addScorePage(scorePage.getFile());
+        this.annotationDockableFrame.refreshTree();
         // switch to the Score tab
         this.tabs.setSelected(this.scoreFrame);
     }
@@ -401,6 +410,7 @@ public class ProjectPane extends WebDockablePane {
         this.data.removeScorePage(index);                       // delete the page from the project data structure
         this.scoreFrame.removeScorePage(index);
         this.svgDockableFrame.refreshForCurrentPage();
+        this.annotationDockableFrame.refreshTree();
     }
 
     /**
@@ -448,6 +458,14 @@ public class ProjectPane extends WebDockablePane {
      */
     public SvgDockableFrame getSvgDockableFrame() {
         return this.svgDockableFrame;
+    }
+
+    public AnnotationDockableFrame getAnnotationDockableFrame() {
+        return this.annotationDockableFrame;
+    }
+
+    public AnnotationManager getAnnotationManager() {
+        return this.annotationManager;
     }
 
     /**
@@ -510,7 +528,7 @@ public class ProjectPane extends WebDockablePane {
         if (!dialog.showDialog())
             return;
 
-        AnnotationData built = dialog.buildAnnotationData();
+        MeasurementData built = dialog.buildAnnotationData();
         if (built == null) {
             System.err.println("No valid annotation data found in " + file.getAbsolutePath());
             return;
@@ -518,7 +536,7 @@ public class ProjectPane extends WebDockablePane {
 
         System.out.println("Loaded " + built.getRowCount() + " rows from " + file.getAbsolutePath());
 
-        AnnotationData target = dialog.getTargetAnnotationData();
+        MeasurementData target = dialog.getTargetAnnotationData();
         if (target != null)
             this.audioFrame.replaceAnnotation(target, built);
         else

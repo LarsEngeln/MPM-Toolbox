@@ -3,28 +3,28 @@ package mpmToolbox.gui.audio;
 import java.util.ArrayList;
 
 /**
- * Holds annotation data, typically loaded from a CSV file.
- * An AnnotationData consists of any number of AnnotationLine objects
+ * Holds measurement data, typically loaded from a CSV file.
+ * A MeasurementData consists of any number of MeasurementDataLine objects
  * each carrying its own values, type and unit.
  * @author Lars Engeln
  */
-public class AnnotationData {
+public class MeasurementData {
 
     private String  name;
     private boolean visible = true;
     private double  offsetMs = 0.0;  // time offset (in milliseconds) added to every time value when displaying this dataset
-    private final ArrayList<AnnotationLine> lines = new ArrayList<>();  // one per CSV column
+    private final ArrayList<MeasurementDataLine> lines = new ArrayList<>();  // one per CSV column
 
     // -------------------------------------------------------------------------
     // Constructors
     // -------------------------------------------------------------------------
 
     /**
-     * Create an empty AnnotationData with a name.
+     * Create an empty MeasurementData with a name.
      * @param name display name
      */
-    public AnnotationData(String name) {
-        this.name = (name != null && !name.isEmpty()) ? name : "Annotation";
+    public MeasurementData(String name) {
+        this.name = (name != null && !name.isEmpty()) ? name : "Measurement";
     }
 
     // -------------------------------------------------------------------------
@@ -32,7 +32,7 @@ public class AnnotationData {
     // -------------------------------------------------------------------------
 
     public String  getName()            { return this.name; }
-    public void    setName(String name) { this.name = (name != null && !name.isEmpty()) ? name : "Annotation"; }
+    public void    setName(String name) { this.name = (name != null && !name.isEmpty()) ? name : "Measurement"; }
 
     public boolean isVisible()           { return this.visible; }
     public void    setVisible(boolean v) { this.visible = v; }
@@ -74,7 +74,7 @@ public class AnnotationData {
      * Whether this dataset contains at least one MARKS line, i.e. whether it could act as a snap target.
      * @return true if a MARKS line is present
      */
-    public boolean hasMarksLine() { return getFirstLineIndexOfType(AnnotationLine.Type.MARKS) >= 0; }
+    public boolean hasMarksLine() { return getFirstLineIndexOfType(MeasurementDataLine.Type.MARKS) >= 0; }
 
     // -------------------------------------------------------------------------
     // Lines (columns)
@@ -82,18 +82,18 @@ public class AnnotationData {
 
     /**
      * Add a column line. Its index corresponds to its position in the CSV.
-     * @param line the AnnotationLine to add
+     * @param line the MeasurementDataLine to add
      */
-    public void addLine(AnnotationLine line) {
+    public void addLine(MeasurementDataLine line) {
         if (line != null) this.lines.add(line);
     }
 
     /**
      * Replace the line at the given index.
      * @param index column index
-     * @param line  the new AnnotationLine
+     * @param line  the new MeasurementDataLine
      */
-    public void setLine(int index, AnnotationLine line) {
+    public void setLine(int index, MeasurementDataLine line) {
         if (index >= 0 && index < this.lines.size() && line != null)
             this.lines.set(index, line);
     }
@@ -113,12 +113,12 @@ public class AnnotationData {
     /**
      * Get the line at the given index.
      * @param index column index
-     * @return the AnnotationLine
+     * @return the MeasurementDataLine
      */
-    public AnnotationLine getLine(int index) { return this.lines.get(index); }
+    public MeasurementDataLine getLine(int index) { return this.lines.get(index); }
 
     /** Get all lines. */
-    public ArrayList<AnnotationLine> getLines() { return this.lines; }
+    public ArrayList<MeasurementDataLine> getLines() { return this.lines; }
 
     // -------------------------------------------------------------------------
     // Row count (derived from the first line's value count)
@@ -132,7 +132,7 @@ public class AnnotationData {
         return this.lines.isEmpty() ? 0 : this.lines.get(0).size();
     }
 
-    /** Whether this AnnotationData contains any data. */
+    /** Whether this MeasurementData contains any data. */
     public boolean isEmpty() { return this.getRowCount() == 0; }
 
     // -------------------------------------------------------------------------
@@ -144,7 +144,7 @@ public class AnnotationData {
      * @param type the type to search for
      * @return line index or -1
      */
-    public int getFirstLineIndexOfType(AnnotationLine.Type type) {
+    public int getFirstLineIndexOfType(MeasurementDataLine.Type type) {
         for (int i = 0; i < this.lines.size(); i++)
             if (this.lines.get(i).getType() == type)
                 return i;
@@ -156,7 +156,7 @@ public class AnnotationData {
      * @param type the type to search for
      * @return list of indices
      */
-    public ArrayList<Integer> getLineIndicesOfType(AnnotationLine.Type type) {
+    public ArrayList<Integer> getLineIndicesOfType(MeasurementDataLine.Type type) {
         ArrayList<Integer> result = new ArrayList<>();
         for (int i = 0; i < this.lines.size(); i++)
             if (this.lines.get(i).getType() == type)

@@ -43,6 +43,7 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
     boolean hideOverlayNotes = false;
     boolean hideOverlayPerformance = false;
     boolean hideOverlaySVG = false;
+    private WebMenuItem hideAnnotationMenuItem = null;
 
     /**
      * constructor
@@ -140,6 +141,13 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
             hideSVGMenuItem.setText(this.hideOverlaySVG ? "Show SVG" : "Hide SVG");
         });
 
+        this.hideAnnotationMenuItem = new WebMenuItem(this.projectPane.getAnnotationManager().isOverlayVisible() ? "Hide Annotations" : "Show Annotations");
+        this.projectPane.getAnnotationManager().addChangeListener(this::syncAnnotationOverlayMenuState);
+        this.hideShowPopupMenu.add(this.hideAnnotationMenuItem);
+        this.hideAnnotationMenuItem.addActionListener(actionEvent -> {
+            this.projectPane.getAnnotationManager().setOverlayVisible(!this.projectPane.getAnnotationManager().isOverlayVisible());
+        });
+
         WebMenuItem hideAllMenuItem = new WebMenuItem(this.hideOverlay ? "Show All" : "Hide All");   // the popup menu item gets the file path
         this.hideShowPopupMenu.add(hideAllMenuItem);                                     // add the item to the popup menu
         // and set the behaviour when clicked
@@ -162,6 +170,7 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
             hideNotesMenuItem.setText(this.hideOverlayNotes ? "Show Notes" : "Hide Notes");
             hidePerformanceMenuItem.setText(this.hideOverlayPerformance ? "Show Performance" : "Hide Performance");
             hideSVGMenuItem.setText(this.hideOverlaySVG ? "Show SVG" : "Hide SVG");
+            this.projectPane.getAnnotationManager().setOverlayVisible(!this.hideOverlay);
         });
 
         WebSplitButton hideShowButton = new WebSplitButton("Hide/Show Overlay");
@@ -253,6 +262,12 @@ public class ScoreDocumentData extends DocumentData<WebPanel> implements ActionL
     private void initInteractionModeButton() {
         if(this.scoreDisplay != null) {
             this.scoreDisplay.setModeButton(this.interactionModeSplitBtn);
+        }
+    }
+
+    private void syncAnnotationOverlayMenuState() {
+        if (this.hideAnnotationMenuItem != null) {
+            this.hideAnnotationMenuItem.setText(this.projectPane.getAnnotationManager().isOverlayVisible() ? "Hide Annotations" : "Show Annotations");
         }
     }
 

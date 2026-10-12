@@ -7,7 +7,10 @@ import com.alee.laf.menu.WebMenuItem;
 import com.alee.laf.menu.WebPopupMenu;
 import com.alee.laf.panel.WebPanel;
 import mpmToolbox.gui.Settings;
+import mpmToolbox.gui.annotations.AnnotationOverlayLayer;
 import mpmToolbox.gui.audio.utilities.CsvImportDialog;
+import mpmToolbox.projectData.annotations.AnnotationLink;
+import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import mpmToolbox.supplementary.Tools;
 
 import javax.swing.*;
@@ -17,11 +20,11 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 
 /**
- * Visualizes one or more AnnotationData objects as line graphs, aligned with the other audio panels.
- * Renders directly from AnnotationLine values, no intermediate AnnotationEntry objects.
+ * Visualizes one or more MeasurementData objects as line graphs, aligned with the other audio panels.
+ * Renders directly from MeasurementDataLine values, no intermediate AnnotationEntry objects.
  * @author Lars Engeln
  */
-public class AnnotationPanel extends WebPanel {
+public class MeasurePanel extends WebPanel {
 
     private static final Color[] COLORS = {
         new Color(0,   180, 255),
@@ -34,21 +37,37 @@ public class AnnotationPanel extends WebPanel {
 
     protected final AudioDocumentData parent;
     protected final WebLabel annotationPlaceholder;
+    private final AnnotationOverlayLayer annotationOverlayLayer;
 
     /** Panel-local visibility overrides: true = visible in this panel. */
-    private final IdentityHashMap<AnnotationData, Boolean> localVisibility = new IdentityHashMap<>();
+    private final IdentityHashMap<MeasurementData, Boolean> localVisibility = new IdentityHashMap<>();
 
 
     /**
      * constructor
      * @param parent the AudioDocumentData this panel belongs to
      */
-    protected AnnotationPanel(AudioDocumentData parent) {
+    protected MeasurePanel(AudioDocumentData parent) {
         super();
         this.parent = parent;
+        this.annotationOverlayLayer = new AnnotationOverlayLayer(this, parent.getParent().getAnnotationManager(), AnnotationPlacement.TabType.AUDIO);
+        this.annotationOverlayLayer.setVisibleWhen(() -> this.parent.getAudio() != null);
+        this.annotationOverlayLayer.setLinkResolver(e -> {
+            if (this.parent.getAudio() == null) {
+                return null;
+            }
+            double ms = (this.parent.getSampleIndex(e.getX()) * 1000.0) / this.parent.getAudio().getFrameRate();
+            return new AnnotationLink(AnnotationLink.LinkType.TIMESTAMP, Double.toString(ms));
+        });
+        this.setLayout(new OverlayLayout(this));
         this.annotationPlaceholder = new WebLabel("", WebLabel.CENTER);
         this.annotationPlaceholder.setOpaque(false);
+        this.annotationPlaceholder.setAlignmentX(0.5f);
+        this.annotationPlaceholder.setAlignmentY(0.5f);
+        this.annotationOverlayLayer.setAlignmentX(0.5f);
+        this.annotationOverlayLayer.setAlignmentY(0.5f);
         this.add(this.annotationPlaceholder);
+        this.add(this.annotationOverlayLayer);
         this.updateAnnotationPlaceholder();
     }
 
@@ -56,7 +75,7 @@ public class AnnotationPanel extends WebPanel {
      * Returns whether the given AnnotationData is visible in THIS panel.
      * @param data the AnnotationData to check
      */
-    protected boolean isVisibleInPanel(AnnotationData data) {
+    protected boolean isVisibleInPanel(MeasurementData data) {
         return localVisibility.getOrDefault(data, data.isVisible());
     }
 
@@ -65,7 +84,7 @@ public class AnnotationPanel extends WebPanel {
      * @param data the AnnotationData to set visibility for
      * @param visible true to show this dataset in this panel, false to hide it (overrides the dataset's own visibility setting)
      */
-    protected void setVisibleInPanel(AnnotationData data, boolean visible) {
+    protected void setVisibleInPanel(MeasurementData data, boolean visible) {
         localVisibility.put(data, visible);
     }
 
@@ -75,7 +94,7 @@ public class AnnotationPanel extends WebPanel {
      */
     void updateAnnotationPlaceholder() {
         boolean hasData = false;
-        for (AnnotationData d : this.parent.getAnnotations())
+        for (MeasurementData d : this.parent.getAnnotations())
             if (isVisibleInPanel(d) && !d.isEmpty()) { hasData = true; break; }
         if (hasData) this.remove(this.annotationPlaceholder);
         else         this.add(this.annotationPlaceholder);
@@ -93,8 +112,9 @@ public class AnnotationPanel extends WebPanel {
      * @param g2 graphics context
      */
     protected void paintAnnotations(Graphics2D g2) {
-        if (this.parent.getAudio() == null)
+        if (this.parent.getAudio() == null) {
             return;
+        }
         int w = this.getWidth();
         if (w <= 0) return;
 
@@ -119,8 +139,9 @@ public class AnnotationPanel extends WebPanel {
      * @param toHz   spectrogram max frequency in Hz (NaN = auto y-axis)
      */
     protected void paintAnnotations(Graphics2D g2, double fromHz, double toHz) {
-        if (this.parent.getAudio() == null)
+        if (this.parent.getAudio() == null) {
             return;
+        }
         int w = this.getWidth();
         if (w <= 0) return;
 
@@ -152,7 +173,7 @@ public class AnnotationPanel extends WebPanel {
             return;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         int colorIdx = 0;
-        for (AnnotationData data : this.parent.getAnnotations()) {
+        for (MeasurementData data : this.parent.getAnnotations()) {
             if (!isVisibleInPanel(data) || data.isEmpty()) { colorIdx++; continue; }
             this.drawDataset(g2, data, COLORS[colorIdx % COLORS.length],
                              fromMs, toMs, fromHz, toHz);
@@ -169,11 +190,11 @@ public class AnnotationPanel extends WebPanel {
         int labelRow = 2;
         int lineStep = (int) (Settings.getDefaultFontSize() * 1.4f);
         int colorIdx = 0;
-        for (AnnotationData data : this.parent.getAnnotations()) {
+        for (MeasurementData data : this.parent.getAnnotations()) {
             if (!isVisibleInPanel(data) || data.isEmpty()) { colorIdx++; continue; }
             Color color = COLORS[colorIdx % COLORS.length];
-            int vIdx = data.getFirstLineIndexOfType(AnnotationLine.Type.CURVE);
-            if (vIdx < 0) vIdx = data.getFirstLineIndexOfType(AnnotationLine.Type.MARKS);
+            int vIdx = data.getFirstLineIndexOfType(MeasurementDataLine.Type.CURVE);
+            if (vIdx < 0) vIdx = data.getFirstLineIndexOfType(MeasurementDataLine.Type.MARKS);
             if (vIdx >= 0) {
                 Double val = interpolate(data, vIdx, millisec);
                 if (val != null) {
@@ -197,7 +218,7 @@ public class AnnotationPanel extends WebPanel {
      * @param fromHz spectrogram min frequency in Hz (NaN = auto y-axis)
      * @param toHz   spectrogram max frequency in Hz (NaN = auto y-axis)
      */
-    private void drawDataset(Graphics2D g2, AnnotationData data, Color color,
+    private void drawDataset(Graphics2D g2, MeasurementData data, Color color,
                              double fromMs, double toMs,
                              double fromHz, double toHz) {
         double msRange = toMs - fromMs;
@@ -205,17 +226,17 @@ public class AnnotationPanel extends WebPanel {
 
         boolean useFreqAxis = !Double.isNaN(fromHz) && !Double.isNaN(toHz) && toHz > fromHz;
 
-        int timeIdx = data.getFirstLineIndexOfType(AnnotationLine.Type.TIME);
-        AnnotationLine timeLine = (timeIdx >= 0) ? data.getLine(timeIdx) : null;
+        int timeIdx = data.getFirstLineIndexOfType(MeasurementDataLine.Type.TIME);
+        MeasurementDataLine timeLine = (timeIdx >= 0) ? data.getLine(timeIdx) : null;
 
         int colorIdx = 0;
 
         // --- CURVE lines ---
-        for (int lineIdx : data.getLineIndicesOfType(AnnotationLine.Type.CURVE)) {
-            AnnotationLine valueLine = data.getLine(lineIdx);
+        for (int lineIdx : data.getLineIndicesOfType(MeasurementDataLine.Type.CURVE)) {
+            MeasurementDataLine valueLine = data.getLine(lineIdx);
             int alpha = (colorIdx == 0) ? 200 : Math.max(80, 200 - colorIdx * 40);
             Color c = withAlpha(color, alpha);
-            if (useFreqAxis && valueLine.getUnit() == AnnotationLine.Unit.HZ)
+            if (useFreqAxis && valueLine.getUnit() == MeasurementDataLine.Unit.HZ)
                 drawFrequencies(g2, data, valueLine, timeLine, c, fromMs, toMs, fromHz, toHz);
             else
                 drawValues(g2, data, valueLine, timeLine, c, fromMs, toMs);
@@ -223,14 +244,14 @@ public class AnnotationPanel extends WebPanel {
         }
 
         // --- MARKS lines ---
-        for (int lineIdx : data.getLineIndicesOfType(AnnotationLine.Type.MARKS)) {
-            AnnotationLine marksLine = data.getLine(lineIdx);
+        for (int lineIdx : data.getLineIndicesOfType(MeasurementDataLine.Type.MARKS)) {
+            MeasurementDataLine marksLine = data.getLine(lineIdx);
             drawMarks(g2, marksLine, withAlpha(color, 200), fromMs, toMs, data.getOffsetMilliseconds());
         }
 
         // --- TEXT lines ---
-        for (int lineIdx : data.getLineIndicesOfType(AnnotationLine.Type.TEXT)) {
-            AnnotationLine textLine = data.getLine(lineIdx);
+        for (int lineIdx : data.getLineIndicesOfType(MeasurementDataLine.Type.TEXT)) {
+            MeasurementDataLine textLine = data.getLine(lineIdx);
             drawTexts(g2, data, textLine, timeLine, withAlpha(color, 200), fromMs, toMs);
         }
 
@@ -352,8 +373,8 @@ public class AnnotationPanel extends WebPanel {
       * @param fromMs   the time (ms) at panel pixel x = 0
       * @param toMs     the time (ms) at panel pixel x = width-1
      */
-    private void drawValues(Graphics2D g2, AnnotationData data, AnnotationLine valueLine,
-                            AnnotationLine timeLine, Color color,
+    private void drawValues(Graphics2D g2, MeasurementData data, MeasurementDataLine valueLine,
+                            MeasurementDataLine timeLine, Color color,
                             double fromMs, double toMs) {
         int width  = this.getWidth();
         int height = this.getHeight();
@@ -396,8 +417,8 @@ public class AnnotationPanel extends WebPanel {
      * @param data   the dataset to draw (used for error checking)
      * @param valueLine the CURVE line to draw (must have unit HZ)
      */
-    private void drawFrequencies(Graphics2D g2, AnnotationData data, AnnotationLine valueLine,
-                                 AnnotationLine timeLine, Color color,
+    private void drawFrequencies(Graphics2D g2, MeasurementData data, MeasurementDataLine valueLine,
+                                 MeasurementDataLine timeLine, Color color,
                                  double fromMs, double toMs,
                                  double fromHz, double toHz) {
         int width  = this.getWidth();
@@ -432,7 +453,7 @@ public class AnnotationPanel extends WebPanel {
       * @param toMs     the time (ms) at panel pixel x = width-
       * @param offsetMs the time offset (ms) added to every mark timestamp
      */
-    private void drawMarks(Graphics2D g2, AnnotationLine marksLine, Color color,
+    private void drawMarks(Graphics2D g2, MeasurementDataLine marksLine, Color color,
                            double fromMs, double toMs, double offsetMs) {
         int width  = this.getWidth();
         int height = this.getHeight();
@@ -462,8 +483,8 @@ public class AnnotationPanel extends WebPanel {
      * @param fromMs   the time (ms) at panel pixel x = 0
      * @param toMs     the time (ms) at panel pixel x = width-1
      */
-    private void drawTexts(Graphics2D g2, AnnotationData data, AnnotationLine textLine,
-                           AnnotationLine timeLine, Color color,
+    private void drawTexts(Graphics2D g2, MeasurementData data, MeasurementDataLine textLine,
+                           MeasurementDataLine timeLine, Color color,
                            double fromMs, double toMs) {
         int width  = this.getWidth();
         int height = this.getHeight();
@@ -495,11 +516,11 @@ public class AnnotationPanel extends WebPanel {
      * @param menu the context menu to append to
      */
     protected void appendAnnotationMenu(WebPopupMenu menu) {
-        ArrayList<AnnotationData> all = this.parent.getAnnotations();
+        ArrayList<MeasurementData> all = this.parent.getAnnotations();
         if (all.isEmpty())
             return;
         WebMenu annotationMenu = new WebMenu("Annotations");
-        for (AnnotationData data : all) {
+        for (MeasurementData data : all) {
             WebMenu dataMenu = new WebMenu(data.getName());
 
             WebCheckBoxMenuItem visItem = new WebCheckBoxMenuItem("visible", isVisibleInPanel(data));
@@ -522,9 +543,9 @@ public class AnnotationPanel extends WebPanel {
             editItem.addActionListener(ae -> {
                 CsvImportDialog dialog = new CsvImportDialog(data, this.parent.getAnnotations());
                 if (!dialog.showDialog()) return;
-                AnnotationData built = dialog.buildAnnotationData();
+                MeasurementData built = dialog.buildAnnotationData();
                 if (built == null) return;
-                AnnotationData target = dialog.getTargetAnnotationData();
+                MeasurementData target = dialog.getTargetAnnotationData();
                 if (target != null && target != data)
                     this.parent.replaceAnnotation(target, built);
                 this.updateAnnotationPlaceholder();
@@ -540,7 +561,7 @@ public class AnnotationPanel extends WebPanel {
 
     /**
      * Snap a millisecond timestamp to the nearest mark of all currently visible, snap-enabled MARKS annotations
-     * (see {@link AnnotationData#isSnapTarget()}), if one lies within {@code maxDistanceMs}. Used during time
+     * (see {@link MeasurementData#isSnapTarget()}), if one lies within {@code maxDistanceMs}. Used during time
      * alignment (e.g. dragging notes/markers) to align them precisely with annotated marks.
      *
      * @param ms            the millisecond position to snap
@@ -551,13 +572,13 @@ public class AnnotationPanel extends WebPanel {
         double bestMs = ms;
         double bestDist = maxDistanceMs;
 
-        for (AnnotationData data : this.parent.getAnnotations()) {
+        for (MeasurementData data : this.parent.getAnnotations()) {
             if (!data.isSnapTarget() || !data.hasMarksLine() || !isVisibleInPanel(data) || data.isEmpty())
                 continue;
 
             double offsetMs = data.getOffsetMilliseconds();
-            for (int lineIdx : data.getLineIndicesOfType(AnnotationLine.Type.MARKS)) {
-                AnnotationLine marksLine = data.getLine(lineIdx);
+            for (int lineIdx : data.getLineIndicesOfType(MeasurementDataLine.Type.MARKS)) {
+                MeasurementDataLine marksLine = data.getLine(lineIdx);
                 for (int i = 0; i < marksLine.size(); i++) {
                     double markMs = marksLine.getUnit().toMilliseconds(marksLine.getValue(i)) + offsetMs;
                     double dist = Math.abs(markMs - ms);
@@ -579,11 +600,11 @@ public class AnnotationPanel extends WebPanel {
      * @param ms
      * @return the interpolated value, or null if interpolation is not possible (e.g. no TIME line, empty line, etc.)
      */
-    private static Double interpolate(AnnotationData data, int lineIdx, double ms) {
-        AnnotationLine valueLine = data.getLine(lineIdx);
-        boolean isMarks = valueLine.getType() == AnnotationLine.Type.MARKS;
-        int timeIdx = data.getFirstLineIndexOfType(AnnotationLine.Type.TIME);
-        AnnotationLine timeLine = (!isMarks && timeIdx >= 0) ? data.getLine(timeIdx) : null;
+    private static Double interpolate(MeasurementData data, int lineIdx, double ms) {
+        MeasurementDataLine valueLine = data.getLine(lineIdx);
+        boolean isMarks = valueLine.getType() == MeasurementDataLine.Type.MARKS;
+        int timeIdx = data.getFirstLineIndexOfType(MeasurementDataLine.Type.TIME);
+        MeasurementDataLine timeLine = (!isMarks && timeIdx >= 0) ? data.getLine(timeIdx) : null;
         double offsetMs = data.getOffsetMilliseconds();
 
         int count = (timeLine != null) ? Math.min(timeLine.size(), valueLine.size()) : valueLine.size();
@@ -608,9 +629,8 @@ public class AnnotationPanel extends WebPanel {
         return null;
     }
 
-    private static double msAt(AnnotationLine timeLine, AnnotationLine valueLine, boolean isMarks, int i, double offsetMs) {
+    private static double msAt(MeasurementDataLine timeLine, MeasurementDataLine valueLine, boolean isMarks, int i, double offsetMs) {
         if (isMarks) return valueLine.getUnit().toMilliseconds(valueLine.getValue(i)) + offsetMs;
         return timeLine.getUnit().toMilliseconds(timeLine.getValue(i)) + offsetMs;
     }
 }
-

@@ -9,8 +9,8 @@ import com.alee.laf.table.WebTable;
 import com.alee.laf.text.WebTextField;
 import com.alee.laf.window.WebDialog;
 import mpmToolbox.gui.Settings;
-import mpmToolbox.gui.audio.AnnotationData;
-import mpmToolbox.gui.audio.AnnotationLine;
+import mpmToolbox.gui.audio.MeasurementData;
+import mpmToolbox.gui.audio.MeasurementDataLine;
 import mpmToolbox.supplementary.Tools;
 
 import javax.swing.*;
@@ -37,7 +37,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     private boolean ok = false;
 
     // the current AnnotationData, either parsed from CSV or an existing one passed in for editing
-    private AnnotationData annotationData;
+    private MeasurementData measurementData;
 
     // per-column UI controls (indices match annotationData lines)
     private WebComboBox[]  typeChoosers;
@@ -50,7 +50,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     // target selection (replace existing vs. create new)
     private WebComboBox  targetChooser;
     private WebTextField newNameField;
-    private final ArrayList<AnnotationData> existingData;
+    private final ArrayList<MeasurementData> existingData;
 
     // time offset (seconds) added to every time value of this dataset when displaying it
     private WebTextField offsetField;
@@ -61,18 +61,18 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     private static final String NEW_ENTRY = "<New annotation>";
 
     // UI representations of the type enum (for combo boxes)
-    private static final AnnotationLine.Type[] TYPES = AnnotationLine.Type.values();
+    private static final MeasurementDataLine.Type[] TYPES = MeasurementDataLine.Type.values();
 
     /**
      * Constructor for CSV import: parse the file and let the user configure columns.
      * @param file         the CSV file to import
      * @param existingData existing AnnotationData objects the user may choose to replace
      */
-    public CsvImportDialog(File file, ArrayList<AnnotationData> existingData) {
+    public CsvImportDialog(File file, ArrayList<MeasurementData> existingData) {
         super();
         this.existingData = (existingData != null) ? existingData : new ArrayList<>();
-        this.annotationData = parseFile(file);
-        this.setTitle("Import CSV: " + this.annotationData.getName());
+        this.measurementData = parseFile(file);
+        this.setTitle("Import CSV: " + this.measurementData.getName());
         this.init();
     }
 
@@ -81,10 +81,10 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
      * @param data         the AnnotationData to edit
      * @param existingData all known AnnotationData objects (for the target chooser)
      */
-    public CsvImportDialog(AnnotationData data, ArrayList<AnnotationData> existingData) {
+    public CsvImportDialog(MeasurementData data, ArrayList<MeasurementData> existingData) {
         super();
         this.existingData = (existingData != null) ? existingData : new ArrayList<>();
-        this.annotationData = data;
+        this.measurementData = data;
         this.setTitle("Edit Annotation: " + data.getName());
         this.init();
     }
@@ -113,7 +113,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
      * @param file the CSV file
      * @return the parsed AnnotationData (rows + columns with defaults)
      */
-    public static AnnotationData parseFile(File file) {
+    public static MeasurementData parseFile(File file) {
         ArrayList<String> rawLines = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
             String line;
@@ -130,11 +130,11 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             }
         } catch (IOException e) {
             e.printStackTrace();
-            return new AnnotationData(file.getName());
+            return new MeasurementData(file.getName());
         }
 
         if (rawLines.isEmpty())
-            return new AnnotationData(file.getName());
+            return new MeasurementData(file.getName());
 
         String delimiter = detectDelimiter(rawLines.get(0));
 
@@ -157,24 +157,24 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         String name = file.getName();
         if (name.contains(".csv"))
             name = name.substring(0, name.lastIndexOf('.')); // strip file extension for default name
-        AnnotationData data = new AnnotationData(name);
+        MeasurementData data = new MeasurementData(name);
 
         // add lines with defaults
         for (int c = 0; c < colCount; c++) {
             String colName = (headerRow != null && c < headerRow.length) ? headerRow[c] : ("Column " + (c + 1));
-            AnnotationLine.Type type;
-            AnnotationLine.Unit unit;
+            MeasurementDataLine.Type type;
+            MeasurementDataLine.Unit unit;
             if (colCount == 1) {
-                type = AnnotationLine.Type.MARKS;
-                unit = AnnotationLine.Unit.SECONDS;
+                type = MeasurementDataLine.Type.MARKS;
+                unit = MeasurementDataLine.Unit.SECONDS;
             } else if (c == 0) {
-                type = AnnotationLine.Type.TIME;
-                unit = AnnotationLine.Unit.SECONDS;
+                type = MeasurementDataLine.Type.TIME;
+                unit = MeasurementDataLine.Unit.SECONDS;
             } else {
-                type = AnnotationLine.Type.CURVE;
-                unit = AnnotationLine.Unit.HZ;
+                type = MeasurementDataLine.Type.CURVE;
+                unit = MeasurementDataLine.Unit.HZ;
             }
-            data.addLine(new AnnotationLine(colName, type, unit));
+            data.addLine(new MeasurementDataLine(colName, type, unit));
         }
 
         // add rows, distribute each cell value into its column's AnnotationLine
@@ -256,14 +256,14 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
 
         this.targetChooser = new WebComboBox(targetItems);
         for (int i = 0; i < this.existingData.size(); i++) {
-            if (this.existingData.get(i) == this.annotationData) {
+            if (this.existingData.get(i) == this.measurementData) {
                 this.targetChooser.setSelectedIndex(i + 1);
                 break;
             }
         }
         Tools.addComponentToGridBagLayout(targetPanel, targetLayout, this.targetChooser, 1, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
 
-        this.newNameField = new WebTextField(this.annotationData.getName());
+        this.newNameField = new WebTextField(this.measurementData.getName());
         this.newNameField.setToolTipText("Name for the new annotation dataset");
         this.newNameField.setVisible(this.targetChooser.getSelectedIndex() == 0);
         Tools.addComponentToGridBagLayout(targetPanel, targetLayout, this.newNameField, 2, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
@@ -273,7 +273,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         offsetLabel.setPadding(2, 4, 2, 8);
         Tools.addComponentToGridBagLayout(targetPanel, targetLayout, offsetLabel, 3, 0, 1, 1, 0.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.LINE_START);
 
-        this.offsetField = new WebTextField(String.valueOf(Tools.round(this.annotationData.getOffsetMilliseconds() / 1000.0, 6)));
+        this.offsetField = new WebTextField(String.valueOf(Tools.round(this.measurementData.getOffsetMilliseconds() / 1000.0, 6)));
         this.offsetField.setToolTipText("Time offset in seconds added to every time value of this dataset (e.g. to correct a temporal shift)");
         this.offsetField.setHorizontalAlignment(WebTextField.CENTER);
         Tools.addComponentToGridBagLayout(targetPanel, targetLayout, this.offsetField, 4, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
@@ -292,11 +292,11 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             int idx = this.targetChooser.getSelectedIndex();
             if (idx > 0) {
                 // clone lines from the selected existing AnnotationData into annotationData
-                AnnotationData selected = this.existingData.get(idx - 1);
+                MeasurementData selected = this.existingData.get(idx - 1);
                 // keep the raw values of annotationData but adopt the line metadata
-                for (int c = 0; c < Math.min(this.annotationData.getLineCount(), selected.getLineCount()); c++) {
-                    AnnotationLine src = selected.getLine(c);
-                    AnnotationLine dst = this.annotationData.getLine(c);
+                for (int c = 0; c < Math.min(this.measurementData.getLineCount(), selected.getLineCount()); c++) {
+                    MeasurementDataLine src = selected.getLine(c);
+                    MeasurementDataLine dst = this.measurementData.getLine(c);
                     dst.setName(src.getName());
                     dst.setType(src.getType());
                     dst.setUnit(src.getUnit());
@@ -355,14 +355,14 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         this.configPanel.removeAll();
         GridBagLayout layout = (GridBagLayout) this.configPanel.getLayout();
 
-        int colCount = this.annotationData.getLineCount();
+        int colCount = this.measurementData.getLineCount();
         this.typeChoosers = new WebComboBox[colCount];
         this.unitChoosers = new WebComboBox[colCount];
         this.nameFields   = new WebTextField[colCount];
 
         for (int col = 0; col < colCount; col++) {
             final int colIdx = col;
-            AnnotationLine line = this.annotationData.getLine(col);
+            MeasurementDataLine line = this.measurementData.getLine(col);
 
             WebPanel colPanel = new WebPanel(new GridBagLayout());
             colPanel.setPadding(0, col > 0 ? Settings.paddingInDialogs : 0, 0, 0);
@@ -381,7 +381,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             Tools.addComponentToGridBagLayout(colPanel, colLayout, this.typeChoosers[col], 0, 1, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
 
             // unit chooser
-            AnnotationLine.Unit[] validUnits = AnnotationLine.getValidUnits(line.getType());
+            MeasurementDataLine.Unit[] validUnits = MeasurementDataLine.getValidUnits(line.getType());
             this.unitChoosers[col] = new WebComboBox(validUnits);
             if (line.getUnit() != null) this.unitChoosers[col].setSelectedItem(line.getUnit());
             this.unitChoosers[col].setVisible(validUnits.length > 0);
@@ -390,13 +390,13 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             // when the type changes, set the unit chooser with the valid units
             final WebComboBox unitChooser = this.unitChoosers[col];
             this.typeChoosers[col].addActionListener(ae -> {
-                AnnotationLine.Type selectedType = (AnnotationLine.Type) this.typeChoosers[colIdx].getSelectedItem();
-                AnnotationLine.Unit[] newUnits = AnnotationLine.getValidUnits(selectedType);
+                MeasurementDataLine.Type selectedType = (MeasurementDataLine.Type) this.typeChoosers[colIdx].getSelectedItem();
+                MeasurementDataLine.Unit[] newUnits = MeasurementDataLine.getValidUnits(selectedType);
                 unitChooser.removeAllItems();
-                for (AnnotationLine.Unit u : newUnits) unitChooser.addItem(u);
+                for (MeasurementDataLine.Unit u : newUnits) unitChooser.addItem(u);
                 unitChooser.setVisible(newUnits.length > 0);
                 if (newUnits.length > 0) {
-                    AnnotationLine.Unit def = AnnotationLine.getDefaultUnit(selectedType);
+                    MeasurementDataLine.Unit def = MeasurementDataLine.getDefaultUnit(selectedType);
                     unitChooser.setSelectedItem(def != null ? def : newUnits[0]);
                 }
             });
@@ -408,7 +408,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             deleteBtn.setPadding(2, 4, 2, 4);
             deleteBtn.addActionListener(ae -> {
                 this.applyNamesTypesUnits();            // persist current UI state before removing
-                this.annotationData.removeLine(colIdx);
+                this.measurementData.removeLine(colIdx);
                 this.rebuildConfigPanel();
                 this.rebuildPreviewTable();
                 this.configPanel.revalidate();
@@ -425,49 +425,49 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
      * Called before structural changes (delete) so no edits are lost.
      */
     private void applyNamesTypesUnits() {
-        int colCount = Math.min(this.annotationData.getLineCount(), this.nameFields.length);
+        int colCount = Math.min(this.measurementData.getLineCount(), this.nameFields.length);
         for (int c = 0; c < colCount; c++) {
             String n = this.nameFields[c].getText().trim();
-            this.annotationData.getLine(c).setName(n.isEmpty() ? ("Column " + (c + 1)) : n);
-            AnnotationLine.Type selectedType = (AnnotationLine.Type) this.typeChoosers[c].getSelectedItem();
-            this.annotationData.getLine(c).setType(selectedType);
+            this.measurementData.getLine(c).setName(n.isEmpty() ? ("Column " + (c + 1)) : n);
+            MeasurementDataLine.Type selectedType = (MeasurementDataLine.Type) this.typeChoosers[c].getSelectedItem();
+            this.measurementData.getLine(c).setType(selectedType);
             // only set unit when the chooser is visible (TEXT type has no units)
             if (this.unitChoosers[c].isVisible()) {
-                AnnotationLine.Unit selectedUnit = (AnnotationLine.Unit) this.unitChoosers[c].getSelectedItem();
+                MeasurementDataLine.Unit selectedUnit = (MeasurementDataLine.Unit) this.unitChoosers[c].getSelectedItem();
                 if (selectedUnit != null)
-                    this.annotationData.getLine(c).setUnit(selectedUnit);
+                    this.measurementData.getLine(c).setUnit(selectedUnit);
             }
         }
     }
 
     /** Build the column-name array for the preview table from the current annotationData lines. */
     private String[] buildTableColumnNames() {
-        int colCount = this.annotationData.getLineCount();
+        int colCount = this.measurementData.getLineCount();
         String[] names = new String[colCount];
         for (int c = 0; c < colCount; c++)
-            names[c] = this.annotationData.getLine(c).getName();
+            names[c] = this.measurementData.getLine(c).getName();
         return names;
     }
 
     /** Fill (or refill) the preview table model from the current annotationData. */
     private void fillPreviewRows() {
         this.tableModel.setRowCount(0);
-        int colCount = this.annotationData.getLineCount();
+        int colCount = this.measurementData.getLineCount();
         // update column identifiers
         this.tableModel.setColumnCount(0);
         for (String name : this.buildTableColumnNames())
             this.tableModel.addColumn(name);
 
-        int previewCount = Math.min(10, this.annotationData.getRowCount());
+        int previewCount = Math.min(10, this.measurementData.getRowCount());
         for (int r = 0; r < previewCount; r++) {
             Object[] rowData = new Object[colCount];
             for (int c = 0; c < colCount; c++)
-                rowData[c] = this.annotationData.getLine(c).getValue(r);
+                rowData[c] = this.measurementData.getLine(c).getValue(r);
             this.tableModel.addRow(rowData);
         }
-        if (this.annotationData.getRowCount() > previewCount) {
+        if (this.measurementData.getRowCount() > previewCount) {
             Object[] ellipsis = new Object[colCount];
-            ellipsis[0] = "... (" + this.annotationData.getRowCount() + " rows total)";
+            ellipsis[0] = "... (" + this.measurementData.getRowCount() + " rows total)";
             for (int c = 1; c < colCount; c++) ellipsis[c] = "...";
             this.tableModel.addRow(ellipsis);
         }
@@ -507,7 +507,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
      * Returns the existing AnnotationData to replace, or null if a new one should be created.
      * @return target or null
      */
-    public AnnotationData getTargetAnnotationData() {
+    public MeasurementData getTargetAnnotationData() {
         int idx = this.targetChooser.getSelectedIndex();
         return (idx == 0) ? null : this.existingData.get(idx - 1);
     }
@@ -527,8 +527,8 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
      * If replacing an existing object, the rows of that object are replaced.
      * @return the configured AnnotationData, or null if no rows could be parsed
      */
-    public AnnotationData buildAnnotationData() {
-        if (this.annotationData.isEmpty())
+    public MeasurementData buildAnnotationData() {
+        if (this.measurementData.isEmpty())
             return null;
 
         // apply current UI state (names, types, units) back onto the AnnotationData lines
@@ -537,17 +537,17 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         // apply time offset (parsed from seconds, stored internally as milliseconds)
         try {
             double offsetSeconds = Double.parseDouble(this.offsetField.getText().trim().replace(',', '.'));
-            this.annotationData.setOffsetMilliseconds(offsetSeconds * 1000.0);
+            this.measurementData.setOffsetMilliseconds(offsetSeconds * 1000.0);
         } catch (NumberFormatException e) {
-            this.annotationData.setOffsetMilliseconds(0.0);
+            this.measurementData.setOffsetMilliseconds(0.0);
         }
 
         // determine name
-        AnnotationData target = this.getTargetAnnotationData();
+        MeasurementData target = this.getTargetAnnotationData();
         String name = (target != null) ? target.getName() : this.getNewAnnotationName();
-        this.annotationData.setName(name);
+        this.measurementData.setName(name);
 
-        return this.annotationData;
+        return this.measurementData;
     }
 }
 

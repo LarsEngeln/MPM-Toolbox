@@ -4,7 +4,6 @@ import com.alee.laf.label.WebLabel;
 import com.alee.laf.menu.WebCheckBoxMenuItem;
 import com.alee.laf.menu.WebMenuItem;
 import com.alee.laf.menu.WebPopupMenu;
-import com.alee.laf.panel.WebPanel;
 import meico.mpm.elements.Performance;
 import mpmToolbox.gui.Settings;
 import mpmToolbox.gui.audio.utilities.ArticulationMenu;
@@ -13,6 +12,7 @@ import mpmToolbox.gui.msmTree.MsmTreeNode;
 import mpmToolbox.projectData.alignment.Note;
 import mpmToolbox.projectData.alignment.PianoRoll;
 
+import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import java.awt.*;
 import java.awt.event.*;
 
@@ -21,7 +21,7 @@ import java.awt.event.*;
  * It is also the basis of classes WaveformPanel and SpectrogramPanel.
  * @author Axel Berndt
  */
-public class PianoRollPanel extends AnnotationPanel implements ComponentListener, MouseListener, MouseMotionListener, MouseWheelListener {
+public class PianoRollPanel extends MeasurePanel implements ComponentListener, MouseListener, MouseMotionListener, MouseWheelListener {
     public final AudioDocumentData parent;                  // the container
     protected final WebLabel noData;                        // to be displayed when no data is there to be visualized
     protected Integer mousePositionY = null;                  // if the mouse is in this panel, this is set to its y pixel coordinate
@@ -236,6 +236,17 @@ public class PianoRollPanel extends AnnotationPanel implements ComponentListener
             this.parent.getParent().getSyncPlayer().triggerPlayback(this.parent.getSampleIndex(e.getPoint().getX()));
         });
         menu.add(playFromHere);
+
+        WebMenuItem addProjectAnnotation = new WebMenuItem("Add Annotation");
+        addProjectAnnotation.addActionListener(actionEvent -> {
+            if (this.getWidth() <= 0) {
+                return;
+            }
+            double relativeX = Math.max(0.0, Math.min(1.0, e.getPoint().getX() / (double) this.getWidth()));
+            double relativeY = Math.max(0.0, Math.min(1.0, e.getPoint().getY() / (double) Math.max(1, this.getHeight())));
+            this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, relativeX, relativeY);
+        });
+        menu.add(addProjectAnnotation);
 
         this.appendAnnotationMenu(menu);
 

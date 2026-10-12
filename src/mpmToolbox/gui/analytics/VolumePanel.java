@@ -1,14 +1,22 @@
 package mpmToolbox.gui.analytics;
 
 import com.alee.laf.label.WebLabel;
+import com.alee.laf.menu.WebMenuItem;
+import com.alee.laf.menu.WebPopupMenu;
 import com.alee.laf.panel.WebPanel;
 import mpmToolbox.gui.Settings;
+import mpmToolbox.gui.annotations.AnnotationOverlayLayer;
 import mpmToolbox.gui.analytics.AnalyticsDocumentData.SourceEntry;
 import mpmToolbox.gui.analytics.AnalyticsDocumentData.SourceType;
+import mpmToolbox.projectData.annotations.AnnotationLink;
+import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import mpmToolbox.projectData.alignment.Note;
 
+import javax.swing.OverlayLayout;
 import java.awt.*;
 import java.awt.geom.Path2D;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 
 /**
@@ -17,9 +25,14 @@ import java.util.ArrayList;
 public class VolumePanel extends WebPanel {
     private static final double MIN_DB = -120.0;
     private static final double MAX_DB = 0.0;
+    private static final int PLOT_LEFT = 60;                 // the margins around the plot area
+    private static final int PLOT_RIGHT = 20;
+    private static final int PLOT_TOP = 20;
+    private static final int PLOT_BOTTOM = 35;
 
     private final AnalyticsDocumentData parent;
     private final WebLabel placeholder = new WebLabel("Select at least one audio file or performance.", WebLabel.CENTER);
+    private final AnnotationOverlayLayer annotationOverlayLayer;
 
     // cache of precomputed dB curves so paintComponent() does not have to recompute them on every repaint
     private ArrayList<SourceEntry> cachedSources = null;
@@ -27,11 +40,39 @@ public class VolumePanel extends WebPanel {
     private double[][] cachedAvgDb = null;
 
     public VolumePanel(AnalyticsDocumentData parent) {
-        super(new BorderLayout());
+        super();
         this.parent = parent;
+        this.annotationOverlayLayer = new AnnotationOverlayLayer(this, parent.getProjectPane().getAnnotationManager(), AnnotationPlacement.TabType.ANALYTICS);
+        this.annotationOverlayLayer.setContentArea(() -> new Rectangle(PLOT_LEFT, PLOT_TOP, Math.max(1, this.getWidth() - PLOT_LEFT - PLOT_RIGHT), Math.max(1, this.getHeight() - PLOT_TOP - PLOT_BOTTOM)));
+        this.annotationOverlayLayer.setLinkResolver(e -> {
+            int plotWidth = Math.max(1, this.getWidth() - PLOT_LEFT - PLOT_RIGHT);
+            double relX = Math.max(0.0, Math.min(1.0, (e.getX() - PLOT_LEFT) / (double) plotWidth));
+            return new AnnotationLink(AnnotationLink.LinkType.TIMESTAMP, Double.toString(relX * this.getMaxDuration(this.parent.getVisibleSources())));
+        });
+        this.annotationOverlayLayer.setVisibleWhen(() -> {
+            ArrayList<SourceEntry> sources = this.parent.getVisibleSources();
+            return !sources.isEmpty() && (this.getMaxDuration(sources) > 0.0);
+        });
+        this.setLayout(new OverlayLayout(this));
         this.placeholder.setOpaque(false);
-        this.add(this.placeholder, BorderLayout.CENTER);
+        this.placeholder.setAlignmentX(0.5f);
+        this.placeholder.setAlignmentY(0.5f);
+        this.annotationOverlayLayer.setAlignmentX(0.5f);
+        this.annotationOverlayLayer.setAlignmentY(0.5f);
+        this.add(this.placeholder);
+        this.add(this.annotationOverlayLayer);
         this.setOpaque(true);
+        this.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                showContextMenuIfNeeded(e);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                showContextMenuIfNeeded(e);
+            }
+        });
     }
 
     @Override
@@ -41,17 +82,19 @@ public class VolumePanel extends WebPanel {
         ArrayList<SourceEntry> sources = this.parent.getVisibleSources();
         this.placeholder.setVisible(sources.isEmpty());
         if (sources.isEmpty())
+        {
             return;
+        }
 
         Graphics2D g2 = (Graphics2D) g.create();
         try {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             this.paintBackground(g2);
 
-            int left = 60;
-            int right = 20;
-            int top = 20;
-            int bottom = 35;
+            int left = PLOT_LEFT;
+            int right = PLOT_RIGHT;
+            int top = PLOT_TOP;
+            int bottom = PLOT_BOTTOM;
             int plotWidth = Math.max(1, this.getWidth() - left - right);
             int plotHeight = Math.max(1, this.getHeight() - top - bottom);
             double maxDuration = this.getMaxDuration(sources);
@@ -276,5 +319,22 @@ public class VolumePanel extends WebPanel {
         long min = totalSec / 60;
         long sec = totalSec % 60;
         return String.format("%d:%02d", min, sec);
+    }
+
+    private void showContextMenuIfNeeded(MouseEvent event) {
+        if (!event.isPopupTrigger()) {
+            return;
+        }
+        WebPopupMenu menu = new WebPopupMenu();
+        WebMenuItem addAnnotation = new WebMenuItem("Add Annotation");
+        addAnnotation.addActionListener(actionEvent -> {
+            double relX = Math.max(0.0, Math.min(1.0, event.getX() / (double) Math.max(1, this.getWidth())));
+            double relY = Math.max(0.0, Math.min(1.0, event.getY() / (double) Math.max(1, this.getHeight())));
+            double maxDuration = this.getMaxDuration(this.parent.getVisibleSources());
+            double timestampMs = relX * Math.max(0.0, maxDuration);
+            this.parent.getProjectPane().getAnnotationManager().create(AnnotationPlacement.TabType.ANALYTICS, relX, relY);
+        });
+        menu.add(addAnnotation);
+        menu.show(this, event.getX(), event.getY());
     }
 }

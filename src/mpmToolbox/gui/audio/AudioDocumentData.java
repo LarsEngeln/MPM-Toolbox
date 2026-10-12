@@ -46,7 +46,7 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
     private final SpectrogramPanel spectrogram;
     private final TempoMapPanel tempoMap;
 
-    private final ArrayList<AnnotationData> annotations = new ArrayList<>();  // all loaded annotation datasets
+    private final ArrayList<MeasurementData> annotations = new ArrayList<>();  // all loaded annotation datasets
 
     private int channelNumber = -1;                                     // index of the waveform/channel to be rendered to image; -1 means all channels
     private long leftmostSample = -1;                                   // index of the first sample to be rendered to image
@@ -417,7 +417,7 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
      * Returns all annotation datasets held by this audio frame.
      * @return the list of AnnotationData objects
      */
-    public ArrayList<AnnotationData> getAnnotations() {
+    public ArrayList<MeasurementData> getAnnotations() {
         return this.annotations;
     }
 
@@ -425,7 +425,7 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
      * Add an annotation dataset and refresh the panel.
      * @param data the AnnotationData to add
      */
-    public void addAnnotation(AnnotationData data) {
+    public void addAnnotation(MeasurementData data) {
         if (data == null) return;
         this.annotations.add(data);
     }
@@ -435,7 +435,7 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
      * @param target   the existing dataset to update
      * @param newData  the new data (rows and columns are copied from this)
      */
-    public void replaceAnnotation(AnnotationData target, AnnotationData newData) {
+    public void replaceAnnotation(MeasurementData target, MeasurementData newData) {
         if (target == null || newData == null) return;
         // replace all lines (carries both metadata and values)
         for (int i = 0; i < Math.min(target.getLineCount(), newData.getLineCount()); i++)

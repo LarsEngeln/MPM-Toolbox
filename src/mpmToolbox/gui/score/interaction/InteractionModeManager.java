@@ -58,6 +58,7 @@ public class InteractionModeManager implements MouseInput, KeyInput {
         modes.add(new MarkNotesInteractionMode(panel));
         modes.add(new EditPerformanceInteractionMode(panel));
         modes.add(new SelectEditInteractionMode(panel));
+        modes.add(new AnnotationToolInteractionMode(panel));
     }
 
     /**

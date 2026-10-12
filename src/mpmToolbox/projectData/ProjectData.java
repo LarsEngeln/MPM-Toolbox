@@ -8,6 +8,8 @@ import meico.msm.Msm;
 import meico.supplementary.KeyValue;
 import meico.xml.XmlBase;
 import mpmToolbox.projectData.audio.Audio;
+import mpmToolbox.projectData.annotations.AnnotationData;
+import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.projectData.score.ScorePage;
 import mpmToolbox.projectData.SvgData;
@@ -40,6 +42,8 @@ public class ProjectData {
     private final Score score;                                  // the music sheets
     private final ArrayList<Audio> audio = new ArrayList<>();   // a list of audio recordings
     private final ArrayList<SvgData> svgs = new ArrayList<>();  // a list of SVG overlays
+    private final ArrayList<AnnotationData> annotations = new ArrayList<>(); // project-wide annotations
+    private boolean annotationOverlayVisible = true;
 
     /**
      * constructor
@@ -135,6 +139,27 @@ public class ProjectData {
                 } catch (nu.xom.ParsingException | IOException ex) {
                     ex.printStackTrace();
                 }
+            }
+        }
+
+        // load project-wide annotations independently of optional sections like <svgs>
+        Element annotationsElt = this.xml.getRootElement().getFirstChildElement("annotations");
+        if (annotationsElt != null) {
+            String visible = annotationsElt.getAttributeValue("visible");
+            if (visible != null) {
+                this.annotationOverlayVisible = Boolean.parseBoolean(visible);
+            }
+            Elements annotationElements = annotationsElt.getChildElements("annotation");
+            for (int i = 0; i < annotationElements.size(); ++i) {
+                Element annotationElt = annotationElements.get(i);
+                AnnotationData data = AnnotationData.fromXml(annotationElt);
+                for (AnnotationPlacement placement : data.getPlacements()) {
+                    if ((placement.getTabType() == AnnotationPlacement.TabType.SCORE)
+                            && !placement.getPagePath().isEmpty()) {
+                        placement.setPagePath(resolveProjectPath(basePath, placement.getPagePath()));
+                    }
+                }
+                this.annotations.add(data);
             }
         }
     }
@@ -397,6 +422,46 @@ public class ProjectData {
     }
 
     /**
+     * Access the project-wide annotations.
+     * @return annotations
+     */
+    public synchronized ArrayList<AnnotationData> getAnnotations() {
+        return this.annotations;
+    }
+
+    /**
+     * Add a project annotation.
+     * @param annotationData annotation to add
+     * @return true if added
+     */
+    public synchronized boolean addAnnotation(AnnotationData annotationData) {
+        if ((annotationData == null) || this.annotations.contains(annotationData)) {
+            return false;
+        }
+        return this.annotations.add(annotationData);
+    }
+
+    /**
+     * Remove a project annotation.
+     * @param annotationData annotation to remove
+     * @return true if removed
+     */
+    public synchronized boolean removeAnnotation(AnnotationData annotationData) {
+        if (annotationData == null) {
+            return false;
+        }
+        return this.annotations.remove(annotationData);
+    }
+
+    public synchronized boolean isAnnotationOverlayVisible() {
+        return this.annotationOverlayVisible;
+    }
+
+    public synchronized void setAnnotationOverlayVisible(boolean annotationOverlayVisible) {
+        this.annotationOverlayVisible = annotationOverlayVisible;
+    }
+
+    /**
      * Add an SVG overlay to the project.
      * @param svg the SvgData to add
      * @return true if added, false if already present or null
@@ -561,6 +626,42 @@ public class ProjectData {
                 }
                 svgsElt.appendChild(svgElt);
             }
+        }
+
+        // store project-wide annotations
+        if (!this.annotations.isEmpty()) {
+            Element annotationsElt = new Element("annotations");
+            annotationsElt.addAttribute(new Attribute("visible", Boolean.toString(this.annotationOverlayVisible)));
+            root.appendChild(annotationsElt);
+            for (AnnotationData annotation : this.annotations) {
+                Element annotationElt = annotation.toXml();
+                Element placementsElt = annotationElt.getFirstChildElement("placements");
+                if (placementsElt != null) {
+                    Elements placementElements = placementsElt.getChildElements("placement");
+                    for (int i = 0; i < placementElements.size(); ++i) {
+                        Element placementElt = placementElements.get(i);
+                        String tab = placementElt.getAttributeValue("tab");
+                        if (!"score".equals(tab)) {
+                            continue;
+                        }
+                        Attribute page = placementElt.getAttribute("page");
+                        if ((page == null) || page.getValue().isEmpty()) {
+                            continue;
+                        }
+                        try {
+                            Path relPage = Paths.get(file.getParent()).relativize(Paths.get(page.getValue()));
+                            page.setValue(relPage.toString());
+                        } catch (Exception ignored) {
+                            // keep absolute page path if relativization fails
+                        }
+                    }
+                }
+                annotationsElt.appendChild(annotationElt);
+            }
+        } else if (!this.annotationOverlayVisible) {
+            Element annotationsElt = new Element("annotations");
+            annotationsElt.addAttribute(new Attribute("visible", Boolean.toString(false)));
+            root.appendChild(annotationsElt);
         }
 
         return this.xml.writeFile();

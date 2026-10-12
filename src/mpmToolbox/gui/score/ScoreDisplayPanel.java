@@ -10,6 +10,8 @@ import meico.mei.Helper;
 import meico.mpm.elements.Performance;
 import meico.supplementary.KeyValue;
 import mpmToolbox.gui.Settings;
+import mpmToolbox.gui.annotations.AnnotationOverlayLayer;
+import mpmToolbox.gui.annotations.AnnotationManager;
 import mpmToolbox.gui.audio.AudioDocumentData;
 import mpmToolbox.gui.mpmEditingTools.MpmEditingTools;
 import mpmToolbox.gui.mpmEditingTools.PlaceAndCreateContextMenu;
@@ -22,6 +24,9 @@ import mpmToolbox.gui.score.interaction.*;
 import mpmToolbox.gui.svgTree.SvgDockableFrame;
 import mpmToolbox.gui.svgTree.SvgTree;
 import mpmToolbox.projectData.SvgData;
+import mpmToolbox.projectData.annotations.AnnotationData;
+import mpmToolbox.projectData.annotations.AnnotationLink;
+import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.projectData.score.ScoreNode;
 import mpmToolbox.projectData.score.ScorePage;
@@ -34,6 +39,7 @@ import javax.swing.SwingUtilities;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.GeneralPath;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.Map;
@@ -66,6 +72,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     private Font performanceSymbolFont = WebLookAndFeel.globalWindowFont.deriveFont(Font.BOLD, (float) (72.0 * this.xWidth / Toolkit.getDefaultToolkit().getScreenResolution()));
 
     private InteractionModeManager interactionModeManager;                  // manages all interaction modes and their UI
+    private final AnnotationOverlayLayer annotationOverlayLayer;
+
+    public AnnotationOverlayLayer getAnnotationOverlayLayer() { return this.annotationOverlayLayer; }
     /**
      * constructor
      *
@@ -73,10 +82,15 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      */
     public ScoreDisplayPanel(ScoreDocumentData scoreDocumentData) {
         super();
+        this.setLayout(null);
 
         this.scoreDocumentData = scoreDocumentData;                                                       // store the link to the parent project
         this.scorePage = this.scoreDocumentData.projectPane.getScore().getPage(this.pageIndex);     // load the score page to be displayed
         this.panZoomHelper = new PanZoomHelper(this);                               // initialize the pan/zoom helper
+        this.annotationOverlayLayer = new AnnotationOverlayLayer(this, this.getAnnotationMgr(), AnnotationPlacement.TabType.SCORE);
+        this.configureAnnotationOverlayLayer();
+        this.add(this.annotationOverlayLayer);
+        this.getAnnotationMgr().addActiveListener(() -> this.applyAnnotationLinkedHighlight(this.getAnnotationMgr().getHovered()));
 
         this.updateOverlayElementsScaleFactor();                                    // compute the initial size of overlay elements
 
@@ -129,6 +143,12 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         });
     }
 
+    @Override
+    public void doLayout() {
+        super.doLayout();
+        this.annotationOverlayLayer.setBounds(0, 0, this.getWidth(), this.getHeight());
+    }
+
     /**
      * invoke this method if the MPM tree is deleted or newly created, so the TempoMapPanel can react on it
      */
@@ -144,6 +164,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
     public void onInteractionModeChange() {
         this.setMousePositionInImage(null);
         this.setCursor(Cursor.getDefaultCursor());
+        this.getAnnotationMgr().setHovered(null);
         this.repaint();
     }
 
@@ -257,7 +278,19 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         if (this.panZoomHelper.getZoomFactor() == null)
             this.reset();
 
-        Graphics2D g2 = (Graphics2D)g;                              // make g a Graphics2D object so we can use its extended drawing features
+        Graphics2D g2 = (Graphics2D) g.create();                    // draw on a copy, otherwise the pan/zoom transform would also be applied to the child components (annotation overlays)
+        try {
+            this.paintScore(g2);
+        } finally {
+            g2.dispose();
+        }
+    }
+
+    /**
+     * Draw everything in image coordinates.
+     * @param g2 a copy of the component's graphics context
+     */
+    private void paintScore(Graphics2D g2) {
         g2.transform(this.panZoomHelper.getAffineTransform());                         // do the transform on the graphics
 
         // draw light gray background exactly the size of the score image
@@ -278,6 +311,8 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
 
         // draw score nodes
         this.drawScoreNodes(g2);
+        this.annotationOverlayLayer.sync();                     // the link lines below need up to date overlay bounds
+        this.getAnnotationMgr().drawAnnotationLinkLines(g2, this.scorePage);
 
         // draw interaction feedback
         if (this.interactionModeManager != null) {
@@ -420,6 +455,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                         g2.drawString(performanceSymbol, xFont, yFont);
                     }
                 }
+
             }
 
             if (Settings.debug) {
@@ -428,6 +464,117 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                         g2.drawLine((int) scoreNode.getX(), (int) scoreNode.getY(), (int) neighbor.getX(), (int) neighbor.getY());
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Get the annotation manager for this score display panel.
+     * @return the annotation manager
+     */
+    private AnnotationManager getAnnotationMgr() {
+        return this.scoreDocumentData.getProjectPane().getAnnotationManager();
+    }
+
+    /**
+     * Tell the overlay layer which placements to show (the current page) and how they map to the zoomed and panned view.
+     */
+    private void configureAnnotationOverlayLayer() {
+        this.annotationOverlayLayer.setVisibleWhen(() -> !this.isOverlayHidden());
+        this.annotationOverlayLayer.setLinkResolver(this::resolveAnnotationLink);
+        this.annotationOverlayLayer.setFilter(placement -> (this.scorePage != null) && this.scorePage.getFile().getAbsolutePath().equals(placement.getPagePath()));
+        this.annotationOverlayLayer.setProjection(new AnnotationOverlayLayer.Projection() {
+            @Override
+            public Point anchor(AnnotationPlacement placement) {
+                Point2D.Double anchor = new Point2D.Double(placement.getX(), placement.getY());
+                panZoomHelper.getAffineTransform().transform(anchor, anchor);
+                return new Point((int) Math.round(anchor.x), (int) Math.round(anchor.y));
+            }
+
+            @Override
+            public void moveTo(AnnotationPlacement placement, Point anchor) {
+                try {
+                    Point2D.Double imagePoint = new Point2D.Double(anchor.x, anchor.y);
+                    panZoomHelper.getAffineTransform().inverseTransform(imagePoint, imagePoint);
+                    placement.setX(imagePoint.x);
+                    placement.setY(imagePoint.y);
+                } catch (NoninvertibleTransformException ignored) {
+                    // keep the old position
+                }
+            }
+        });
+    }
+    /**
+     * A click while linking an annotation: link the MSM or MPM element or, if there is none, the SVG element at the mouse position.
+     */
+    private AnnotationLink resolveAnnotationLink(MouseEvent mouseEvent) {
+        Element element = this.getOverlayElementAt(mouseEvent);
+        if (element != null) {
+            String id = Helper.getAttributeValue("id", element);
+            if ((id != null) && !id.isEmpty()) {
+                return new AnnotationLink("note".equals(element.getLocalName()) ? AnnotationLink.LinkType.MSM : AnnotationLink.LinkType.MPM, id);
+            }
+        }
+
+        SvgData svgData = this.scorePage.getSvg();
+        if (svgData == null) {
+            return null;
+        }
+        int imgW = this.scorePage.getImage().getWidth(this);
+        int imgH = this.scorePage.getImage().getHeight(this);
+        if ((imgW <= 0) || (imgH <= 0)) {
+            return null;
+        }
+        Point mousePoint = this.mouse2PixelPosition(mouseEvent);
+        Element picked = svgData.pickElementAt(mousePoint.x, mousePoint.y, imgW, imgH);
+        String svgId = (picked == null) ? null : picked.getAttributeValue("id");
+        return ((svgId == null) || svgId.isEmpty()) ? null : new AnnotationLink(AnnotationLink.LinkType.SVG, svgId);
+    }
+
+    private Element resolveSvgElementById(Element root, String id) {
+        if ((root == null) || (id == null) || id.isEmpty()) {
+            return null;
+        }
+        if (id.equals(root.getAttributeValue("id"))) {
+            return root;
+        }
+        for (int i = 0; i < root.getChildElements().size(); ++i) {
+            Element child = root.getChildElements().get(i);
+            Element match = resolveSvgElementById(child, id);
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
+    }
+
+    private void clearAnnotationLinkedHighlight() {
+        SvgData svgData = this.scorePage.getSvg();
+        if (svgData != null) {
+            svgData.setHoveredElement(null);
+            svgData.setHighlightedElement(null);
+        }
+    }
+
+    private void applyAnnotationLinkedHighlight(AnnotationData annotation) {
+        this.clearAnnotationLinkedHighlight();
+        if (annotation == null) {
+            return;
+        }
+        SvgData svgData = this.scorePage.getSvg();
+        if (svgData == null) {
+            return;
+        }
+        for (AnnotationLink link : annotation.getLinks()) {
+            if (link.getType() != AnnotationLink.LinkType.SVG) {
+                continue;
+            }
+            Element svgElement = this.resolveSvgElementById(svgData.getXmlRoot(), link.getTarget());
+            if (svgElement != null) {
+                // leverage existing highlight/hover pipeline in SvgData
+                svgData.setHoveredElement(svgElement);
+                svgData.setHighlightedElement(svgElement);
+                return;
             }
         }
     }
@@ -631,10 +778,13 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             return;
 
         this.pageIndex++;
+        this.getAnnotationMgr().clearActive();
+        this.clearAnnotationLinkedHighlight();
         this.scorePage = score.getPage(this.pageIndex);
         if (this.scoreDocumentData.getProjectPane().getSvgDockableFrame() != null) {
             this.scoreDocumentData.getProjectPane().getSvgDockableFrame().showSvgsForPage(this.scorePage);
         }
+        this.scoreDocumentData.getProjectPane().getAnnotationDockableFrame().refreshTree();
 
         this.repaint();
     }
@@ -647,10 +797,13 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             return;
 
         this.pageIndex--;
+        this.getAnnotationMgr().clearActive();
+        this.clearAnnotationLinkedHighlight();
         this.scorePage = this.scoreDocumentData.projectPane.getScore().getPage(this.pageIndex);
         if (this.scoreDocumentData.getProjectPane().getSvgDockableFrame() != null) {
             this.scoreDocumentData.getProjectPane().getSvgDockableFrame().showSvgsForPage(this.scorePage);
         }
+        this.scoreDocumentData.getProjectPane().getAnnotationDockableFrame().refreshTree();
 
         this.repaint();
     }
@@ -666,12 +819,49 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             return;
 
         this.pageIndex = index;
+        this.getAnnotationMgr().clearActive();
+        this.clearAnnotationLinkedHighlight();
         this.scorePage = score.getPage(this.pageIndex);
         if (this.scoreDocumentData.getProjectPane().getSvgDockableFrame() != null) {
             this.scoreDocumentData.getProjectPane().getSvgDockableFrame().showSvgsForPage(this.scorePage);
         }
+        this.scoreDocumentData.getProjectPane().getAnnotationDockableFrame().refreshTree();
 
         this.repaint();
+    }
+
+    public AnnotationData findAnnotationAtScorePosition(double x, double y, double maxDistSquared) {
+        String currentPage = (this.scorePage == null) ? "" : this.scorePage.getFile().getAbsolutePath();
+        AnnotationData nearestAnnotation = null;
+        double nearestDist = Double.MAX_VALUE;
+        for (AnnotationData annotation : this.getAnnotationMgr().getAnnotations()) {
+            AnnotationPlacement placement = annotation.findNearestPlacement(AnnotationPlacement.TabType.SCORE, x, y, currentPage, maxDistSquared);
+            if (placement == null) {
+                continue;
+            }
+            double width = Math.max(1.0, placement.getWidth());
+            double height = Math.max(1.0, placement.getHeight());
+            double dx = 0.0;
+            if (x < placement.getX()) dx = placement.getX() - x;
+            else if (x > (placement.getX() + width)) dx = x - (placement.getX() + width);
+            double dy = 0.0;
+            if (y < placement.getY()) dy = placement.getY() - y;
+            else if (y > (placement.getY() + height)) dy = y - (placement.getY() + height);
+            double dist = (dx * dx) + (dy * dy);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestAnnotation = annotation;
+            }
+        }
+        return nearestAnnotation;
+    }
+
+    public AnnotationPlacement findNearestScorePlacement(AnnotationData annotation, double x, double y, double maxDistSquared) {
+        if (annotation == null) {
+            return null;
+        }
+        String currentPage = (this.scorePage == null) ? "" : this.scorePage.getFile().getAbsolutePath();
+        return annotation.findNearestPlacement(AnnotationPlacement.TabType.SCORE, x, y, currentPage, maxDistSquared);
     }
 
     /**

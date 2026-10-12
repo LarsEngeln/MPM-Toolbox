@@ -3,11 +3,11 @@ package mpmToolbox.gui.audio;
 import java.util.ArrayList;
 
 /**
- * Describes one column (data line) in an AnnotationData object.
+ * Describes one column (data line) in an MeasurementData object.
  * Holds the column's display name, its data type, its physical unit, and the column's values.
  * @author Lars Engeln
  */
-public class AnnotationLine {
+public class MeasurementDataLine {
 
     /**
      * The role a column plays in the data.
@@ -101,7 +101,7 @@ public class AnnotationLine {
      * @param type the role this column plays (TIME, CURVE, MARKS, TEXT)
      * @param unit the physical unit of the values; if null or invalid for the given type, a default is chosen
      */
-    public AnnotationLine(String name, Type type, Unit unit) {
+    public MeasurementDataLine(String name, Type type, Unit unit) {
         this.name = (name != null && !name.isEmpty()) ? name : "Column";
         this.type = (type != null) ? type : Type.CURVE;
         // ensure the unit is valid for the chosen type

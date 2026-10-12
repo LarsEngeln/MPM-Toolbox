@@ -1,6 +1,7 @@
 package mpmToolbox.gui.audio;
 
 import com.alee.laf.menu.WebPopupMenu;
+import com.alee.laf.menu.WebMenuItem;
 import meico.mpm.Mpm;
 import meico.mpm.elements.Part;
 import meico.mpm.elements.Performance;
@@ -19,6 +20,7 @@ import mpmToolbox.projectData.alignment.PianoRoll;
 import mpmToolbox.supplementary.Tools;
 
 import javax.swing.tree.TreePath;
+import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.Point2D;
@@ -541,8 +543,20 @@ public class TempoMapPanel extends PianoRollPanel implements ComponentListener, 
     @Override
     protected WebPopupMenu getContextMenu(MouseEvent e) {
         TempoMapPanelElement tempo = this.getTempoInstructionAt(e.getX(), e.getY());
-        if (tempo == null)
-            return null;
+        if (tempo == null) {
+            WebPopupMenu menu = new WebPopupMenu();
+            WebMenuItem addAnnotation = new WebMenuItem("Add Annotation");
+            addAnnotation.addActionListener(actionEvent -> {
+                if (this.getWidth() <= 0) {
+                    return;
+                }
+                double relX = Math.max(0.0, Math.min(1.0, e.getPoint().getX() / (double) this.getWidth()));
+                double relY = Math.max(0.0, Math.min(1.0, e.getPoint().getY() / (double) Math.max(1, this.getHeight())));
+                this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, relX, relY);
+            });
+            menu.add(addAnnotation);
+            return menu;
+        }
 
         MpmTree mpmTree = this.parent.parent.getMpmTree();              // a handle to the mpm tree
         MpmTreeNode mpmTreeNode = mpmTree.findNode(tempo.tempoData.xml, true);    // get the mpm tree's node that corresponds with the selected node
@@ -551,7 +565,19 @@ public class TempoMapPanel extends PianoRollPanel implements ComponentListener, 
         mpmTree.setSelectedNode(mpmTreeNode);                           // select the node in the mpm tree
         mpmTree.scrollPathToVisible(mpmTreeNode.getTreePath());         // scroll the tree so the node is visible
 
-        return MpmEditingTools.makeMpmTreeContextMenu(mpmTreeNode, mpmTree);
+        WebPopupMenu menu = MpmEditingTools.makeMpmTreeContextMenu(mpmTreeNode, mpmTree);
+        menu.addSeparator();
+        WebMenuItem addAnnotation = new WebMenuItem("Add Annotation");
+        addAnnotation.addActionListener(actionEvent -> {
+            if (this.getWidth() <= 0) {
+                return;
+            }
+            double relX = Math.max(0.0, Math.min(1.0, e.getPoint().getX() / (double) this.getWidth()));
+            double relY = Math.max(0.0, Math.min(1.0, e.getPoint().getY() / (double) Math.max(1, this.getHeight())));
+            this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, relX, relY);
+        });
+        menu.add(addAnnotation);
+        return menu;
     }
 
     /**
@@ -576,12 +602,20 @@ public class TempoMapPanel extends PianoRollPanel implements ComponentListener, 
                         MpmEditingTools.quickOpenEditor(mpmTreeNode, mpmTree);  // open editor dialog
                     break;
                 case MouseEvent.BUTTON3:                                    // right click = context menu
-                    WebPopupMenu menu = MpmEditingTools.makeMpmTreeContextMenu(mpmTreeNode, mpmTree);
+                    WebPopupMenu menu = this.getContextMenu(e);
                     menu.show(this, e.getX() - 25, e.getY());
                     break;
             }
-        } else
+        } else {
+            if (e.getButton() == MouseEvent.BUTTON3) {
+                WebPopupMenu menu = this.getContextMenu(e);
+                if (menu != null) {
+                    menu.show(this, e.getX() - 25, e.getY());
+                    return;
+                }
+            }
             super.mouseClicked(e);  // select the note that has been clicked, if any
+        }
     }
 
     /**
