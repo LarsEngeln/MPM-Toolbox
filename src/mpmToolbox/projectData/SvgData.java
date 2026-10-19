@@ -77,7 +77,7 @@ public class SvgData {
             this.diagram.setIgnoringClipHeuristic(true);
             String rootId = this.xmlRoot.getAttributeValue("id");
             if (rootId != null && !rootId.isEmpty()) {
-                setStrokeColor(this.diagram.getElement(rootId), "");
+                setDisplay(this.diagram.getElement(rootId), false);
             }
         }
     }
@@ -164,7 +164,7 @@ public class SvgData {
                         break;
                     case HIDDEN:
                     default:
-                        setStrokeColor(rootElement, "");
+                        setDisplay(rootElement, false);
                         break;
                 }
             }
@@ -184,6 +184,11 @@ public class SvgData {
     public void setScoreColor(Color scoreColor) {
         this.scoreColor = scoreColor;
         this.svgColorMode = SVGColorMode.PICKED;
+        String rootId = this.xmlRoot.getAttributeValue("id");
+        if (rootId != null && !rootId.isEmpty()) {
+            SVGElement rootElement = this.diagram.getElement(rootId);
+            setStrokeColor(rootElement, toSvgHexColor(this.scoreColor));
+        }
     }
 
     /**
@@ -191,6 +196,11 @@ public class SvgData {
      */
     public void useOriginalSVGColor() {
         this.svgColorMode = SVGColorMode.ORIGINAL;
+        String rootId = this.xmlRoot.getAttributeValue("id");
+        if (rootId != null && !rootId.isEmpty()) {
+            SVGElement rootElement = this.diagram.getElement(rootId);
+            resetStrokeColor(rootElement);
+        }
     }
 
     /**
@@ -198,6 +208,11 @@ public class SvgData {
      */
     public void useHiddenSVGColor() {
         this.svgColorMode = SVGColorMode.HIDDEN;
+        String rootId = this.xmlRoot.getAttributeValue("id");
+        if (rootId != null && !rootId.isEmpty()) {
+            SVGElement rootElement = this.diagram.getElement(rootId);
+            setStrokeColor(rootElement, "");
+        }
     }
 
     /**
@@ -323,8 +338,9 @@ public class SvgData {
     private static void setStrokeColor(SVGElement svgElement, String color) {
         if (svgElement == null)
             return;
-        if (color == null)
-            color = "";
+        if (color == null || color.isEmpty())
+            setDisplay(svgElement, false);
+        else setDisplay(svgElement, true);
         com.kitfox.svg.xml.StyleAttribute styleAttribute = svgElement.getStyleAbsolute("stroke");
         if(styleAttribute != null) {
             try {
@@ -356,12 +372,63 @@ public class SvgData {
     }
 
     /**
+     * Sets the "display" attribute of an SVGElement and all its descendants (visible=true: "inline", false: "none").
+     * Afterwards the ancestor groups are updated: a group is displayed if at least one of its children is displayed,
+     * and hidden if all its children are hidden. Sibling branches are left unchanged.
+     * @param svgElement SVG sub-branch to show or hide
+     * @param visible true to display, false to hide
+     */
+    private static void setDisplay(SVGElement svgElement, boolean visible) {
+        if (svgElement == null)
+            return;
+        setDisplayRecursive(svgElement, visible);
+        for (SVGElement parent = svgElement.getParent(); parent != null; parent = parent.getParent()) {
+            boolean anyVisible = false;
+            for (int i = 0; i < parent.getNumChildren() && !anyVisible; i++) {
+                if (parent.getChild(i) instanceof SVGElement && isDisplayed((SVGElement) parent.getChild(i)))
+                    anyVisible = true;
+            }
+            setDisplayAttribute(parent, anyVisible);
+        }
+    }
+
+    private static void setDisplayRecursive(SVGElement svgElement, boolean visible) {
+        setDisplayAttribute(svgElement, visible);
+        for (int i = 0; i < svgElement.getNumChildren(); i++) {
+            if (svgElement.getChild(i) instanceof SVGElement)
+                setDisplayRecursive((SVGElement) svgElement.getChild(i), visible);
+        }
+    }
+
+    private static void setDisplayAttribute(SVGElement svgElement, boolean visible) {
+        String value = visible ? "inline" : "none";
+        try {
+            if (svgElement.getInlineAttributes().contains("display"))
+                svgElement.setAttribute("display", 0, value);
+            else
+                svgElement.addAttribute("display", 0, value);
+        } catch (SVGException ignored) {}
+    }
+
+    private static boolean isDisplayed(SVGElement svgElement) {
+        com.kitfox.svg.xml.StyleAttribute attr = new com.kitfox.svg.xml.StyleAttribute("display");
+        try {
+            if (svgElement.getPres(attr))
+                return !"none".equals(attr.getStringValue());
+        } catch (SVGException ignored) {}
+        return true;
+    }
+
+    /**
      * resets the stroke color back to original
      * @param svgElement SVG sub-branch to reset the stroke color for
      */
     private static void resetStrokeColor(SVGElement svgElement) {
         if (svgElement == null)
             return;
+
+        setDisplay(svgElement, true);
+
         com.kitfox.svg.xml.StyleAttribute styleAttribute = svgElement.getStyleAbsolute("orig-stroke");
         if(styleAttribute != null) {
             try {
