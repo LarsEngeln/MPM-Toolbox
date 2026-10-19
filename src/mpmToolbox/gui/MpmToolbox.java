@@ -284,6 +284,25 @@ public class MpmToolbox {
         settingsItem.addActionListener(actionEvent -> new MeasureDisplayDialog(this.getFrame(), this.getProjectPane()));
         edit.add(settingsItem);
 
+        // view menu
+        WebMenu view = new WebMenu("View");
+        view.setMnemonic('v');
+        WebMenuItem tabsTabbed = new WebMenuItem("Tabs in One Frame");
+        tabsTabbed.addActionListener(actionEvent -> {
+            if (this.getProjectPane() != null) this.getProjectPane().arrangeTabs(null);
+        });
+        view.add(tabsTabbed);
+        WebMenuItem tabsSideBySide = new WebMenuItem("Tabs Side by Side");
+        tabsSideBySide.addActionListener(actionEvent -> {
+            if (this.getProjectPane() != null) this.getProjectPane().arrangeTabs(javax.swing.SwingConstants.RIGHT);
+        });
+        view.add(tabsSideBySide);
+        WebMenuItem tabsAbove = new WebMenuItem("Tabs Above Each Other");
+        tabsAbove.addActionListener(actionEvent -> {
+            if (this.getProjectPane() != null) this.getProjectPane().arrangeTabs(javax.swing.SwingConstants.BOTTOM);
+        });
+        view.add(tabsAbove);
+
         // help menu
         WebMenu help = new WebMenu("Help");
         help.setMnemonic('h');
@@ -309,7 +328,7 @@ public class MpmToolbox {
         help.add(about);
 
         // put them all together
-        return (new WebMenuBar()).add(file, edit, help);
+        return (new WebMenuBar()).add(file, edit, view, help);
     }
 
     /**

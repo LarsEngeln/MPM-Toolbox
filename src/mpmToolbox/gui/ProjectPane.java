@@ -6,6 +6,7 @@ import com.alee.extended.dock.WebDockableFrame;
 import com.alee.extended.dock.WebDockablePane;
 import com.alee.extended.tab.DocumentData;
 import com.alee.extended.tab.WebDocumentPane;
+import javax.swing.SwingConstants;
 import com.alee.laf.optionpane.WebOptionPane;
 import com.alee.laf.panel.WebPanel;
 import com.alee.managers.style.StyleId;
@@ -186,12 +187,73 @@ public class ProjectPane extends WebDockablePane {
 
         // fill the content pane in the center
 //        this.tabs.openDocument(new DocumentData<>("TestTab", "Test Tab", new WebButton("Test")));
+        this.tabs.setSplitPaneCustomizer(splitPane -> {     // make the dividers of split tab frames adjustable
+            splitPane.setDividerSize(6);
+            splitPane.setContinuousLayout(true);
+            splitPane.setResizeWeight(0.5);
+            splitPane.setMinimumSize(new java.awt.Dimension(0, 0));
+        });
+        this.tabs.setTabbedPaneCustomizer(tabbedPane -> tabbedPane.setMinimumSize(new java.awt.Dimension(0, 0)));  // otherwise the content's minimum size blocks the divider
+        this.tabs.setSplitEnabled(true);                    // tabs can be dragged to the edge of a frame to arrange them side by side or above each other
+        this.tabs.setDragBetweenPanesEnabled(true);         // and moved between frames
         this.tabs.openDocument(this.makeScoreFrame());
         this.tabs.openDocument(this.makeAudioFrame());
         this.tabs.openDocument(this.makeAnalyticsFrame());
         this.tabs.setSelected(this.scoreFrame);
 
         this.setContent(this.tabs);     // this will fill the free space of the docking pane that is not occupied by a WebDockableFrame, this can be anything JComponent-based
+    }
+
+    /**
+     * Arrange the Score, Audio and Analytics tabs.
+     * @param direction null for all tabs in one frame, SwingConstants.RIGHT for side by side, SwingConstants.BOTTOM for above each other
+     */
+    public void arrangeTabs(Integer direction) {
+        this.tabs.setStructureRoot(null);                   // new empty root pane
+        this.tabs.openDocument(this.scoreFrame);
+        this.tabs.openDocument(this.audioFrame);
+        this.tabs.openDocument(this.analyticsFrame);
+        if (direction != null) {
+            this.tabs.split(this.analyticsFrame, direction);
+            // splitting in the opposite direction creates a nested split; the same direction would just move the tab into the neighbouring frame
+            this.tabs.split(this.scoreFrame, (direction == SwingConstants.RIGHT) ? SwingConstants.LEFT : SwingConstants.TOP);
+        }
+        this.tabs.setSelected(this.scoreFrame);
+        this.tabs.setSelected(this.audioFrame);
+        this.tabs.setSelected(this.analyticsFrame);
+        this.tabs.revalidate();
+        this.tabs.repaint();
+        javax.swing.SwingUtilities.invokeLater(() -> this.centerDividers(this.tabs));
+    }
+
+    /**
+     * Sets all split dividers so that every tab frame gets the same share of the space.
+     */
+    private void centerDividers(java.awt.Component component) {
+        if (!(component instanceof java.awt.Container))
+            return;
+        if (component instanceof javax.swing.JSplitPane) {
+            javax.swing.JSplitPane split = (javax.swing.JSplitPane) component;
+            int left = this.countTabFrames(split.getLeftComponent());
+            int right = this.countTabFrames(split.getRightComponent());
+            if ((left > 0) && (right > 0)) {
+                double proportion = (double) left / (left + right);
+                split.setResizeWeight(proportion);
+                split.setDividerLocation(proportion);
+            }
+        }
+        for (java.awt.Component child : ((java.awt.Container) component).getComponents())
+            this.centerDividers(child);
+    }
+
+    private int countTabFrames(java.awt.Component component) {
+        if (component instanceof javax.swing.JTabbedPane)
+            return 1;
+        int count = 0;
+        if (component instanceof java.awt.Container)
+            for (java.awt.Component child : ((java.awt.Container) component).getComponents())
+                count += this.countTabFrames(child);
+        return count;
     }
 
     /**
