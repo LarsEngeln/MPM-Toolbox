@@ -33,10 +33,10 @@ import java.util.function.Supplier;
  * Views (tabs, overlay layers, the annotation tree) only register as listeners and display what is managed here.
  */
 public class AnnotationManager {
-    private static final double DEFAULT_SCORE_WIDTH = 190.0;
-    private static final double DEFAULT_SCORE_HEIGHT = 40.0;
-    private static final double DEFAULT_RELATIVE_WIDTH = 0.22;
-    private static final double DEFAULT_RELATIVE_HEIGHT = 0.12;
+    private static final double DEFAULT_SCORE_WIDTH = 0.3;      // relative to the page image size
+    private static final double DEFAULT_SCORE_HEIGHT = 0.15;
+    private static final double DEFAULT_RELATIVE_WIDTH = 0.3;
+    private static final double DEFAULT_RELATIVE_HEIGHT = 0.2;
 
     private final ProjectPane projectPane;
     private final CopyOnWriteArrayList<Runnable> changeListeners = new CopyOnWriteArrayList<>();
@@ -45,6 +45,7 @@ public class AnnotationManager {
     private AnnotationData hoveredAnnotation = null;
     private AnnotationData selectedAnnotation = null;
     private AnnotationData linkingAnnotation = null;
+    private boolean overlayZoomEnabled = true;
 
     private static class OverlayLayerState {
         private final AnnotationPlacement.TabType tabType;
@@ -128,6 +129,18 @@ public class AnnotationManager {
         this.notifyChanged();
     }
 
+    /**
+     * @return true if overlays that live in zoomable views (the score) are scaled together with the zoom; otherwise they keep their screen size
+     */
+    public boolean isOverlayZoomEnabled() {
+        return this.overlayZoomEnabled;
+    }
+
+    public void setOverlayZoomEnabled(boolean enabled) {
+        this.overlayZoomEnabled = enabled;
+        this.notifyChanged();
+    }
+
     // ---- overlay layers ----
 
     public void registerOverlayLayer(AnnotationOverlayLayer layer, AnnotationPlacement.TabType tabType) {
@@ -179,7 +192,8 @@ public class AnnotationManager {
             return;
         }
 
-        FontMetrics metrics = layer.getOwner().getFontMetrics(AnnotationOverlayPanel.deriveOverlayFont(layer.getOwner().getFont()));
+        double contentScale = state.projection.contentScale();
+        FontMetrics metrics = layer.getOwner().getFontMetrics(AnnotationOverlayPanel.deriveOverlayFont(layer.getOwner().getFont(), contentScale));
         ArrayList<AnnotationPlacement> shown = new ArrayList<>();
 
         for (AnnotationData annotation : new ArrayList<>(this.getAnnotations())) {
@@ -200,10 +214,11 @@ public class AnnotationManager {
 
                 AnnotationOverlayLayer.Projection projection = state.projection;
                 overlayPanel.setUnitToPixel(projection.xUnitToPixel(), projection.yUnitToPixel());
+                overlayPanel.setContentScale(contentScale);
                 Point anchor = projection.anchor(placement);
                 Rectangle bounds = AnnotationOverlayPanel.computeOverlayBounds(
                         annotation, placement, metrics, anchor.x, anchor.y,
-                        projection.xUnitToPixel(), projection.yUnitToPixel());
+                        projection.xUnitToPixel(), projection.yUnitToPixel(), contentScale);
                 if (!bounds.equals(overlayPanel.getBounds())) {
                     overlayPanel.setBounds(bounds);
                     overlayPanel.validate();

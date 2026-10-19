@@ -101,6 +101,7 @@ public class AnnotationOverlayPanel extends WebPanel {
     private Boolean lastActive = null;
     private double xUnitToPixel = 1.0;
     private double yUnitToPixel = 1.0;
+    private double contentScale = 3.0;
 
     public AnnotationOverlayPanel(AnnotationOverlayLayer layer, AnnotationData annotation, AnnotationPlacement placement) {
         super();
@@ -157,8 +158,21 @@ public class AnnotationOverlayPanel extends WebPanel {
         }
     }
 
+    /**
+     * Set the factor by which the font of the content is scaled.
+     */
+    public void setContentScale(double contentScale) {
+        if ((contentScale > 0.0) && (this.contentScale != contentScale)) {
+            this.contentScale = contentScale;
+            this.lastLinksKey = null;           // the link labels derive their font from the text area
+            this.lastActive = null;             // the border padding depends on the scale
+            this.textArea.setMargin(new Insets(0, Math.max(0, (int) Math.round(OVERLAY_PADDING_X_PX * contentScale) - BORDER_WIDTH_PX), 0, 0));
+            this.refreshVisuals();
+        }
+    }
+
     private void refreshVisuals() {
-        this.textArea.setFont(deriveOverlayFont(this.layer.getOwner().getFont()));
+        this.textArea.setFont(deriveOverlayFont(this.layer.getOwner().getFont(), this.contentScale));
         boolean active = this.isActive();
         if (this.lastActive == null || this.lastActive != active) {
             this.lastActive = active;
@@ -196,12 +210,13 @@ public class AnnotationOverlayPanel extends WebPanel {
                 row.setOpaque(false);
                 WebLabel label = new WebLabel(link.getType() + ": " + link.getTarget());
                 label.setForeground(OVERLAY_TEXT);
-                label.setFont(this.textArea.getFont().deriveFont(Math.max(this.textArea.getFont().getSize2D() - 3.0f, 10.0f)));
+                label.setFont(this.textArea.getFont().deriveFont(Math.max(this.textArea.getFont().getSize2D() - (float) (3.0 * this.contentScale), (float) (10.0 * this.contentScale))));
                 row.add(label, BorderLayout.CENTER);
                 final int index = i;
                 WebButton remove = new WebButton(StyleId.buttonUndecorated, "-");
                 remove.setFocusable(false);
-                remove.setPadding(Settings.paddingInDialogs, Settings.paddingInDialogs, Settings.paddingInDialogs, Settings.paddingInDialogs);
+                remove.setPadding(this.scaledPadding(), this.scaledPadding(), this.scaledPadding(), this.scaledPadding());
+                remove.setFont(this.textArea.getFont());
                 remove.setForeground(OVERLAY_TEXT);
                 remove.addActionListener(e -> {
                     this.annotation.removeLink(index);
@@ -214,7 +229,8 @@ public class AnnotationOverlayPanel extends WebPanel {
         }
         WebButton add = new WebButton(StyleId.buttonUndecorated, "add Link +");
         add.setFocusable(false);
-        add.setPadding(Settings.paddingInDialogs, Settings.paddingInDialogs, Settings.paddingInDialogs, Settings.paddingInDialogs);
+        add.setPadding(this.scaledPadding(), this.scaledPadding(), this.scaledPadding(), this.scaledPadding());
+        add.setFont(this.textArea.getFont());
         add.setForeground(OVERLAY_TEXT);
         add.addActionListener(e -> this.manager.startLinking(this.annotation));
         WebPanel addRow = new WebPanel(new BorderLayout());
@@ -224,16 +240,20 @@ public class AnnotationOverlayPanel extends WebPanel {
         this.revalidate();
     }
 
+    private int scaledPadding() {
+        return (int) Math.round(Settings.paddingInDialogs * this.contentScale);
+    }
+
     private boolean isActive() {
         return this.manager.isActive(this.annotation);
     }
 
-    public static Font deriveOverlayFont(Font base) {
+    public static Font deriveOverlayFont(Font base, double scale) {
         Font font = (base != null) ? base : UIManager.getFont("Label.font");
         if (font == null) {
             font = new Font(Font.DIALOG, Font.PLAIN, 12);
         }
-        return font.deriveFont(Math.max(font.getSize2D() + 2.0f, 14.0f));
+        return font.deriveFont((float) (Math.max(font.getSize2D() + 2.0f, 14.0f) * scale));
     }
 
     private Border createBorder(boolean active) {
@@ -241,7 +261,7 @@ public class AnnotationOverlayPanel extends WebPanel {
         int pad = RESIZE_ZONE_PX - line;
         return BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(active ? OVERLAY_BORDER_ACTIVE : OVERLAY_BORDER, line, true),
-                BorderFactory.createEmptyBorder(OVERLAY_PADDING_Y_PX - line, pad, pad, pad));
+                BorderFactory.createEmptyBorder(Math.max(0, (int) Math.round(OVERLAY_PADDING_Y_PX * this.contentScale) - line), pad, pad, pad));
     }
 
     @Override
@@ -262,11 +282,14 @@ public class AnnotationOverlayPanel extends WebPanel {
                                                  int anchorX,
                                                  int anchorY,
                                                  double xUnitToPixel,
-                                                 double yUnitToPixel) {
+                                                 double yUnitToPixel,
+                                                 double contentScale) {
+        int padX = (int) Math.round(OVERLAY_PADDING_X_PX * contentScale);
+        int padY = (int) Math.round(OVERLAY_PADDING_Y_PX * contentScale);
         int preferredWidth = Math.max(
                 OVERLAY_MIN_WIDTH_PX,
-                Math.min(OVERLAY_MAX_WIDTH_PX, metrics.stringWidth(annotation.getDisplayText()) + (OVERLAY_PADDING_X_PX * 2)));
-        int preferredHeight = Math.max(OVERLAY_MIN_HEIGHT_PX, metrics.getHeight() + (OVERLAY_PADDING_Y_PX * 2));
+                Math.min(OVERLAY_MAX_WIDTH_PX, metrics.stringWidth(annotation.getDisplayText()) + (padX * 2)));
+        int preferredHeight = Math.max(OVERLAY_MIN_HEIGHT_PX, metrics.getHeight() + (padY * 2));
 
         int width = preferredWidth;
         int height = preferredHeight;

@@ -162,6 +162,10 @@ public class AnnotationDockableFrame extends WebDockableFrame {
             toggleVisibility.addActionListener(actionEvent -> parent.getAnnotationManager().setOverlayVisible(!parent.getAnnotationManager().isOverlayVisible()));
             menu.add(toggleVisibility);
 
+            WebMenuItem toggleZoom = new WebMenuItem(parent.getAnnotationManager().isOverlayZoomEnabled() ? "Don't Zoom Annotations with Score" : "Zoom Annotations with Score");
+            toggleZoom.addActionListener(actionEvent -> parent.getAnnotationManager().setOverlayZoomEnabled(!parent.getAnnotationManager().isOverlayZoomEnabled()));
+            menu.add(toggleZoom);
+
             WebMenuItem addAnnotation = new WebMenuItem("Add Annotation");
             addAnnotation.addActionListener(actionEvent -> {
                 ScorePage page = parent.getCurrentScorePage();

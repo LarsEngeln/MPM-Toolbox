@@ -486,9 +486,22 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         this.annotationOverlayLayer.setProjection(new AnnotationOverlayLayer.Projection() {
             @Override
             public Point anchor(AnnotationPlacement placement) {
+                this.convertLegacySize(placement);
                 Point2D.Double anchor = new Point2D.Double(placement.getX(), placement.getY());
                 panZoomHelper.getAffineTransform().transform(anchor, anchor);
                 return new Point((int) Math.round(anchor.x), (int) Math.round(anchor.y));
+            }
+
+            /**
+             * Sizes used to be stored in image pixels; they are relative to the image size now (always <= 1).
+             */
+            private void convertLegacySize(AnnotationPlacement placement) {
+                double imgW = imageWidth();
+                double imgH = imageHeight();
+                if ((placement.getWidth() > 1.0) || (placement.getHeight() > 1.0)) {
+                    placement.setWidth(placement.getWidth() / imgW);
+                    placement.setHeight(placement.getHeight() / imgH);
+                }
             }
 
             @Override
@@ -502,7 +515,55 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                     // keep the old position
                 }
             }
+
+            // the zoom at which the whole page fits into the panel; it is the fixed reference when the annotations do not zoom
+            // the fixed scale (screen pixels per image pixel) that is used when the annotations do not zoom
+            private double fitScale() {
+                return NON_ZOOMING_SCALE;
+            }
+
+            private double xScale() {
+                return getAnnotationMgr().isOverlayZoomEnabled() ? Math.max(1e-6, Math.abs(panZoomHelper.getAffineTransform().getScaleX())) : this.fitScale();
+            }
+
+            private double yScale() {
+                return getAnnotationMgr().isOverlayZoomEnabled() ? Math.max(1e-6, Math.abs(panZoomHelper.getAffineTransform().getScaleY())) : this.fitScale();
+            }
+
+            @Override
+            public double xUnitToPixel() {
+                return overlaySizeFactor() * imageWidth() * this.xScale();
+            }
+
+            @Override
+            public double contentScale() {
+                return ANNOTATION_CONTENT_BASE_SCALE * overlaySizeFactor() * this.xScale();
+            }
+
+            @Override
+            public double yUnitToPixel() {
+                return overlaySizeFactor() * imageHeight() * this.yScale();
+            }
         });
+    }
+
+    private static final double ANNOTATION_CONTENT_BASE_SCALE = 2.0;   // makes text and padding of score annotations larger by default
+
+    private static final double NON_ZOOMING_SCALE = 0.5;    // fixed scale of non-zooming annotations
+
+    private double imageWidth() {
+        return (this.scorePage == null) ? 1.0 : Math.max(1, this.scorePage.getImage().getWidth(this));
+    }
+
+    private double imageHeight() {
+        return (this.scorePage == null) ? 1.0 : Math.max(1, this.scorePage.getImage().getHeight(this));
+    }
+
+    /**
+     * The factor of the overlay element size setting (1.0 for size 0), it is applied to the annotation overlays as well.
+     */
+    private double overlaySizeFactor() {
+        return Math.pow(1.05, this.scoreDocumentData.getProjectPane().getScore().getOverlayElementSize());
     }
     /**
      * A click while linking an annotation: link the MSM or MPM element or, if there is none, the SVG element at the mouse position.
@@ -880,6 +941,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         this.performanceSymbolFont = WebLookAndFeel.globalWindowFont.deriveFont(Font.BOLD, (float) fontSize);
 
         this.repaint();
+        this.annotationOverlayLayer.sync();
     }
 
     /**

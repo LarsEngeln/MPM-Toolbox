@@ -38,6 +38,13 @@ public class AnnotationOverlayLayer extends WebPanel {
         default double yUnitToPixel() {
             return 1.0;
         }
+
+        /**
+         * @return the factor by which the content (font) of the overlays is scaled
+         */
+        default double contentScale() {
+            return 1.0;
+        }
     }
 
     private final Component parent;
