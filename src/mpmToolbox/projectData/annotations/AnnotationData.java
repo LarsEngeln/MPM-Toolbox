@@ -13,7 +13,11 @@ import java.util.UUID;
  */
 public class AnnotationData {
     private String id;
+    private String title;
+    private String part = "";
     private String text;
+    private String measureFrom = "";
+    private String measureTo = "";
     private long createdAt;
     private long updatedAt;
     private final ArrayList<AnnotationLink> links = new ArrayList<>();
@@ -25,6 +29,7 @@ public class AnnotationData {
 
     public AnnotationData(String text) {
         this.id = "annotation-" + UUID.randomUUID();
+        this.title = "Annotation";
         this.text = (text == null) ? "" : text;
         long now = Instant.now().toEpochMilli();
         this.createdAt = now;
@@ -43,6 +48,71 @@ public class AnnotationData {
 
     public String getText() {
         return this.text;
+    }
+
+    public String getTitle() {
+        return this.title;
+    }
+
+    public void setTitle(String title) {
+        this.title = (title == null) ? "" : title;
+        this.touch();
+    }
+
+    public String getPart() {
+        return this.part;
+    }
+
+    public void setPart(String part) {
+        this.part = (part == null) ? "" : part;
+        this.touch();
+    }
+
+    public String getMeasureFrom() {
+        return this.measureFrom;
+    }
+
+    public void setMeasureFrom(String measureFrom) {
+        this.measureFrom = normalizeMeasure(measureFrom);
+        if (this.measureFrom.isEmpty()) {
+            this.measureTo = "";
+        }
+        this.touch();
+    }
+
+    public String getMeasureTo() {
+        return this.measureTo;
+    }
+
+    public void setMeasureTo(String measureTo) {
+        this.measureTo = this.measureFrom.isEmpty() ? "" : normalizeMeasure(measureTo);
+        this.touch();
+    }
+
+    public String getDisplayTitle() {
+        String displayTitle = (this.title == null) ? "" : this.title;
+        StringBuilder details = new StringBuilder();
+        if ((this.part != null) && !this.part.isEmpty()) {
+            details.append(this.part);
+        }
+        if (!this.measureFrom.isEmpty()) {
+            if (details.length() > 0) {
+                details.append(": ");
+            }
+            details.append(this.measureFrom);
+        }
+        if (!this.measureTo.isEmpty()) {
+            details.append('-').append(this.measureTo);
+        }
+        if (details.length() == 0) {
+            return displayTitle;
+        }
+        return displayTitle + " [" + details + "]";
+    }
+
+    private static String normalizeMeasure(String measure) {
+        String value = (measure == null) ? "" : measure.trim();
+        return value.matches("-?[0-9]+|\\?") ? value : "";
     }
 
     public void setText(String text) {
@@ -171,6 +241,18 @@ public class AnnotationData {
         if (!this.text.isEmpty()) {
             e.addAttribute(new Attribute("text", this.text));
         }
+        if (!"Annotation".equals(this.title)) {
+            e.addAttribute(new Attribute("title", this.title));
+        }
+        if (!this.part.isEmpty()) {
+            e.addAttribute(new Attribute("part", this.part));
+        }
+        if (!this.measureFrom.isEmpty()) {
+            e.addAttribute(new Attribute("measureFrom", this.measureFrom));
+        }
+        if (!this.measureTo.isEmpty()) {
+            e.addAttribute(new Attribute("measureTo", this.measureTo));
+        }
 
         if (!this.links.isEmpty()) {
             Element linksElement = new Element("links");
@@ -193,6 +275,16 @@ public class AnnotationData {
 
     public static AnnotationData fromXml(Element element) {
         AnnotationData data = new AnnotationData(element.getAttributeValue("text"));
+        String title = element.getAttributeValue("title");
+        if (title != null) {
+            data.title = title;
+        }
+        String part = element.getAttributeValue("part");
+        data.part = (part == null) ? "" : part;
+        data.measureFrom = normalizeMeasure(element.getAttributeValue("measureFrom"));
+        data.measureTo = data.measureFrom.isEmpty()
+                ? ""
+                : normalizeMeasure(element.getAttributeValue("measureTo"));
         data.setId(element.getAttributeValue("id"));
         data.setCreatedAt(parseLong(element.getAttributeValue("createdAt"), data.getCreatedAt()));
         data.setUpdatedAt(parseLong(element.getAttributeValue("updatedAt"), data.getUpdatedAt()));

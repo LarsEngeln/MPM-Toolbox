@@ -90,7 +90,10 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         this.annotationOverlayLayer = new AnnotationOverlayLayer(this, this.getAnnotationMgr(), AnnotationPlacement.TabType.SCORE);
         this.configureAnnotationOverlayLayer();
         this.add(this.annotationOverlayLayer);
-        this.getAnnotationMgr().addActiveListener(() -> this.applyAnnotationLinkedHighlight(this.getAnnotationMgr().getHovered()));
+        this.getAnnotationMgr().addActiveListener(() -> {
+            this.applyAnnotationLinkedHighlight(this.getAnnotationMgr().getHovered());
+            this.repaint();
+        });
 
         this.updateOverlayElementsScaleFactor();                                    // compute the initial size of overlay elements
 
@@ -312,7 +315,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         // draw score nodes
         this.drawScoreNodes(g2);
         this.annotationOverlayLayer.sync();                     // the link lines below need up to date overlay bounds
-        this.getAnnotationMgr().drawAnnotationLinkLines(g2, this.scorePage);
+        this.getAnnotationMgr().drawAnnotationLinkLines(g2, this.scorePage, this.panZoomHelper.getAffineTransform());
 
         // draw interaction feedback
         if (this.interactionModeManager != null) {
@@ -352,6 +355,9 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
                     }
                     if (currentSvg.getHoveredElement() != null) {
                         currentSvg.renderHighlight(g2, currentSvg.getHoveredElement());
+                    }
+                    for (Element linked : currentSvg.getLinkedElements()) {
+                        currentSvg.renderHighlight(g2, linked);
                     }
                 }
             }
@@ -614,30 +620,31 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         if (svgData != null) {
             svgData.setHoveredElement(null);
             svgData.setHighlightedElement(null);
+            svgData.setLinkedElements(null);
         }
     }
 
     private void applyAnnotationLinkedHighlight(AnnotationData annotation) {
-        this.clearAnnotationLinkedHighlight();
-        if (annotation == null) {
-            return;
-        }
         SvgData svgData = this.scorePage.getSvg();
         if (svgData == null) {
             return;
         }
+        svgData.setLinkedElements(null);
+        if (annotation == null) {
+            return;
+        }
+        AnnotationLink hoveredLink = this.getAnnotationMgr().getHoveredLink();
+        java.util.ArrayList<Element> linked = new java.util.ArrayList<>();
         for (AnnotationLink link : annotation.getLinks()) {
-            if (link.getType() != AnnotationLink.LinkType.SVG) {
+            if ((link.getType() != AnnotationLink.LinkType.SVG) || ((hoveredLink != null) && (link != hoveredLink))) {
                 continue;
             }
             Element svgElement = this.resolveSvgElementById(svgData.getXmlRoot(), link.getTarget());
             if (svgElement != null) {
-                // leverage existing highlight/hover pipeline in SvgData
-                svgData.setHoveredElement(svgElement);
-                svgData.setHighlightedElement(svgElement);
-                return;
+                linked.add(svgElement);
             }
         }
+        svgData.setLinkedElements(linked);
     }
 
     /**

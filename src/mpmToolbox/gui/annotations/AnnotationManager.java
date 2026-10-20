@@ -3,6 +3,7 @@ package mpmToolbox.gui.annotations;
 import meico.mei.Helper;
 import mpmToolbox.gui.ProjectPane;
 import mpmToolbox.gui.Settings;
+import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.annotations.AnnotationData;
 import mpmToolbox.projectData.annotations.AnnotationLink;
 import mpmToolbox.projectData.annotations.AnnotationPlacement;
@@ -16,7 +17,13 @@ import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.Stroke;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Line2D;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -45,6 +52,7 @@ public class AnnotationManager {
     private AnnotationData hoveredAnnotation = null;
     private AnnotationData selectedAnnotation = null;
     private AnnotationData linkingAnnotation = null;
+    private AnnotationLink hoveredLink = null;
     private boolean overlayZoomEnabled = true;
 
     private static class OverlayLayerState {
@@ -219,8 +227,7 @@ public class AnnotationManager {
                 Rectangle bounds = AnnotationOverlayPanel.computeOverlayBounds(
                         annotation, placement, metrics, anchor.x, anchor.y,
                         projection.xUnitToPixel(), projection.yUnitToPixel(), contentScale);
-                if (!bounds.equals(overlayPanel.getBounds())) {
-                    overlayPanel.setBounds(bounds);
+                if (overlayPanel.setOverlayBounds(bounds)) {
                     overlayPanel.validate();
                 }
             }
@@ -311,6 +318,21 @@ public class AnnotationManager {
     public void setHovered(AnnotationData annotation) {
         if (this.hoveredAnnotation != annotation) {
             this.hoveredAnnotation = annotation;
+            this.hoveredLink = null;
+            this.notifyActiveChanged();
+        }
+    }
+
+    /**
+     * @return the link that is hovered in an annotation's overlay panel, or null
+     */
+    public AnnotationLink getHoveredLink() {
+        return this.hoveredLink;
+    }
+
+    public void setHoveredLink(AnnotationLink link) {
+        if (this.hoveredLink != link) {
+            this.hoveredLink = link;
             this.notifyActiveChanged();
         }
     }
@@ -332,36 +354,44 @@ public class AnnotationManager {
 
     // ---- rendering ----
 
-    public void drawAnnotationLinkLines(Graphics2D g2, ScorePage page) {
+    /**
+     * Draw the lines from the hovered annotation's boxes to its linked score nodes.
+     * @param g2 the graphics context in image coordinates
+     * @param page the score page
+     * @param viewTransform the image-to-screen transform of the score view; the overlay boxes live in screen coordinates
+     */
+    public void drawAnnotationLinkLines(Graphics2D g2, ScorePage page, AffineTransform viewTransform) {
         AnnotationData activeAnnotation = this.getHovered();
         if (activeAnnotation == null) {
             return;
         }
 
         AnnotationOverlayLayer scoreLayer = this.projectPane.getScoreFrame().getScoreDisplay().getAnnotationOverlayLayer();
-        for (AnnotationData annotation : this.getAnnotations()) {
-            if (annotation != activeAnnotation) {
+        for (AnnotationPlacement placement : activeAnnotation.getPlacements()) {
+            if (placement.getTabType() != AnnotationPlacement.TabType.SCORE) {
                 continue;
             }
-            for (AnnotationPlacement placement : annotation.getPlacements()) {
-                if (placement.getTabType() != AnnotationPlacement.TabType.SCORE) {
-                    continue;
-                }
-                AnnotationOverlayPanel overlayPanel = scoreLayer.getOverlayPanel(placement);
-                if ((overlayPanel == null) || !overlayPanel.isShowing()) {
-                    continue;
-                }
-                this.drawAnnotationLinkLines(g2, page, annotation, overlayPanel.getBounds(), true);
+            AnnotationOverlayPanel overlayPanel = scoreLayer.getOverlayPanel(placement);
+            if ((overlayPanel == null) || !overlayPanel.isShowing()) {
+                continue;
             }
+            Rectangle2D box;
+            try {
+                box = viewTransform.createInverse().createTransformedShape(overlayPanel.getBounds()).getBounds2D();
+            } catch (NoninvertibleTransformException e) {
+                continue;
+            }
+            this.drawAnnotationLinkLines(g2, page, activeAnnotation, box);
         }
     }
 
-    public void drawAnnotationLinkLines(Graphics2D g2, ScorePage page, AnnotationData annotation, Rectangle box, boolean active) {
-        int fromX = box.x + (box.width / 2);
-        int fromY = box.y + (box.height / 2);
+    /**
+     * @param box the annotation box in image coordinates
+     */
+    public void drawAnnotationLinkLines(Graphics2D g2, ScorePage page, AnnotationData annotation, Rectangle2D box) {
         Stroke oldStroke = g2.getStroke();
-        g2.setStroke(new BasicStroke(active ? 1.8f : 1.4f));
-        g2.setColor(active ? Settings.scoreNoteColorHighlighted : new Color(255, 205, 80, 210));
+        Object oldAntialiasing = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         for (AnnotationLink link : annotation.getLinks()) {
             Element linkedScoreElement = this.resolveLinkedScoreElement(link, page);
@@ -372,10 +402,35 @@ public class AnnotationManager {
             if (linkedNode == null) {
                 continue;
             }
-            g2.drawLine(fromX, fromY, (int) linkedNode.getX(), (int) linkedNode.getY());
+
+            boolean hovered = (link == this.hoveredLink);
+            Color base = (link.getType() == AnnotationLink.LinkType.MSM) ? Settings.scoreNoteColor : Settings.scorePerformanceColor;
+            g2.setColor(hovered ? Settings.scoreSvgColorHighlighted : new Color(base.getRed(), base.getGreen(), base.getBlue(), 220));
+            g2.setStroke(new BasicStroke(hovered ? 9f : 5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            Point2D from = new Point2D.Double(box.getX(), box.getY());
+            g2.draw(new Line2D.Double(from, new Point2D.Double(linkedNode.getX(), linkedNode.getY())));
         }
 
         g2.setStroke(oldStroke);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, (oldAntialiasing != null) ? oldAntialiasing : RenderingHints.VALUE_ANTIALIAS_DEFAULT);
+    }
+
+    /**
+     * @return the text to display for a link: for SVG links the title, else the first desc of the SVG element, else the id
+     */
+    public String getLinkText(AnnotationLink link) {
+        String text = link.getType() + ": ";
+        if (link.getType() == AnnotationLink.LinkType.SVG) {
+            for (ScorePage page : this.projectPane.getScore().getAllPages()) {
+                for (SvgData svg : page.getSvgs()) {
+                    if (svg.hasElement(link.getTarget())) {
+                        return text + svg.getDisplayText(link.getTarget());
+                    }
+                }
+            }
+        }
+        return text + link.getTarget();
     }
 
     public Element resolveLinkedScoreElement(AnnotationLink link, ScorePage page) {

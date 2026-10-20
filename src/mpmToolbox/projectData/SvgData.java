@@ -44,6 +44,7 @@ public class SvgData {
     private ScorePage scorePage = null;  // the score page this SVG belongs to
     private Element highlightedElement = null;  // the currently highlighted XOM element (tree ↔ score sync)
     private Element hoveredElement = null;       // the currently hovered XOM element (hover in svg tree -> score glow)
+    private final java.util.Set<Element> linkedElements = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());   // elements linked by the hovered annotation
     private Color scoreColor = null;   // picked recolor for whole SVG overlay
     private SVGColorMode svgColorMode = SVGColorMode.HIDDEN;
 
@@ -259,6 +260,21 @@ public class SvgData {
     }
 
     /**
+     * Set the XOM elements that are linked by the hovered annotation; they are all rendered with the hover color.
+     * @param elements the linked elements, may be null or empty
+     */
+    public void setLinkedElements(java.util.Collection<Element> elements) {
+        this.linkedElements.clear();
+        if (elements != null) {
+            this.linkedElements.addAll(elements);
+        }
+    }
+
+    public java.util.Set<Element> getLinkedElements() {
+        return this.linkedElements;
+    }
+
+    /**
      * Render a bright yellow overlay for the currently hovered element.
      * Renders the element directly in SVG space.
      * @param g2           the Graphics2D context (already transformed to image space)
@@ -320,6 +336,8 @@ public class SvgData {
      * @return true if svgElement is selected and hovered
      */
     private boolean shouldUseSelectedHoverColor(Element svgElement) {
+        if (svgElement != null && this.linkedElements.contains(svgElement))
+            return true;
         if (svgElement == null || svgElement != this.hoveredElement || this.highlightedElement == null)
             return false;
 
@@ -587,22 +605,59 @@ public class SvgData {
     /**
      * Recursively ensures that every {@link Element} in the XOM subtree has an
      * {@code id} attribute. Elements that already carry an {@code id} are left
-     * untouched; all others receive a freshly generated UUID via.
+     * untouched; all others receive an id derived from their position in the tree,
+     * so that it is stable across loads.
      *
      * @param element the root of the subtree to process
      */
     private static void ensureIds(Element element) {
+       ensureIds(element, "");
+    }
+
+    /**
+    * Ids are derived from the element's position, so that they are the same each time the file is loaded
+    * (annotation links refer to them).
+    */
+    private static void ensureIds(Element element, String path) {
         String id = element.getAttributeValue("id");
         if (id == null || id.isEmpty()) {
             // plain "id" attribute (no namespace) – required by SVG and svg-salamander
-            element.addAttribute(new Attribute("id", "mpm_" + UUID.randomUUID().toString()));
+            element.addAttribute(new Attribute("id", "svg" + path));
         }
+        int index = 0;
         for (int i = 0; i < element.getChildCount(); i++) {
             nu.xom.Node child = element.getChild(i);
             if (child instanceof Element) {
-                ensureIds((Element) child);
+                ensureIds((Element) child, path + "_" + index++);
             }
         }
+    }
+
+    public boolean hasElement(String id) {
+        return (id != null) && (findElementById(this.xmlRoot, id) != null);
+    }
+
+    /**
+     * @param id the id of an element of this SVG
+    * @return the text of the element's first title child, else of its first desc child, else the id
+    */
+    public String getDisplayText(String id) {
+       Element element = (id == null) ? null : findElementById(this.xmlRoot, id);
+       if (element != null) {
+           for (String name : new String[]{"title", "desc"}) {
+               for (int i = 0; i < element.getChildElements().size(); i++) {
+                   Element child = element.getChildElements().get(i);
+                   if (name.equals(child.getLocalName())) {
+                       String text = child.getValue().trim();
+                       if (!text.isEmpty()) {
+                           return text;
+                       }
+                       break;
+                   }
+               }
+           }
+       }
+       return id;
     }
 
     /**

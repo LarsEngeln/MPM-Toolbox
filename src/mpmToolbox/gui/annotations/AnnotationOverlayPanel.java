@@ -5,6 +5,7 @@ import com.alee.laf.label.WebLabel;
 import com.alee.laf.panel.WebPanel;
 import com.alee.laf.scroll.WebScrollPane;
 import com.alee.laf.text.WebTextArea;
+import com.alee.laf.text.WebTextField;
 import com.alee.managers.style.StyleId;
 import mpmToolbox.gui.Settings;
 import mpmToolbox.projectData.annotations.AnnotationData;
@@ -14,7 +15,9 @@ import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JViewport;
 import javax.swing.Scrollable;
@@ -22,15 +25,27 @@ import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.FlowLayout;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
@@ -44,14 +59,38 @@ public class AnnotationOverlayPanel extends WebPanel {
     private static final int OVERLAY_MIN_WIDTH_PX = 80;
     private static final int OVERLAY_MAX_WIDTH_PX = 420;
     private static final int OVERLAY_MIN_HEIGHT_PX = 36;
-    private static final int OVERLAY_PADDING_X_PX = 12;
+    private static final int COLLAPSED_WIDTH_PX = 22;
+    private static final int COLLAPSED_HEIGHT_PX = 18;
+    private static final String COLLAPSED_TEXT = "...";
+    private static final int OVERLAY_PADDING_X_PX = 4;
     private static final int OVERLAY_PADDING_Y_PX = 8;
-    private static final int RESIZE_ZONE_PX = 8;                // the grabbable area at the right and bottom edge (border + padding)
+    private static final int RESIZE_ZONE_PX = 5;                // the grabbable area at the right and bottom edge (border + padding)
     private static final int BORDER_WIDTH_PX = 2;
     private static final Color OVERLAY_FILL = new Color(220, 215, 215, 190);
     private static final Color OVERLAY_BORDER = new Color(130, 130, 120, 230);
     private static final Color OVERLAY_BORDER_ACTIVE = new Color(240, 210, 70, 230);
     private static final Color OVERLAY_TEXT = new Color(20, 20, 20, 255);
+    private static final Color OVERLAY_COLLAPSED_FILL = new Color(255, 220, 90, 190);
+    private static final String OVERLAY_TITLE = "Annotation";
+
+    private static class MeasureInputFilter extends DocumentFilter {
+        @Override
+        public void insertString(FilterBypass fb, int offset, String text, AttributeSet attributes) throws BadLocationException {
+            this.replace(fb, offset, 0, text, attributes);
+        }
+
+        @Override
+        public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attributes) throws BadLocationException {
+            String current = fb.getDocument().getText(0, fb.getDocument().getLength());
+            String replacement = (text == null) ? "" : text;
+            String candidate = current.substring(0, offset) + replacement + current.substring(offset + length);
+            if (candidate.matches("-?[0-9]+|\\?|") || candidate.equals("-")) {
+                fb.replace(offset, length, replacement, attributes);
+            } else {
+                fb.replace(0, fb.getDocument().getLength(), "", attributes);
+            }
+        }
+    }
 
     /**
      * The scrolled view: text and links together, as wide as the viewport.
@@ -91,6 +130,9 @@ public class AnnotationOverlayPanel extends WebPanel {
     private final AnnotationOverlayLayer layer;
     private final AnnotationManager manager;
     private final WebTextArea textArea = new WebTextArea(StyleId.textareaTransparent);
+    private final WebPanel header = new WebPanel(new BorderLayout());
+    private final WebLabel titleLabel = new WebLabel(OVERLAY_TITLE);
+    private final WebButton collapseButton = new WebButton(StyleId.buttonUndecorated, "<");
     private final WebPanel linksPanel = new WebPanel();
     private final ScrollableContent content = new ScrollableContent();
     private final WebScrollPane scrollPane = new WebScrollPane(StyleId.scrollpaneTransparent, this.content);
@@ -98,6 +140,8 @@ public class AnnotationOverlayPanel extends WebPanel {
     private MouseAdapter mouseHandler = null;
     private AnnotationData annotation;
     private AnnotationPlacement placement;
+    private Rectangle expandedBounds;
+    private boolean collapsed;
     private Boolean lastActive = null;
     private double xUnitToPixel = 1.0;
     private double yUnitToPixel = 1.0;
@@ -125,12 +169,28 @@ public class AnnotationOverlayPanel extends WebPanel {
         this.textArea.setForeground(OVERLAY_TEXT);
         this.textArea.setMargin(new Insets(0, OVERLAY_PADDING_X_PX - BORDER_WIDTH_PX, 0, 0));
 
+        this.header.setOpaque(false);
+        this.header.setPadding(0, OVERLAY_PADDING_X_PX, 0, OVERLAY_PADDING_X_PX);
+        this.titleLabel.setForeground(OVERLAY_TEXT);
+        this.titleLabel.setFont(this.textArea.getFont());
+        this.collapseButton.setFocusable(false);
+        this.collapseButton.setToolTipText("Collapse annotation");
+        this.collapseButton.setForeground(OVERLAY_TEXT);
+        this.collapseButton.setPadding(0, 0, 0, 0);
+        this.collapseButton.setMinimumSize(new Dimension(24, 20));
+        this.collapseButton.setPreferredSize(new Dimension(24, 20));
+        this.collapseButton.setBoldFont();
+        this.collapseButton.addActionListener(e -> this.setCollapsed(true));
+        this.header.add(this.titleLabel, BorderLayout.CENTER);
+        this.header.add(this.collapseButton, BorderLayout.EAST);
+
         this.scrollPane.setOpaque(false);
         this.scrollPane.getViewport().setOpaque(false);
         this.scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         this.scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         this.content.add(this.textArea, BorderLayout.CENTER);
         this.content.add(this.linksPanel, BorderLayout.SOUTH);
+        this.add(this.header, BorderLayout.NORTH);
         this.add(this.scrollPane, BorderLayout.CENTER);
 
         this.linksPanel.setLayout(new BoxLayout(this.linksPanel, BoxLayout.Y_AXIS));
@@ -138,6 +198,9 @@ public class AnnotationOverlayPanel extends WebPanel {
 
         this.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         this.textArea.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        this.setToolTipText(OVERLAY_TITLE);
+
+        this.setCollapsed(true);
     }
 
     public void updateAnnotation(AnnotationData annotation, AnnotationPlacement placement) {
@@ -167,12 +230,106 @@ public class AnnotationOverlayPanel extends WebPanel {
             this.lastLinksKey = null;           // the link labels derive their font from the text area
             this.lastActive = null;             // the border padding depends on the scale
             this.textArea.setMargin(new Insets(0, Math.max(0, (int) Math.round(OVERLAY_PADDING_X_PX * contentScale) - BORDER_WIDTH_PX), 0, 0));
+            this.header.setPadding(0, this.scaledPadding(), 0, this.scaledPadding());
             this.refreshVisuals();
         }
     }
 
+    boolean setOverlayBounds(Rectangle bounds) {
+        Rectangle previousBounds = this.getBounds();
+        if ((this.expandedBounds != null) && this.expandedBounds.equals(bounds)) {
+            return false;
+        }
+        this.expandedBounds = new Rectangle(bounds);
+        this.applyDisplayBounds();
+        return !previousBounds.equals(this.getBounds());
+    }
+
+    private void setCollapsed(boolean collapsed) {
+        if (this.collapsed == collapsed) {
+            return;
+        }
+        this.collapsed = collapsed;
+        this.header.setVisible(!collapsed);
+        this.scrollPane.setVisible(!collapsed);
+        this.setToolTipText(collapsed
+                ? ((this.annotation == null) ? OVERLAY_TITLE : this.annotation.getDisplayTitle())
+                : null);
+        this.setOpaque(!collapsed);
+        this.applyDisplayBounds();
+        this.revalidate();
+        this.repaint();
+        if (collapsed && (this.manager.getHovered() == this.annotation)) {
+            this.keepHoverWhilePointerInside();
+        }
+    }
+
+    /**
+     * Collapsing hides the child under the cursor and resizes the panel, which makes Swing report an exit.
+     * If the pointer is still over the (collapsed) panel afterwards, it is hovered; otherwise the hover ends.
+     */
+    private void keepHoverWhilePointerInside() {
+        SwingUtilities.invokeLater(() -> {
+            if (this.collapsed && this.isPointerInside()) {
+                this.manager.setHovered(this.annotation);
+            } else if (this.manager.getHovered() == this.annotation) {
+                this.manager.setHovered(null);
+            }
+        });
+    }
+
+    private boolean isPointerInside() {
+        java.awt.PointerInfo info = java.awt.MouseInfo.getPointerInfo();
+        if ((info == null) || !this.isShowing()) {
+            return false;
+        }
+        Point p = new Point(info.getLocation());
+        SwingUtilities.convertPointFromScreen(p, this);
+        return this.contains(p);
+    }
+
+    private void applyDisplayBounds() {
+        if (this.expandedBounds == null) {
+            return;
+        }
+        Rectangle bounds = new Rectangle(this.expandedBounds);
+        if (this.collapsed) {
+            bounds.width = COLLAPSED_WIDTH_PX;
+            bounds.height = COLLAPSED_HEIGHT_PX;
+        }
+        this.setBounds(bounds);
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        if (this.collapsed) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(OVERLAY_COLLAPSED_FILL);
+            g2.fill(new RoundRectangle2D.Double(0, 0, this.getWidth() - 1, this.getHeight() - 1, 10, 10));
+            g2.setColor(this.isActive() ? OVERLAY_BORDER_ACTIVE : OVERLAY_BORDER);
+            g2.draw(new RoundRectangle2D.Double(0, 0, this.getWidth() - 1, this.getHeight() - 1, 10, 10));
+            g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+            g2.setColor(Color.WHITE);
+            FontMetrics metrics = g2.getFontMetrics();
+            int textX = (this.getWidth() - metrics.stringWidth(COLLAPSED_TEXT)) / 2;
+            int textY = (this.getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
+            g2.drawString(COLLAPSED_TEXT, textX, textY);
+            g2.dispose();
+            return;
+        }
+        super.paintComponent(g);
+    }
+
     private void refreshVisuals() {
         this.textArea.setFont(deriveOverlayFont(this.layer.getOwner().getFont(), this.contentScale));
+        this.titleLabel.setFont(this.textArea.getFont().deriveFont(Font.BOLD));
+        this.collapseButton.setFont(this.textArea.getFont());
+        String title = (this.annotation == null) ? OVERLAY_TITLE : this.annotation.getDisplayTitle();
+        this.titleLabel.setText(title);
+        if (this.collapsed) {
+            this.setToolTipText(title);
+        }
         boolean active = this.isActive();
         if (this.lastActive == null || this.lastActive != active) {
             this.lastActive = active;
@@ -193,7 +350,7 @@ public class AnnotationOverlayPanel extends WebPanel {
         StringBuilder key = new StringBuilder();
         if (this.annotation != null) {
             for (AnnotationLink link : this.annotation.getLinks()) {
-                key.append(link.getType()).append(':').append(link.getTarget()).append(';');
+                key.append(this.manager.getLinkText(link)).append(';');
             }
         }
         String keyString = key.toString();
@@ -208,21 +365,39 @@ public class AnnotationOverlayPanel extends WebPanel {
                 AnnotationLink link = this.annotation.getLinks().get(i);
                 WebPanel row = new WebPanel(new BorderLayout());
                 row.setOpaque(false);
-                WebLabel label = new WebLabel(link.getType() + ": " + link.getTarget());
+                row.setPadding(0, this.scaledPadding(), 0, this.scaledPadding());
+                WebLabel label = new WebLabel(this.manager.getLinkText(link));
                 label.setForeground(OVERLAY_TEXT);
                 label.setFont(this.textArea.getFont().deriveFont(Math.max(this.textArea.getFont().getSize2D() - (float) (3.0 * this.contentScale), (float) (10.0 * this.contentScale))));
                 row.add(label, BorderLayout.CENTER);
                 final int index = i;
                 WebButton remove = new WebButton(StyleId.buttonUndecorated, "-");
                 remove.setFocusable(false);
-                remove.setPadding(this.scaledPadding(), this.scaledPadding(), this.scaledPadding(), this.scaledPadding());
+                remove.setPadding(0, this.scaledPadding(), 0, this.scaledPadding());
                 remove.setFont(this.textArea.getFont());
                 remove.setForeground(OVERLAY_TEXT);
                 remove.addActionListener(e -> {
+                    manager.setHoveredLink(null);
                     this.annotation.removeLink(index);
                     this.manager.notifyChanged();
                 });
                 row.add(remove, BorderLayout.EAST);
+                MouseAdapter linkHover = new MouseAdapter() {
+                    @Override
+                    public void mouseEntered(MouseEvent e) {
+                        manager.setHoveredLink(link);
+                    }
+
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        Point inRow = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), row);
+                        if (!row.contains(inRow) && (manager.getHoveredLink() == link)) {
+                            manager.setHoveredLink(null);
+                        }
+                    }
+                };
+                row.addMouseListener(linkHover);
+                label.addMouseListener(linkHover);
                 this.linksPanel.add(row);
                 this.makeDraggable(row);
             }
@@ -288,7 +463,9 @@ public class AnnotationOverlayPanel extends WebPanel {
         int padY = (int) Math.round(OVERLAY_PADDING_Y_PX * contentScale);
         int preferredWidth = Math.max(
                 OVERLAY_MIN_WIDTH_PX,
-                Math.min(OVERLAY_MAX_WIDTH_PX, metrics.stringWidth(annotation.getDisplayText()) + (padX * 2)));
+                Math.min(OVERLAY_MAX_WIDTH_PX, Math.max(
+                        metrics.stringWidth(annotation.getDisplayText()),
+                        metrics.stringWidth(annotation.getDisplayTitle())) + (padX * 2)));
         int preferredHeight = Math.max(OVERLAY_MIN_HEIGHT_PX, metrics.getHeight() + (padY * 2));
 
         int width = preferredWidth;
@@ -310,12 +487,96 @@ public class AnnotationOverlayPanel extends WebPanel {
         WebTextArea editor = new WebTextArea(annotation.getText(), 8, 36);
         editor.setLineWrap(true);
         editor.setWrapStyleWord(true);
-        int result = JOptionPane.showConfirmDialog(parent, new WebScrollPane(editor), "Edit annotation text", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (result != JOptionPane.OK_OPTION) {
-            return false;
+        WebTextField title = new WebTextField(annotation.getTitle());
+        title.setPadding(Settings.paddingInDialogs);
+        WebTextField part = new WebTextField(annotation.getPart());
+        part.setPadding(Settings.paddingInDialogs);
+        WebTextField measureFrom = new WebTextField(annotation.getMeasureFrom());
+        WebTextField measureTo = new WebTextField(annotation.getMeasureTo());
+        measureFrom.setPadding(Settings.paddingInDialogs);
+        measureTo.setPadding(Settings.paddingInDialogs);
+        measureFrom.setColumns(5);
+        measureTo.setColumns(5);
+        ((AbstractDocument) measureFrom.getDocument()).setDocumentFilter(new MeasureInputFilter());
+        ((AbstractDocument) measureTo.getDocument()).setDocumentFilter(new MeasureInputFilter());
+        title.setToolTipText("Enter the annotation title.");
+        part.setToolTipText("Enter the part name or leave it empty.");
+        String measureHint = "Enter an integer, ? for unknown, or leave empty.";
+        measureFrom.setToolTipText(measureHint);
+        measureTo.setToolTipText(measureHint);
+        measureTo.setEnabled(!measureFrom.getText().isEmpty());
+        measureFrom.getDocument().addDocumentListener(new DocumentListener() {
+            private void updateMeasureToEnabled() {
+                measureTo.setEnabled(!measureFrom.getText().isEmpty());
+                if (!measureTo.isEnabled()) {
+                    SwingUtilities.invokeLater(() -> measureTo.setText(""));
+                }
+            }
+
+            @Override
+            public void insertUpdate(DocumentEvent event) {
+                this.updateMeasureToEnabled();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent event) {
+                this.updateMeasureToEnabled();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent event) {
+                this.updateMeasureToEnabled();
+            }
+        });
+        JPanel fields = new JPanel();
+        fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
+        JPanel titleRow = new JPanel(new BorderLayout(8, 0));
+        titleRow.add(new JLabel("Title"), BorderLayout.WEST);
+        titleRow.add(title, BorderLayout.CENTER);
+        JPanel partRow = new JPanel(new BorderLayout(8, 0));
+        partRow.add(new JLabel("Part:"), BorderLayout.WEST);
+        partRow.add(part, BorderLayout.CENTER);
+        JPanel measureRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        measureRow.add(new JLabel("Measure:"));
+        measureRow.add(measureFrom);
+        measureRow.add(new JLabel("-"));
+        measureRow.add(measureTo);
+
+        fields.add(titleRow);
+        fields.add(partRow);
+        fields.add(measureRow);
+        JPanel form = new JPanel(new BorderLayout(0, 8));
+        form.add(fields, BorderLayout.NORTH);
+        form.add(new WebScrollPane(editor), BorderLayout.CENTER);
+
+        WebButton ok = new WebButton("OK");
+        WebButton cancel = new WebButton("Cancel");
+        ok.setPadding(Settings.paddingInDialogs);
+        cancel.setPadding(Settings.paddingInDialogs);
+
+        while (true) {
+            JOptionPane pane = new JOptionPane(form, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION, null, new Object[]{ok, cancel}, ok);
+            for (java.awt.event.ActionListener listener : ok.getActionListeners()) {
+                ok.removeActionListener(listener);
+            }
+            for (java.awt.event.ActionListener listener : cancel.getActionListeners()) {
+                cancel.removeActionListener(listener);
+            }
+            ok.addActionListener(e -> pane.setValue(JOptionPane.OK_OPTION));
+            cancel.addActionListener(e -> pane.setValue(JOptionPane.CANCEL_OPTION));
+            javax.swing.JDialog dialog = pane.createDialog(parent, "Edit annotation");
+            dialog.setVisible(true);
+            dialog.dispose();
+            if (!Integer.valueOf(JOptionPane.OK_OPTION).equals(pane.getValue())) {
+                return false;
+            }
+            annotation.setTitle(title.getText());
+            annotation.setPart(part.getText());
+            annotation.setMeasureFrom(measureFrom.getText());
+            annotation.setMeasureTo(measureTo.getText());
+            annotation.setText(editor.getText());
+            return true;
         }
-        annotation.setText(editor.getText());
-        return true;
     }
 
     private void resizeTo(int width, int height) {
@@ -413,6 +674,13 @@ public class AnnotationOverlayPanel extends WebPanel {
             private int resizeStartScreenY = 0;
 
             private void updateCursor(MouseEvent e) {
+                if (collapsed) {
+                    this.resizeRight = false;
+                    this.resizeBottom = false;
+                    setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                    textArea.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                    return;
+                }
                 boolean right = e.getX() >= getWidth() - RESIZE_ZONE_PX;
                 boolean bottom = e.getY() >= getHeight() - RESIZE_ZONE_PX;
                 this.resizeRight = right;
@@ -437,7 +705,7 @@ public class AnnotationOverlayPanel extends WebPanel {
 
             @Override
             public void mouseExited(MouseEvent e) {
-                if (resizing || dragging || contains(e.getX(), e.getY())) {      // still inside, e.g. just moved on top of the text area
+                if (resizing || dragging || contains(e.getX(), e.getY()) || isPointerInside()) {      // still inside, e.g. just moved on top of the text area
                     return;
                 }
                 if (manager.getHovered() == annotation) {
@@ -462,6 +730,9 @@ public class AnnotationOverlayPanel extends WebPanel {
                 this.updateCursor(e);
                 manager.setSelected(annotation);
                 layer.getOwner().requestFocusInWindow();
+                if (collapsed) {
+                    return;
+                }
                 if (this.resizeRight || this.resizeBottom) {
                     this.resizing = true;
                     this.resizeStartWidth = getWidth();
@@ -512,6 +783,10 @@ public class AnnotationOverlayPanel extends WebPanel {
                     layer.forwardToOwner(e, AnnotationOverlayPanel.this);
                     return;
                 }
+                if (collapsed) {
+                    setCollapsed(false);
+                    return;
+                }
                 if (e.getClickCount() < 2) {
                     return;
                 }
@@ -525,6 +800,7 @@ public class AnnotationOverlayPanel extends WebPanel {
         this.addMouseMotionListener(mouseAdapter);
         this.mouseHandler = mouseAdapter;
         this.makeDraggable(this.scrollPane);
+        this.makeDraggable(this.header);
         this.addMouseWheelListener(mouseWheelEvent -> {
             Component owner = layer.getOwner();
             Point p = SwingUtilities.convertPoint(AnnotationOverlayPanel.this, mouseWheelEvent.getPoint(), owner);
