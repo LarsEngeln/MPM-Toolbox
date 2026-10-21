@@ -8,8 +8,8 @@ import meico.msm.Msm;
 import meico.supplementary.KeyValue;
 import meico.xml.XmlBase;
 import mpmToolbox.projectData.audio.Audio;
+import mpmToolbox.gui.annotations.AnnotationManager;
 import mpmToolbox.projectData.annotations.AnnotationData;
-import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import mpmToolbox.projectData.score.Score;
 import mpmToolbox.projectData.score.ScorePage;
 import mpmToolbox.projectData.SvgData;
@@ -29,7 +29,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * The data structure of an MPM Toolbox project.
@@ -143,24 +146,11 @@ public class ProjectData {
         }
 
         // load project-wide annotations independently of optional sections like <svgs>
-        Element annotationsElt = this.xml.getRootElement().getFirstChildElement("annotations");
-        if (annotationsElt != null) {
-            String visible = annotationsElt.getAttributeValue("visible");
-            if (visible != null) {
-                this.annotationOverlayVisible = Boolean.parseBoolean(visible);
-            }
-            Elements annotationElements = annotationsElt.getChildElements("annotation");
-            for (int i = 0; i < annotationElements.size(); ++i) {
-                Element annotationElt = annotationElements.get(i);
-                AnnotationData data = AnnotationData.fromXml(annotationElt);
-                for (AnnotationPlacement placement : data.getPlacements()) {
-                    if ((placement.getTabType() == AnnotationPlacement.TabType.SCORE)
-                            && !placement.getPagePath().isEmpty()) {
-                        placement.setPagePath(resolveProjectPath(basePath, placement.getPagePath()));
-                    }
-                }
-                this.annotations.add(data);
-            }
+        Boolean annotationsVisible = AnnotationManager.load(this.xml.getRootElement(), this.annotations,
+                this.msm.getRootElement(), (this.mpm == null) ? null : this.mpm.getRootElement(),
+                this.score, path -> resolveProjectPath(basePath, path));
+        if (annotationsVisible != null) {
+            this.annotationOverlayVisible = annotationsVisible;
         }
     }
 
@@ -629,40 +619,13 @@ public class ProjectData {
         }
 
         // store project-wide annotations
-        if (!this.annotations.isEmpty()) {
-            Element annotationsElt = new Element("annotations");
-            annotationsElt.addAttribute(new Attribute("visible", Boolean.toString(this.annotationOverlayVisible)));
-            root.appendChild(annotationsElt);
-            for (AnnotationData annotation : this.annotations) {
-                Element annotationElt = annotation.toXml();
-                Element placementsElt = annotationElt.getFirstChildElement("placements");
-                if (placementsElt != null) {
-                    Elements placementElements = placementsElt.getChildElements("placement");
-                    for (int i = 0; i < placementElements.size(); ++i) {
-                        Element placementElt = placementElements.get(i);
-                        String tab = placementElt.getAttributeValue("tab");
-                        if (!"score".equals(tab)) {
-                            continue;
-                        }
-                        Attribute page = placementElt.getAttribute("page");
-                        if ((page == null) || page.getValue().isEmpty()) {
-                            continue;
-                        }
-                        try {
-                            Path relPage = Paths.get(file.getParent()).relativize(Paths.get(page.getValue()));
-                            page.setValue(relPage.toString());
-                        } catch (Exception ignored) {
-                            // keep absolute page path if relativization fails
-                        }
-                    }
-                }
-                annotationsElt.appendChild(annotationElt);
+        AnnotationManager.save(root, this.annotations, this.annotationOverlayVisible, this.score, path -> {
+            try {
+                return Paths.get(file.getParent()).relativize(Paths.get(path)).toString();
+            } catch (Exception ignored) {
+                return path;    // keep absolute page path if relativization fails
             }
-        } else if (!this.annotationOverlayVisible) {
-            Element annotationsElt = new Element("annotations");
-            annotationsElt.addAttribute(new Attribute("visible", Boolean.toString(false)));
-            root.appendChild(annotationsElt);
-        }
+        });
 
         return this.xml.writeFile();
     }

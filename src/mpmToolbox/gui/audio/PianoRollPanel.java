@@ -244,7 +244,7 @@ public class PianoRollPanel extends MeasurePanel implements ComponentListener, M
             }
             double relativeX = Math.max(0.0, Math.min(1.0, e.getPoint().getX() / (double) this.getWidth()));
             double relativeY = Math.max(0.0, Math.min(1.0, e.getPoint().getY() / (double) Math.max(1, this.getHeight())));
-            this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, relativeX, relativeY);
+            this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, Math.max(0.0, this.xToMilliseconds(e.getPoint().getX())), relativeY, (this.parent.getAudio() == null) ? "" : this.parent.getAudio().getFile().getAbsolutePath());
         });
         menu.add(addProjectAnnotation);
 

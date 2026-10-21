@@ -7,9 +7,13 @@ import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.annotations.AnnotationData;
 import mpmToolbox.projectData.annotations.AnnotationLink;
 import mpmToolbox.projectData.annotations.AnnotationPlacement;
+import mpmToolbox.projectData.score.Score;
 import mpmToolbox.projectData.score.ScoreNode;
 import mpmToolbox.projectData.score.ScorePage;
+import mpmToolbox.projectData.annotations.MeiAnnotationConverter;
+import nu.xom.Attribute;
 import nu.xom.Element;
+import nu.xom.Elements;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -26,7 +30,10 @@ import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
@@ -71,6 +78,13 @@ public class AnnotationManager {
 
     public AnnotationManager(ProjectPane projectPane) {
         this.projectPane = projectPane;
+        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(event -> {
+            if (this.isLinking() && (event.getID() == java.awt.event.KeyEvent.KEY_PRESSED) && (event.getKeyCode() == java.awt.event.KeyEvent.VK_ESCAPE)) {
+                this.cancelLinking();
+                return true;
+            }
+            return false;
+        });
     }
 
     /**
@@ -96,6 +110,144 @@ public class AnnotationManager {
     private void notifyActiveChanged() {
         for (Runnable listener : this.activeListeners) {
             listener.run();
+        }
+    }
+
+    // ---- persistence (called by ProjectData) ----
+
+    /**
+     * Read the annotations of an MPR via the MeiAnnotationConverter.
+     * @param mprRoot root element of the MPR xml
+     * @param target list to which the loaded annotations are added
+     * @param msmRoot root of the MSM (for resolving #id references)
+     * @param mpmRoot root of the MPM or null
+     * @param score the score, needed to restore the score placement positions in image pixels
+     * @param pathResolver converts a project-relative path into an absolute one
+     * @return the stored overlay visibility or null if it is not stored
+     */
+    public static Boolean load(Element mprRoot, java.util.List<AnnotationData> target, Element msmRoot, Element mpmRoot, Score score, UnaryOperator<String> pathResolver) {
+        Boolean visible = null;
+
+        Element meiElt = mprRoot.getFirstChildElement("annotations");
+        if (meiElt != null) {
+            String v = meiElt.getAttributeValue("visible");
+            if (v != null) {
+                visible = Boolean.parseBoolean(v);
+            }
+            try {
+                mapScorePageTargets(meiElt, pathResolver);
+                Set<String> msmIds = collectIds(msmRoot);
+                Set<String> mpmIds = (mpmRoot == null) ? null : collectIds(mpmRoot);
+                java.util.List<AnnotationData> loaded = MeiAnnotationConverter.fromXML(meiElt, msmIds::contains, (mpmIds == null) ? null : mpmIds::contains);
+                scaleScorePositions(loaded, score, true);
+                target.addAll(loaded);
+            } catch (IllegalArgumentException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        return visible;
+    }
+
+    /**
+     * Write the annotations as MEI section into the MPR xml.
+     * @param mprRoot root element of the MPR xml
+     * @param annotations the annotations
+     * @param overlayVisible overlay visibility flag
+     * @param score the score, needed to normalize the score placement positions
+     * @param pathRelativizer converts an absolute path into a project-relative one
+     */
+    public static void save(Element mprRoot, java.util.List<AnnotationData> annotations, boolean overlayVisible, Score score, UnaryOperator<String> pathRelativizer) {
+        if (annotations.isEmpty() && overlayVisible) {
+            return;
+        }
+        Element annotationsElt;
+        scaleScorePositions(annotations, score, false);
+        try {
+            annotationsElt = MeiAnnotationConverter.toXML(annotations);
+        } finally {
+            scaleScorePositions(annotations, score, true);
+        }
+        mapScorePageTargets(annotationsElt, pathRelativizer);
+        annotationsElt.addAttribute(new Attribute("visible", Boolean.toString(overlayVisible)));
+        mprRoot.appendChild(annotationsElt);
+    }
+
+    /**
+     * The x and y of score placements are image pixels in the application, but the MEI zones need relative coordinates.
+     * @param toPixels true to convert relative to pixels, false for pixels to relative
+     */
+    private static void scaleScorePositions(java.util.List<AnnotationData> annotations, Score score, boolean toPixels) {
+        Map<String, ScorePage> pages = new java.util.HashMap<>();
+        for (ScorePage page : score.getAllPages()) {
+            pages.put(page.getFile().getAbsolutePath(), page);
+        }
+        for (AnnotationData annotation : annotations) {
+            long updatedAt = annotation.getUpdatedAt();
+            for (AnnotationPlacement placement : annotation.getPlacements()) {
+                ScorePage page = pages.get(placement.getPagePath());
+                if ((placement.getTabType() != AnnotationPlacement.TabType.SCORE) || (page == null)) {
+                    continue;
+                }
+                double w = page.getImage().getWidth();
+                double h = page.getImage().getHeight();
+                placement.setX(toPixels ? placement.getX() * w : placement.getX() / w);
+                placement.setY(toPixels ? placement.getY() * h : placement.getY() / h);
+            }
+            annotation.setUpdatedAt(updatedAt);
+        }
+    }
+
+    /**
+     * Apply a path mapping to the score page references (surface graphics and placement pages) of an annotations element.
+     */
+    private static void mapScorePageTargets(Element annotationsElt, UnaryOperator<String> mapping) {
+        Element score = annotationsElt.getFirstChildElement("score", MeiAnnotationConverter.MEI_NS);
+        if (score != null) {
+            Elements recordings = score.getChildElements("recording", MeiAnnotationConverter.MEI_NS);
+            for (int i = 0; i < recordings.size(); ++i) {
+                Elements avFiles = recordings.get(i).getChildElements("avFile", MeiAnnotationConverter.MEI_NS);
+                for (int j = 0; j < avFiles.size(); ++j) {
+                    mapAttribute(avFiles.get(j).getAttribute("target"), mapping);
+                }
+            }
+            Elements facsimiles = score.getChildElements("facsimile", MeiAnnotationConverter.MEI_NS);
+            for (int i = 0; i < facsimiles.size(); ++i) {
+                Elements surfaces = facsimiles.get(i).getChildElements("surface", MeiAnnotationConverter.MEI_NS);
+                for (int j = 0; j < surfaces.size(); ++j) {
+                    Elements graphics = surfaces.get(j).getChildElements("graphic", MeiAnnotationConverter.MEI_NS);
+                    for (int k = 0; k < graphics.size(); ++k) {
+                        mapAttribute(graphics.get(k).getAttribute("target"), mapping);
+                    }
+                }
+            }
+        }
+        Elements placements = annotationsElt.getChildElements("placement");
+        for (int i = 0; i < placements.size(); ++i) {
+            mapAttribute(placements.get(i).getAttribute("source"), mapping);
+        }
+    }
+
+    private static void mapAttribute(Attribute attribute, UnaryOperator<String> mapping) {
+        if ((attribute != null) && !attribute.getValue().isEmpty()) {
+            attribute.setValue(mapping.apply(attribute.getValue()));
+        }
+    }
+
+    private static Set<String> collectIds(Element root) {
+        Set<String> ids = new HashSet<>();
+        collectIds(root, ids);
+        return ids;
+    }
+
+    private static void collectIds(Element element, Set<String> ids) {
+        String id = Helper.getAttributeValue("id", element);
+        if (id != null) {
+            ids.add(id);
+        }
+        Elements children = element.getChildElements();
+        for (int i = 0; i < children.size(); ++i) {
+            collectIds(children.get(i), ids);
         }
     }
 
@@ -261,7 +413,7 @@ public class AnnotationManager {
         if (tab == AnnotationPlacement.TabType.SCORE) {
             annotation.addPlacement(AnnotationPlacement.rect(tab, x, y, DEFAULT_SCORE_WIDTH, DEFAULT_SCORE_HEIGHT, pagePath));
         } else {
-            annotation.addPlacement(AnnotationPlacement.rect(tab, x, y, DEFAULT_RELATIVE_WIDTH, DEFAULT_RELATIVE_HEIGHT, ""));
+            annotation.addPlacement(AnnotationPlacement.rect(tab, x, y, DEFAULT_RELATIVE_WIDTH, DEFAULT_RELATIVE_HEIGHT, (tab == AnnotationPlacement.TabType.AUDIO) ? pagePath : ""));
         }
         return this.add(annotation) ? annotation : null;
     }
@@ -275,6 +427,10 @@ public class AnnotationManager {
     public void startLinking(AnnotationData annotation) {
         this.linkingAnnotation = annotation;
         this.notifyChanged();
+    }
+
+    public AnnotationData getLinkingAnnotation() {
+        return this.linkingAnnotation;
     }
 
     public void cancelLinking() {
@@ -404,8 +560,13 @@ public class AnnotationManager {
             }
 
             boolean hovered = (link == this.hoveredLink);
-            Color base = (link.getType() == AnnotationLink.LinkType.MSM) ? Settings.scoreNoteColor : Settings.scorePerformanceColor;
-            g2.setColor(hovered ? Settings.scoreSvgColorHighlighted : new Color(base.getRed(), base.getGreen(), base.getBlue(), 220));
+            Color base;
+            if (link.getType() == AnnotationLink.LinkType.MSM) {
+                base = hovered ? Settings.scoreNoteColorHighlighted : Settings.scoreNoteColor;
+            } else {
+                base = hovered ? Settings.scorePerformanceColorHighlighted : Settings.scorePerformanceColor;
+            }
+            g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), hovered ? 255 : 220));
             g2.setStroke(new BasicStroke(hovered ? 9f : 5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 
             Point2D from = new Point2D.Double(box.getX(), box.getY());
@@ -422,10 +583,14 @@ public class AnnotationManager {
     public String getLinkText(AnnotationLink link) {
         String text = link.getType() + ": ";
         if (link.getType() == AnnotationLink.LinkType.SVG) {
+            String target = link.getTarget();
+            int fragmentIndex = target.indexOf('#');
+            String file = target.substring(0, fragmentIndex);
+            String svgId = target.substring(fragmentIndex + 1);
             for (ScorePage page : this.projectPane.getScore().getAllPages()) {
                 for (SvgData svg : page.getSvgs()) {
-                    if (svg.hasElement(link.getTarget())) {
-                        return text + svg.getDisplayText(link.getTarget());
+                    if (file.equals(svg.getFile().getName()) && svg.hasElement(svgId)) {
+                        return text + svg.getDisplayText(svgId);
                     }
                 }
             }

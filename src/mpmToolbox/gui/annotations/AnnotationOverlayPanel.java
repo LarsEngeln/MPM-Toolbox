@@ -343,6 +343,10 @@ public class AnnotationOverlayPanel extends WebPanel {
         }
     }
 
+    private boolean isLinkingThis() {
+        return (this.annotation != null) && (this.manager.getLinkingAnnotation() == this.annotation);
+    }
+
     /**
      * List the links of the annotation, each with a "-" to remove it, and a "+" at the end to add a new one by clicking its target.
      */
@@ -353,7 +357,7 @@ public class AnnotationOverlayPanel extends WebPanel {
                 key.append(this.manager.getLinkText(link)).append(';');
             }
         }
-        String keyString = key.toString();
+        String keyString = key.toString() + (this.isLinkingThis() ? "|linking" : "");
         if (keyString.equals(this.lastLinksKey)) {
             return;
         }
@@ -402,12 +406,18 @@ public class AnnotationOverlayPanel extends WebPanel {
                 this.makeDraggable(row);
             }
         }
-        WebButton add = new WebButton(StyleId.buttonUndecorated, "add Link +");
+        WebButton add = new WebButton(StyleId.buttonUndecorated, this.isLinkingThis() ? "cancel adding Link" : "add Link +");
         add.setFocusable(false);
         add.setPadding(this.scaledPadding(), this.scaledPadding(), this.scaledPadding(), this.scaledPadding());
         add.setFont(this.textArea.getFont());
         add.setForeground(OVERLAY_TEXT);
-        add.addActionListener(e -> this.manager.startLinking(this.annotation));
+        add.addActionListener(e -> {
+            if (this.isLinkingThis()) {
+                this.manager.cancelLinking();
+            } else {
+                this.manager.startLinking(this.annotation);
+            }
+        });
         WebPanel addRow = new WebPanel(new BorderLayout());
         addRow.setOpaque(false);
         addRow.add(add, BorderLayout.EAST);
@@ -441,9 +451,6 @@ public class AnnotationOverlayPanel extends WebPanel {
 
     @Override
     public boolean contains(int x, int y) {
-        if (this.manager.isLinking()) {
-            return false;                       // the click is meant for the tab below
-        }
         return new RoundRectangle2D.Double(0, 0, this.getWidth(), this.getHeight(), 12, 12).contains(x, y);
     }
 
@@ -500,7 +507,7 @@ public class AnnotationOverlayPanel extends WebPanel {
         ((AbstractDocument) measureFrom.getDocument()).setDocumentFilter(new MeasureInputFilter());
         ((AbstractDocument) measureTo.getDocument()).setDocumentFilter(new MeasureInputFilter());
         title.setToolTipText("Enter the annotation title.");
-        part.setToolTipText("Enter the part name or leave it empty.");
+        part.setToolTipText("Enter the locus or leave it empty.");
         String measureHint = "Enter an integer, ? for unknown, or leave empty.";
         measureFrom.setToolTipText(measureHint);
         measureTo.setToolTipText(measureHint);
@@ -534,7 +541,7 @@ public class AnnotationOverlayPanel extends WebPanel {
         titleRow.add(new JLabel("Title"), BorderLayout.WEST);
         titleRow.add(title, BorderLayout.CENTER);
         JPanel partRow = new JPanel(new BorderLayout(8, 0));
-        partRow.add(new JLabel("Part:"), BorderLayout.WEST);
+        partRow.add(new JLabel("Locus:"), BorderLayout.WEST);
         partRow.add(part, BorderLayout.CENTER);
         JPanel measureRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         measureRow.add(new JLabel("Measure:"));

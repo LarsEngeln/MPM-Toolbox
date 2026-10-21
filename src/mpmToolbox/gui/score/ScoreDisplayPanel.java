@@ -595,7 +595,7 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         Point mousePoint = this.mouse2PixelPosition(mouseEvent);
         Element picked = svgData.pickElementAt(mousePoint.x, mousePoint.y, imgW, imgH);
         String svgId = (picked == null) ? null : picked.getAttributeValue("id");
-        return ((svgId == null) || svgId.isEmpty()) ? null : new AnnotationLink(AnnotationLink.LinkType.SVG, svgId);
+        return ((svgId == null) || svgId.isEmpty()) ? null : new AnnotationLink(AnnotationLink.LinkType.SVG, svgData.getFile().getName() + "#" + svgId);
     }
 
     private Element resolveSvgElementById(Element root, String id) {
@@ -639,7 +639,12 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
             if ((link.getType() != AnnotationLink.LinkType.SVG) || ((hoveredLink != null) && (link != hoveredLink))) {
                 continue;
             }
-            Element svgElement = this.resolveSvgElementById(svgData.getXmlRoot(), link.getTarget());
+            String target = link.getTarget();
+            int fragmentIndex = target.indexOf('#');
+            if (!target.substring(0, fragmentIndex).equals(svgData.getFile().getName())) {
+                continue;   // the link points into another SVG file
+            }
+            Element svgElement = this.resolveSvgElementById(svgData.getXmlRoot(), target.substring(fragmentIndex + 1));
             if (svgElement != null) {
                 linked.add(svgElement);
             }

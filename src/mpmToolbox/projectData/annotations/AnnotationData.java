@@ -1,8 +1,5 @@
 package mpmToolbox.projectData.annotations;
 
-import nu.xom.Attribute;
-import nu.xom.Element;
-import nu.xom.Elements;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -15,6 +12,7 @@ public class AnnotationData {
     private String id;
     private String title;
     private String part = "";
+    private String category = "";   // not used by the GUI yet
     private String text;
     private String measureFrom = "";
     private String measureTo = "";
@@ -65,6 +63,15 @@ public class AnnotationData {
 
     public void setPart(String part) {
         this.part = (part == null) ? "" : part;
+        this.touch();
+    }
+
+    public String getCategory() {
+        return this.category;
+    }
+
+    public void setCategory(String category) {
+        this.category = (category == null) ? "" : category;
         this.touch();
     }
 
@@ -147,6 +154,11 @@ public class AnnotationData {
     public void addLink(AnnotationLink link) {
         if (link == null) {
             return;
+        }
+        for (AnnotationLink existing : this.links) {
+            if ((existing.getType() == link.getType()) && java.util.Objects.equals(existing.getTarget(), link.getTarget())) {
+                return;
+            }
         }
         this.links.add(link);
         this.touch();
@@ -231,94 +243,6 @@ public class AnnotationData {
             return "(Annotation)";
         }
         return this.text;
-    }
-
-    public Element toXml() {
-        Element e = new Element("annotation");
-        e.addAttribute(new Attribute("id", this.id));
-        e.addAttribute(new Attribute("createdAt", Long.toString(this.createdAt)));
-        e.addAttribute(new Attribute("updatedAt", Long.toString(this.updatedAt)));
-        if (!this.text.isEmpty()) {
-            e.addAttribute(new Attribute("text", this.text));
-        }
-        if (!"Annotation".equals(this.title)) {
-            e.addAttribute(new Attribute("title", this.title));
-        }
-        if (!this.part.isEmpty()) {
-            e.addAttribute(new Attribute("part", this.part));
-        }
-        if (!this.measureFrom.isEmpty()) {
-            e.addAttribute(new Attribute("measureFrom", this.measureFrom));
-        }
-        if (!this.measureTo.isEmpty()) {
-            e.addAttribute(new Attribute("measureTo", this.measureTo));
-        }
-
-        if (!this.links.isEmpty()) {
-            Element linksElement = new Element("links");
-            for (AnnotationLink link : this.links) {
-                linksElement.appendChild(link.toXml());
-            }
-            e.appendChild(linksElement);
-        }
-
-        if (!this.placements.isEmpty()) {
-            Element placementsElement = new Element("placements");
-            for (AnnotationPlacement placement : this.placements) {
-                placementsElement.appendChild(placement.toXml());
-            }
-            e.appendChild(placementsElement);
-        }
-
-        return e;
-    }
-
-    public static AnnotationData fromXml(Element element) {
-        AnnotationData data = new AnnotationData(element.getAttributeValue("text"));
-        String title = element.getAttributeValue("title");
-        if (title != null) {
-            data.title = title;
-        }
-        String part = element.getAttributeValue("part");
-        data.part = (part == null) ? "" : part;
-        data.measureFrom = normalizeMeasure(element.getAttributeValue("measureFrom"));
-        data.measureTo = data.measureFrom.isEmpty()
-                ? ""
-                : normalizeMeasure(element.getAttributeValue("measureTo"));
-        data.setId(element.getAttributeValue("id"));
-        data.setCreatedAt(parseLong(element.getAttributeValue("createdAt"), data.getCreatedAt()));
-        data.setUpdatedAt(parseLong(element.getAttributeValue("updatedAt"), data.getUpdatedAt()));
-
-        Element linksElement = element.getFirstChildElement("links");
-        if (linksElement != null) {
-            Elements linkChildren = linksElement.getChildElements("link");
-            for (int i = 0; i < linkChildren.size(); ++i) {
-                Element child = linkChildren.get(i);
-                data.getLinks().add(AnnotationLink.fromXml(child));
-            }
-        }
-
-        Element placementsElement = element.getFirstChildElement("placements");
-        if (placementsElement != null) {
-            Elements placementChildren = placementsElement.getChildElements("placement");
-            for (int i = 0; i < placementChildren.size(); ++i) {
-                Element child = placementChildren.get(i);
-                data.getPlacements().add(AnnotationPlacement.fromXml(child));
-            }
-        }
-
-        return data;
-    }
-
-    private static long parseLong(String raw, long fallback) {
-        if (raw == null) {
-            return fallback;
-        }
-        try {
-            return Long.parseLong(raw);
-        } catch (NumberFormatException ex) {
-            return fallback;
-        }
     }
 
     @Override

@@ -1,7 +1,5 @@
 package mpmToolbox.projectData.annotations;
 
-import nu.xom.Attribute;
-import nu.xom.Element;
 
 /**
  * One visual placement of an annotation in a specific main tab.
@@ -180,47 +178,6 @@ public class AnnotationPlacement {
 
     public void setPagePath(String pagePath) {
         this.pagePath = (pagePath == null) ? "" : pagePath;
-    }
-
-    public Element toXml() {
-        Element e = new Element("placement");
-        e.addAttribute(new Attribute("tab", this.tabType.getXmlValue()));
-        e.addAttribute(new Attribute("kind", this.placementType.getXmlValue()));
-        e.addAttribute(new Attribute("x", Double.toString(this.x)));
-        e.addAttribute(new Attribute("y", Double.toString(this.y)));
-        e.addAttribute(new Attribute("width", Double.toString(this.width)));
-        e.addAttribute(new Attribute("height", Double.toString(this.height)));
-        e.addAttribute(new Attribute("start", Double.toString(this.start)));
-        e.addAttribute(new Attribute("end", Double.toString(this.end)));
-        if ((this.pagePath != null) && !this.pagePath.isEmpty()) {
-            e.addAttribute(new Attribute("page", this.pagePath));
-        }
-        return e;
-    }
-
-    public static AnnotationPlacement fromXml(Element element) {
-        AnnotationPlacement placement = new AnnotationPlacement(
-                TabType.fromXmlValue(element.getAttributeValue("tab")),
-                PlacementType.fromXmlValue(element.getAttributeValue("kind")));
-        placement.setX(parseDouble(element.getAttributeValue("x"), 0.0));
-        placement.setY(parseDouble(element.getAttributeValue("y"), 0.0));
-        placement.setWidth(parseDouble(element.getAttributeValue("width"), 0.0));
-        placement.setHeight(parseDouble(element.getAttributeValue("height"), 0.0));
-        placement.setStart(parseDouble(element.getAttributeValue("start"), 0.0));
-        placement.setEnd(parseDouble(element.getAttributeValue("end"), 0.0));
-        placement.setPagePath(element.getAttributeValue("page"));
-        return placement;
-    }
-
-    private static double parseDouble(String raw, double fallback) {
-        if (raw == null) {
-            return fallback;
-        }
-        try {
-            return Double.parseDouble(raw);
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
     }
 }
 

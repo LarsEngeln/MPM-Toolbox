@@ -535,6 +535,27 @@ public class TempoMapPanel extends PianoRollPanel implements ComponentListener, 
     }
 
     /**
+     * this panel is in the tick domain, so the pixel positions are converted via the alignment
+     */
+    @Override
+    protected double xToMilliseconds(double x) {
+        if ((this.parent.getAudio() == null) || (this.parent.getAlignment() == null) || (this.getWidth() <= 0))
+            return super.xToMilliseconds(x);
+        double ticks = ((x / this.getWidth()) * (this.parent.getRightmostTick() - this.parent.getLeftmostTick())) + this.parent.getLeftmostTick();
+        double[] ms = this.parent.getAlignment().getCorrespondingMillisecondsDate(ticks);
+        return (ms[0] + ms[1]) / 2.0;
+    }
+
+    @Override
+    protected double millisecondsToX(double milliseconds) {
+        if ((this.parent.getAudio() == null) || (this.parent.getAlignment() == null) || (this.getWidth() <= 0))
+            return super.millisecondsToX(milliseconds);
+        double[] ticks = this.parent.getAlignment().getCorrespondingTickDate(milliseconds);
+        double tick = (ticks[0] + ticks[1]) / 2.0;
+        return ((tick - this.parent.getLeftmostTick()) / (this.parent.getRightmostTick() - this.parent.getLeftmostTick())) * this.getWidth();
+    }
+
+    /**
      * create a context menu for the position of the mouse click;
      * further entries to the menu may be added by inheritances
      * @param e
@@ -552,7 +573,7 @@ public class TempoMapPanel extends PianoRollPanel implements ComponentListener, 
                 }
                 double relX = Math.max(0.0, Math.min(1.0, e.getPoint().getX() / (double) this.getWidth()));
                 double relY = Math.max(0.0, Math.min(1.0, e.getPoint().getY() / (double) Math.max(1, this.getHeight())));
-                this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, relX, relY);
+                this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, Math.max(0.0, this.xToMilliseconds(e.getPoint().getX())), relY, (this.parent.getAudio() == null) ? "" : this.parent.getAudio().getFile().getAbsolutePath());
             });
             menu.add(addAnnotation);
             return menu;
@@ -574,7 +595,7 @@ public class TempoMapPanel extends PianoRollPanel implements ComponentListener, 
             }
             double relX = Math.max(0.0, Math.min(1.0, e.getPoint().getX() / (double) this.getWidth()));
             double relY = Math.max(0.0, Math.min(1.0, e.getPoint().getY() / (double) Math.max(1, this.getHeight())));
-            this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, relX, relY);
+            this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, Math.max(0.0, this.xToMilliseconds(e.getPoint().getX())), relY, (this.parent.getAudio() == null) ? "" : this.parent.getAudio().getFile().getAbsolutePath());
         });
         menu.add(addAnnotation);
         return menu;

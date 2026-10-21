@@ -52,12 +52,38 @@ public class MeasurePanel extends WebPanel {
         this.parent = parent;
         this.annotationOverlayLayer = new AnnotationOverlayLayer(this, parent.getParent().getAnnotationManager(), AnnotationPlacement.TabType.AUDIO);
         this.annotationOverlayLayer.setVisibleWhen(() -> this.parent.getAudio() != null);
+        this.annotationOverlayLayer.setFilter(placement -> (this.parent.getAudio() != null) && this.parent.getAudio().getFile().getAbsolutePath().equals(placement.getPagePath()));
         this.annotationOverlayLayer.setLinkResolver(e -> {
             if (this.parent.getAudio() == null) {
                 return null;
             }
-            double ms = (this.parent.getSampleIndex(e.getX()) * 1000.0) / this.parent.getAudio().getFrameRate();
-            return new AnnotationLink(AnnotationLink.LinkType.TIMESTAMP, Double.toString(ms));
+            double ms = this.xToMilliseconds(e.getX());
+            AnnotationLink link = new AnnotationLink(AnnotationLink.LinkType.TIMESTAMP, Double.toString(ms));
+            link.setSource(this.parent.getAudio().getFile().getAbsolutePath());
+            return link;
+        });
+        // the x position of an annotation is a time in milliseconds, so it stays at its time when zooming or panning; y and the size are relative to the panel
+        this.annotationOverlayLayer.setProjection(new AnnotationOverlayLayer.Projection() {
+            @Override
+            public Point anchor(AnnotationPlacement placement) {
+                return new Point((int) Math.round(millisecondsToX(placement.getX())), (int) Math.round(placement.getY() * getHeight()));
+            }
+
+            @Override
+            public void moveTo(AnnotationPlacement placement, Point anchor) {
+                placement.setX(Math.max(0.0, xToMilliseconds(anchor.x)));
+                placement.setY(Math.max(0.0, Math.min(1.0, anchor.y / (double) Math.max(1, getHeight()))));
+            }
+
+            @Override
+            public double xUnitToPixel() {
+                return Math.max(1, getWidth());
+            }
+
+            @Override
+            public double yUnitToPixel() {
+                return Math.max(1, getHeight());
+            }
         });
         this.setLayout(new OverlayLayout(this));
         this.annotationPlaceholder = new WebLabel("", WebLabel.CENTER);
@@ -100,6 +126,32 @@ public class MeasurePanel extends WebPanel {
         else         this.add(this.annotationPlaceholder);
         this.revalidate();
         this.repaint();
+    }
+
+    /**
+     * Convert a horizontal pixel position of this panel to a time.
+     * @param x horizontal pixel position
+     * @return milliseconds
+     */
+    protected double xToMilliseconds(double x) {
+        if (this.parent.getAudio() == null) {
+            return 0.0;
+        }
+        return (this.parent.getSampleIndex(x) * 1000.0) / this.parent.getAudio().getFrameRate();
+    }
+
+    /**
+     * Convert a time to a horizontal pixel position of this panel.
+     * @param milliseconds the time
+     * @return horizontal pixel position
+     */
+    protected double millisecondsToX(double milliseconds) {
+        if (this.parent.getAudio() == null) {
+            return 0.0;
+        }
+        double sample = (milliseconds * this.parent.getAudio().getFrameRate()) / 1000.0;
+        double span = Math.max(1, this.parent.getRightmostSample() - this.parent.getLeftmostSample());
+        return ((sample - this.parent.getLeftmostSample()) / span) * this.parent.getWaveformPanel().getWidth();
     }
 
     @Override
