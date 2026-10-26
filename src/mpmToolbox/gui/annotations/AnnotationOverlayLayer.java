@@ -1,19 +1,24 @@
 package mpmToolbox.gui.annotations;
 
 import com.alee.laf.panel.WebPanel;
+import mpmToolbox.projectData.annotations.AnnotationData;
 import mpmToolbox.projectData.annotations.AnnotationLink;
 import mpmToolbox.projectData.annotations.AnnotationPlacement;
 
 import javax.swing.SwingUtilities;
+import javax.swing.TransferHandler;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.io.IOException;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -60,6 +65,8 @@ public class AnnotationOverlayLayer extends WebPanel {
         this.setAlignmentY(0.5f);
         this.manager.registerOverlayLayer(this, tabType);
         this.installListeners();
+        this.putClientProperty(mpmToolbox.supplementary.FileDrop.SKIP_PROPERTY, Boolean.TRUE);      // the file drop must not replace the annotation drop target
+        this.installDropHandler();
         manager.addChangeListener(this::refresh);
         manager.addActiveListener(this::refresh);
     }
@@ -82,6 +89,42 @@ public class AnnotationOverlayLayer extends WebPanel {
 
     public void setLinkResolver(Function<MouseEvent, AnnotationLink> linkResolver) {
         this.manager.setOverlayLinkResolver(this, linkResolver);
+    }
+
+    /**
+     * @param paneId identifies the pane within its tab; annotations dropped or created here are only shown in this pane
+     */
+    public void setPaneId(String paneId) {
+        this.manager.setOverlayPaneId(this, paneId);
+    }
+
+    public void setPlacementInitializer(Consumer<AnnotationPlacement> initializer) {
+        this.manager.setOverlayPlacementInitializer(this, initializer);
+    }
+
+    /**
+     * Accept annotations that are dragged from the annotation tree and create a placement for them.
+     */
+    private void installDropHandler() {
+        this.setTransferHandler(new TransferHandler() {
+            @Override
+            public boolean canImport(TransferSupport support) {
+                return support.isDrop() && support.isDataFlavorSupported(AnnotationTransferable.FLAVOR) && manager.canDropInto(AnnotationOverlayLayer.this);
+            }
+
+            @Override
+            public boolean importData(TransferSupport support) {
+                if (!this.canImport(support)) {
+                    return false;
+                }
+                try {
+                    AnnotationData annotation = (AnnotationData) support.getTransferable().getTransferData(AnnotationTransferable.FLAVOR);
+                    return manager.dropAnnotation(AnnotationOverlayLayer.this, annotation, support.getDropLocation().getDropPoint());
+                } catch (UnsupportedFlavorException | IOException | ClassCastException e) {
+                    return false;
+                }
+            }
+        });
     }
 
     public AnnotationManager getManager() {

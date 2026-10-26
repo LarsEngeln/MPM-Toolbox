@@ -40,6 +40,11 @@ public class TempoMapPanel extends PianoRollPanel implements ComponentListener, 
     private long rightmostSample;               // just a copy of the eponymous value in the parent to keep track of whether it changed and the tick values have to be computed anew
     private int halfSize = 1;
 
+    @Override
+    protected String getAnnotationPaneId() {
+        return "tempomap";
+    }
+
     /**
      * constructor
      * @param parent
@@ -573,7 +578,7 @@ public class TempoMapPanel extends PianoRollPanel implements ComponentListener, 
                 }
                 double relX = Math.max(0.0, Math.min(1.0, e.getPoint().getX() / (double) this.getWidth()));
                 double relY = Math.max(0.0, Math.min(1.0, e.getPoint().getY() / (double) Math.max(1, this.getHeight())));
-                this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, Math.max(0.0, this.xToMilliseconds(e.getPoint().getX())), relY, (this.parent.getAudio() == null) ? "" : this.parent.getAudio().getFile().getAbsolutePath());
+                this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, Math.max(0.0, this.xToMilliseconds(e.getPoint().getX())), relY, (this.parent.getAudio() == null) ? "" : this.parent.getAudio().getFile().getAbsolutePath(), this.getAnnotationPaneId());
             });
             menu.add(addAnnotation);
             return menu;
@@ -595,7 +600,7 @@ public class TempoMapPanel extends PianoRollPanel implements ComponentListener, 
             }
             double relX = Math.max(0.0, Math.min(1.0, e.getPoint().getX() / (double) this.getWidth()));
             double relY = Math.max(0.0, Math.min(1.0, e.getPoint().getY() / (double) Math.max(1, this.getHeight())));
-            this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, Math.max(0.0, this.xToMilliseconds(e.getPoint().getX())), relY, (this.parent.getAudio() == null) ? "" : this.parent.getAudio().getFile().getAbsolutePath());
+            this.parent.getParent().getAnnotationManager().create(AnnotationPlacement.TabType.AUDIO, Math.max(0.0, this.xToMilliseconds(e.getPoint().getX())), relY, (this.parent.getAudio() == null) ? "" : this.parent.getAudio().getFile().getAbsolutePath(), this.getAnnotationPaneId());
         });
         menu.add(addAnnotation);
         return menu;

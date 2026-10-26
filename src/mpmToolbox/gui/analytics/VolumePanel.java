@@ -5,6 +5,7 @@ import com.alee.laf.menu.WebMenuItem;
 import com.alee.laf.menu.WebPopupMenu;
 import com.alee.laf.panel.WebPanel;
 import mpmToolbox.gui.Settings;
+import mpmToolbox.gui.annotations.AnnotationManager;
 import mpmToolbox.gui.annotations.AnnotationOverlayLayer;
 import mpmToolbox.gui.analytics.AnalyticsDocumentData.SourceEntry;
 import mpmToolbox.gui.analytics.AnalyticsDocumentData.SourceType;
@@ -108,6 +109,30 @@ public class VolumePanel extends WebPanel {
             this.drawCurves(g2, sources, left, top, plotWidth, plotHeight, maxDuration);
             this.drawPlaybackCursor(g2, left, top, plotWidth, plotHeight);
             //this.drawLegend(g2, sources, left, top);
+        } finally {
+            g2.dispose();
+        }
+    }
+
+    @Override
+    protected void paintChildren(Graphics g) {
+        super.paintChildren(g);
+        ArrayList<SourceEntry> sources = this.parent.getVisibleSources();
+        double maxDuration = sources.isEmpty() ? 0.0 : this.getMaxDuration(sources);
+        AnnotationManager manager = this.parent.getProjectPane().getAnnotationManager();
+        if ((maxDuration <= 0.0) || !manager.isOverlayVisible()) {
+            return;
+        }
+        int plotWidth = Math.max(1, this.getWidth() - PLOT_LEFT - PLOT_RIGHT);
+        Graphics2D g2 = (Graphics2D) g.create();
+        try {
+            for (double ms : manager.getActiveTimestamps(null)) {
+                if ((ms < 0.0) || (ms > maxDuration)) {
+                    continue;
+                }
+                int x = PLOT_LEFT + (int) Math.round((ms / maxDuration) * plotWidth);
+                AnnotationManager.drawTimestampLine(g2, x, PLOT_TOP, this.getHeight() - PLOT_BOTTOM);
+            }
         } finally {
             g2.dispose();
         }

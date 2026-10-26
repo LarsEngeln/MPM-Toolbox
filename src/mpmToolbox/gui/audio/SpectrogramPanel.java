@@ -32,6 +32,11 @@ public class SpectrogramPanel extends PianoRollPanel {
         this.spectrogramSpecs = new SpectrogramSpecs(this);
     }
 
+    @Override
+    protected String getAnnotationPaneId() {
+        return "spectrogram";
+    }
+
     /**
      * draw the waveform
      * @param g

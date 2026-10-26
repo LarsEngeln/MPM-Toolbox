@@ -486,7 +486,12 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
      * Tell the overlay layer which placements to show (the current page) and how they map to the zoomed and panned view.
      */
     private void configureAnnotationOverlayLayer() {
-        this.annotationOverlayLayer.setVisibleWhen(() -> !this.isOverlayHidden());
+        this.annotationOverlayLayer.setVisibleWhen(() -> !this.isOverlayHidden() && (this.scorePage != null));
+        this.annotationOverlayLayer.setPlacementInitializer(placement -> {
+            if (this.scorePage != null) {
+                placement.setPagePath(this.scorePage.getFile().getAbsolutePath());
+            }
+        });
         this.annotationOverlayLayer.setLinkResolver(this::resolveAnnotationLink);
         this.annotationOverlayLayer.setFilter(placement -> (this.scorePage != null) && this.scorePage.getFile().getAbsolutePath().equals(placement.getPagePath()));
         this.annotationOverlayLayer.setProjection(new AnnotationOverlayLayer.Projection() {

@@ -23,6 +23,11 @@ public class WaveformPanel extends PianoRollPanel {
         super(parent, "Select an audio recording and performance via the SyncPlayer.");
     }
 
+    @Override
+    protected String getAnnotationPaneId() {
+        return "waveform";
+    }
+
     /**
      * draw the waveform
      * @param g

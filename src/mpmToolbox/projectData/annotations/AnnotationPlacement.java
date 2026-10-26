@@ -72,6 +72,7 @@ public class AnnotationPlacement {
     private double start;
     private double end;
     private String pagePath;
+    private String pane = "";       // identifies the pane within the tab (e.g. "spectrogram"); empty means all panes of the tab
 
     public AnnotationPlacement(TabType tabType, PlacementType placementType) {
         this.tabType = (tabType == null) ? TabType.SCORE : tabType;
@@ -178,6 +179,14 @@ public class AnnotationPlacement {
 
     public void setPagePath(String pagePath) {
         this.pagePath = (pagePath == null) ? "" : pagePath;
+    }
+
+    public String getPane() {
+        return this.pane;
+    }
+
+    public void setPane(String pane) {
+        this.pane = (pane == null) ? "" : pane;
     }
 }
 

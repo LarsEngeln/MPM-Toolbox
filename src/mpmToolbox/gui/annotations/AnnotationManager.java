@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -70,7 +71,8 @@ public class AnnotationManager {
         private Supplier<Rectangle> contentArea = () -> new Rectangle();
         private AnnotationOverlayLayer.Projection projection;
         private Function<MouseEvent, AnnotationLink> linkResolver = event -> null;
-
+        private String paneId = null;
+        private Consumer<AnnotationPlacement> placementInitializer = placement -> {};
         private OverlayLayerState(AnnotationPlacement.TabType tabType) {
             this.tabType = tabType;
         }
@@ -335,6 +337,65 @@ public class AnnotationManager {
         this.getOverlayLayerState(layer).linkResolver = (linkResolver != null) ? linkResolver : event -> null;
     }
 
+    /**
+     * @param paneId the id of the pane that the layer represents; only placements of this pane (or without a pane) are shown there; null for tabs without distinct panes
+     */
+    public void setOverlayPaneId(AnnotationOverlayLayer layer, String paneId) {
+        this.getOverlayLayerState(layer).paneId = paneId;
+    }
+
+    /**
+     * @param initializer completes a newly created placement with the tab specific data (e.g. the page or audio file) before it is positioned
+     */
+    public void setOverlayPlacementInitializer(AnnotationOverlayLayer layer, Consumer<AnnotationPlacement> initializer) {
+        this.getOverlayLayerState(layer).placementInitializer = (initializer != null) ? initializer : placement -> {};
+    }
+
+    private boolean isShownIn(OverlayLayerState state, AnnotationPlacement placement) {
+        if (placement.getTabType() != state.tabType) {
+            return false;
+        }
+        if ((state.paneId != null) && !placement.getPane().isEmpty() && !placement.getPane().equals(state.paneId)) {
+            return false;
+        }
+        return state.filter.test(placement);
+    }
+
+    /**
+     * Drop an annotation into the pane of the given layer. If the annotation is already shown there, nothing is created and it is just selected.
+     * @param point the drop position in the coordinates of the layer
+     * @return true if the drop was accepted
+     */
+    public boolean dropAnnotation(AnnotationOverlayLayer layer, AnnotationData annotation, Point point) {
+        OverlayLayerState state = this.getOverlayLayerState(layer);
+        if ((annotation == null) || !this.getAnnotations().contains(annotation) || !this.canDropInto(layer)) {
+            return false;
+        }
+        for (AnnotationPlacement placement : annotation.getPlacements()) {
+            if (this.isShownIn(state, placement)) {
+                this.setSelected(annotation);
+                return true;
+            }
+        }
+
+        boolean score = state.tabType == AnnotationPlacement.TabType.SCORE;
+        AnnotationPlacement placement = AnnotationPlacement.rect(state.tabType, 0.0, 0.0, score ? DEFAULT_SCORE_WIDTH : DEFAULT_RELATIVE_WIDTH, score ? DEFAULT_SCORE_HEIGHT : DEFAULT_RELATIVE_HEIGHT, "");
+        placement.setPane((state.paneId == null) ? "" : state.paneId);
+        state.placementInitializer.accept(placement);
+        state.projection.moveTo(placement, point);
+        if (!state.filter.test(placement)) {
+            return false;
+        }
+        annotation.addPlacement(placement);
+        this.notifyChanged();
+        this.setSelected(annotation);
+        return true;
+    }
+
+    public boolean canDropInto(AnnotationOverlayLayer layer) {
+        return this.getOverlayLayerState(layer).visibleWhen.getAsBoolean();
+    }
+
     public AnnotationOverlayPanel getOverlayPanel(AnnotationOverlayLayer layer, AnnotationPlacement placement) {
         OverlayLayerState state = this.overlayLayers.get(layer);
         return (state != null) ? state.overlayPanels.get(placement) : null;
@@ -358,7 +419,7 @@ public class AnnotationManager {
 
         for (AnnotationData annotation : new ArrayList<>(this.getAnnotations())) {
             for (AnnotationPlacement placement : annotation.getPlacements()) {
-                if ((placement.getTabType() != state.tabType) || !state.filter.test(placement)) {
+                if (!this.isShownIn(state, placement)) {
                     continue;
                 }
                 shown.add(placement);
@@ -409,12 +470,22 @@ public class AnnotationManager {
     // ---- creation ----
 
     public AnnotationData create(AnnotationPlacement.TabType tab, double x, double y, String pagePath) {
+        return this.create(tab, x, y, pagePath, "");
+    }
+
+    /**
+     * @param pane the pane of the tab in which the annotation is shown, empty for all panes
+     */
+    public AnnotationData create(AnnotationPlacement.TabType tab, double x, double y, String pagePath, String pane) {
         AnnotationData annotation = new AnnotationData("");
+        AnnotationPlacement placement;
         if (tab == AnnotationPlacement.TabType.SCORE) {
-            annotation.addPlacement(AnnotationPlacement.rect(tab, x, y, DEFAULT_SCORE_WIDTH, DEFAULT_SCORE_HEIGHT, pagePath));
+            placement = AnnotationPlacement.rect(tab, x, y, DEFAULT_SCORE_WIDTH, DEFAULT_SCORE_HEIGHT, pagePath);
         } else {
-            annotation.addPlacement(AnnotationPlacement.rect(tab, x, y, DEFAULT_RELATIVE_WIDTH, DEFAULT_RELATIVE_HEIGHT, (tab == AnnotationPlacement.TabType.AUDIO) ? pagePath : ""));
+            placement = AnnotationPlacement.rect(tab, x, y, DEFAULT_RELATIVE_WIDTH, DEFAULT_RELATIVE_HEIGHT, (tab == AnnotationPlacement.TabType.AUDIO) ? pagePath : "");
         }
+        placement.setPane(pane);
+        annotation.addPlacement(placement);
         return this.add(annotation) ? annotation : null;
     }
 
@@ -509,6 +580,50 @@ public class AnnotationManager {
     }
 
     // ---- rendering ----
+
+    public static final Color TIMESTAMP_COLOR = new Color(255, 105, 180);       // hot pink
+
+    /**
+     * Collect the timestamps of the hovered or selected annotation's links and of the hovered link.
+     * @param audioPath the audio file the timestamps must belong to; null to accept all timestamps (for tabs that do not distinguish audio files)
+     * @return the timestamps in milliseconds
+     */
+    public ArrayList<Double> getActiveTimestamps(String audioPath) {
+        ArrayList<AnnotationLink> links = new ArrayList<>();
+        AnnotationData active = this.getActive();
+        if (active != null) {
+            links.addAll(active.getLinks());
+        }
+        if ((this.hoveredLink != null) && !links.contains(this.hoveredLink)) {
+            links.add(this.hoveredLink);
+        }
+
+        ArrayList<Double> timestamps = new ArrayList<>();
+        for (AnnotationLink link : links) {
+            if ((link.getType() != AnnotationLink.LinkType.TIMESTAMP) || ((audioPath != null) && !audioPath.equals(link.getSource()))) {
+                continue;
+            }
+            try {
+                timestamps.add(Double.parseDouble(link.getTarget()));
+            } catch (NumberFormatException ignored) {
+                // not a valid timestamp
+            }
+        }
+        return timestamps;
+    }
+
+    /**
+     * Draw a vertical line.
+     */
+    public static void drawTimestampLine(Graphics2D g2, int x, int top, int bottom) {
+        Stroke oldStroke = g2.getStroke();
+        Color oldColor = g2.getColor();
+        g2.setColor(TIMESTAMP_COLOR);
+        g2.setStroke(new BasicStroke(2f));
+        g2.drawLine(x, top, x, bottom);
+        g2.setStroke(oldStroke);
+        g2.setColor(oldColor);
+    }
 
     /**
      * Draw the lines from the hovered annotation's boxes to its linked score nodes.

@@ -285,6 +285,9 @@ public class MeiAnnotationConverter {
         if (!placement.getPagePath().isEmpty()) {
             e.addAttribute(new Attribute("source", placement.getPagePath()));
         }
+        if (!placement.getPane().isEmpty()) {
+            e.addAttribute(new Attribute("pane", placement.getPane()));
+        }
         switch (placement.getPlacementType()) {
             case RANGE:
                 e.addAttribute(new Attribute("start", finite(placement.getStart())));
@@ -417,6 +420,7 @@ public class MeiAnnotationConverter {
                 placement.setY(parseDouble(e.getAttributeValue("y"), "placement y"));
         }
         placement.setPagePath(e.getAttributeValue("source"));
+        placement.setPane(e.getAttributeValue("pane"));
         return placement;
     }
 

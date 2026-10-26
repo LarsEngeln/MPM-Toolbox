@@ -7,6 +7,7 @@ import com.alee.laf.menu.WebMenuItem;
 import com.alee.laf.menu.WebPopupMenu;
 import com.alee.laf.panel.WebPanel;
 import mpmToolbox.gui.Settings;
+import mpmToolbox.gui.annotations.AnnotationManager;
 import mpmToolbox.gui.annotations.AnnotationOverlayLayer;
 import mpmToolbox.gui.audio.utilities.CsvImportDialog;
 import mpmToolbox.projectData.annotations.AnnotationLink;
@@ -52,6 +53,12 @@ public class MeasurePanel extends WebPanel {
         this.parent = parent;
         this.annotationOverlayLayer = new AnnotationOverlayLayer(this, parent.getParent().getAnnotationManager(), AnnotationPlacement.TabType.AUDIO);
         this.annotationOverlayLayer.setVisibleWhen(() -> this.parent.getAudio() != null);
+        this.annotationOverlayLayer.setPaneId(this.getAnnotationPaneId());
+        this.annotationOverlayLayer.setPlacementInitializer(placement -> {
+            if (this.parent.getAudio() != null) {
+                placement.setPagePath(this.parent.getAudio().getFile().getAbsolutePath());
+            }
+        });
         this.annotationOverlayLayer.setFilter(placement -> (this.parent.getAudio() != null) && this.parent.getAudio().getFile().getAbsolutePath().equals(placement.getPagePath()));
         this.annotationOverlayLayer.setLinkResolver(e -> {
             if (this.parent.getAudio() == null) {
@@ -95,6 +102,13 @@ public class MeasurePanel extends WebPanel {
         this.add(this.annotationPlaceholder);
         this.add(this.annotationOverlayLayer);
         this.updateAnnotationPlaceholder();
+    }
+
+    /**
+     * @return the id that identifies this pane for annotation placements; it must be a constant
+     */
+    protected String getAnnotationPaneId() {
+        return "";
     }
 
     /**
@@ -157,6 +171,32 @@ public class MeasurePanel extends WebPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+    }
+
+    /**
+     * The timestamps of the hovered/selected annotation and the hovered link are drawn on top of the panel's content.
+     */
+    @Override
+    protected void paintChildren(Graphics g) {
+        super.paintChildren(g);
+        if (this.parent.getAudio() == null) {
+            return;
+        }
+        AnnotationManager manager = this.parent.getParent().getAnnotationManager();
+        if (!manager.isOverlayVisible()) {
+            return;
+        }
+        Graphics2D g2 = (Graphics2D) g.create();
+        try {
+            for (double ms : manager.getActiveTimestamps(this.parent.getAudio().getFile().getAbsolutePath())) {
+                int x = (int) Math.round(this.millisecondsToX(ms));
+                if ((x >= 0) && (x <= this.getWidth())) {
+                    AnnotationManager.drawTimestampLine(g2, x, 0, this.getHeight());
+                }
+            }
+        } finally {
+            g2.dispose();
+        }
     }
 
     /**

@@ -468,8 +468,14 @@ public class FileDrop
      // END 2007-09-12 Nathan Blomquist -- Linux (KDE/Gnome) support added.
      
     
+    /** Components with this client property set to TRUE keep their own drop target. */
+    public static final String SKIP_PROPERTY = "FileDrop.skip";
+
     private void makeDropTarget( final java.io.PrintStream out, final java.awt.Component c, boolean recursive )
     {
+        if( (c instanceof javax.swing.JComponent) && Boolean.TRUE.equals( ((javax.swing.JComponent) c).getClientProperty( SKIP_PROPERTY ) ) )
+            return;
+
         // Make drop target
         final java.awt.dnd.DropTarget dt = new java.awt.dnd.DropTarget();
         try
