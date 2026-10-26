@@ -33,12 +33,21 @@ import mpmToolbox.projectData.score.Score;
 import mpmToolbox.gui.score.ScoreDocumentData;
 import mpmToolbox.projectData.score.ScorePage;
 import mpmToolbox.gui.syncPlayer.SyncPlayer;
+import com.alee.extended.dock.data.DockableContainer;
+import com.alee.extended.tab.DocumentPaneState;
+import com.alee.utils.XmlUtils;
+import nu.xom.Attribute;
+import nu.xom.Builder;
+import nu.xom.Document;
+import nu.xom.Element;
 import nu.xom.ParsingException;
+import nu.xom.Serializer;
 import org.xml.sax.SAXException;
 
 import javax.sound.midi.MidiUnavailableException;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 
@@ -624,6 +633,138 @@ public class ProjectPane extends WebDockablePane {
     public boolean saveProjectAs(File file) {
         return this.data.saveProjectAs(file);
     }
+    /**
+     * the user config file that belongs to the given project file, i.e. "[project].mpr.user"
+     * @param projectFile
+     * @return
+     */
+    private static File getUserConfigFile(File projectFile) {
+        return new File(projectFile.getAbsolutePath() + ".user");
+    }
+
+    /**
+     * Store the user's view of this project (selected audio, sizes and arrangement of frames and tabs) in "[project].mpr.user".
+     * Nothing is written if the project has no file yet.
+     */
+    public void saveUserConfig() {
+        File projectFile = this.getFile();
+        if (projectFile == null)
+            return;
+
+        try {
+            Element root = new Element("mprUser");
+
+            Element syncElt = new Element("syncPlayer");
+            syncElt.addAttribute(new Attribute("selectedAudio", String.valueOf(this.syncPlayer.getAudioChooser().getSelectedIndex())));
+            String performanceName = this.syncPlayer.getSelectedPerformanceName();
+            if (performanceName != null)
+                syncElt.addAttribute(new Attribute("performance", performanceName));
+            String midiPortName = this.syncPlayer.getSelectedMidiPortName();
+            if (midiPortName != null)
+                syncElt.addAttribute(new Attribute("midiOut", midiPortName));
+            try {
+                this.syncPlayer.getOffsetSpinner().commitEdit();            // apply a value that has been typed but not yet committed
+            } catch (java.text.ParseException ignored) {
+            }
+            syncElt.addAttribute(new Attribute("skip", String.valueOf(((Number) this.syncPlayer.getOffsetSpinner().getValue()).longValue())));
+            root.appendChild(syncElt);
+
+            Element dock = new Element("dockableState");
+            dock.appendChild(XmlUtils.toXML(this.getState()));
+            root.appendChild(dock);
+
+            Element tabsElt = new Element("tabsState");
+            tabsElt.appendChild(XmlUtils.toXML(this.tabs.getDocumentPaneState()));
+            root.appendChild(tabsElt);
+
+            try (FileOutputStream out = new FileOutputStream(getUserConfigFile(projectFile))) {
+                Serializer serializer = new Serializer(out, "UTF-8");
+                serializer.setIndent(2);
+                serializer.write(new Document(root));
+            }
+        } catch (Exception e) {
+            System.err.println("Could not save the user config: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Restore the user's view from "[project].mpr.user", if it exists. Otherwise the default view stays untouched.
+     */
+    public void loadUserConfig() {
+        File projectFile = this.getFile();
+        if (projectFile == null)
+            return;
+        File userFile = getUserConfigFile(projectFile);
+        if (!userFile.isFile())
+            return;
+
+        try {
+            Element root = new Builder().build(userFile).getRootElement();
+
+            try {
+                Element tabsElt = root.getFirstChildElement("tabsState");
+                if (tabsElt != null) {
+                    DocumentPaneState state = XmlUtils.fromXML(tabsElt.getValue());
+                    this.tabs.setDocumentPaneState(state);
+                }
+            } catch (Exception e) {
+                System.err.println("Could not restore the tab arrangement: " + e.getMessage());
+            }
+
+            try {
+                Element dockElt = root.getFirstChildElement("dockableState");
+                if (dockElt != null) {
+                    DockableContainer state = XmlUtils.fromXML(dockElt.getValue());
+                    this.setState(state);
+                }
+            } catch (Exception e) {
+                System.err.println("Could not restore the frame layout: " + e.getMessage());
+            }
+
+            Element syncElt = root.getFirstChildElement("syncPlayer");
+            if (syncElt != null) {
+                // each step is isolated so that a failure in one (e.g. a listener throwing) cannot prevent the others
+                String skip = syncElt.getAttributeValue("skip");
+                if (skip != null) {
+                    try {
+                        this.syncPlayer.getOffsetSpinner().setValue((long) Double.parseDouble(skip));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                String selectedAudio = syncElt.getAttributeValue("selectedAudio");     // index in the audio chooser (0 = no audio); must be set before the performance as it affects the performance list
+                if (selectedAudio != null) {
+                    try {
+                        int index = Integer.parseInt(selectedAudio);
+                        if ((index >= 0) && (index < this.syncPlayer.getAudioChooser().getItemCount()))
+                            this.syncPlayer.getAudioChooser().setSelectedIndex(index);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                String performance = syncElt.getAttributeValue("performance");
+                if (performance != null) {
+                    try {
+                        this.syncPlayer.selectPerformanceByName(performance);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                String midiOut = syncElt.getAttributeValue("midiOut");
+                if (midiOut != null) {
+                    try {
+                        this.syncPlayer.selectMidiPortByName(midiOut);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Could not load the user config: " + e);
+            e.printStackTrace();
+        }
+    }
+
     /**
      * Refresh both the MSM and MPM trees to reflect a changed measure display mode.
      * Instead of rebuilding the entire tree (which loses expansion state) or reloading

@@ -32,7 +32,10 @@ import javax.xml.parsers.ParserConfigurationException;
 import java.awt.*;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
+import java.util.ArrayList;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -49,6 +52,7 @@ public class MpmToolbox {
 
     private MidiPlayer midiPlayerSyncPlayer = null;     // this is the midi player that the syncPlayer uses for playback
     private WebPanel welcomeMessage;
+    private WebPanel recentList;
     private WebMenu openRecent;
     private WebMenuItem close;
     private WebMenuItem save;
@@ -97,6 +101,13 @@ public class MpmToolbox {
 
 //                Tools.initKeyboardShortcuts(self, self.frame);                                      // don't need this anymore as the keyboard shortcuts are implemented via the menubar
                 self.frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);                 // terminate everything, all windows
+                self.frame.addWindowListener(new java.awt.event.WindowAdapter() {
+                    @Override
+                    public void windowClosing(java.awt.event.WindowEvent e) {
+                        if (self.projectPane != null)
+                            self.projectPane.saveUserConfig();                                      // remember the user's view of the project
+                    }
+                });
 //                self.frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);             // close this window/frame, others remain open
                 Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdownHook()));             // what must be done on shutdown will be done via method shutdownHook()
 
@@ -250,6 +261,8 @@ public class MpmToolbox {
         WebMenuItem exit = new WebMenuItem("Exit", 'x');
         exit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, InputEvent.ALT_MASK));
         exit.addActionListener(actionEvent -> {
+            if (this.projectPane != null)
+                this.projectPane.saveUserConfig();
             this.frame.dispose();                                                        // close the window (if this is the only window, this will terminate the JVM)
             System.exit(0);                                                         // the program may still run, enforce exit
         });
@@ -341,6 +354,7 @@ public class MpmToolbox {
             item.addActionListener(actionEvent -> this.loadFile(recent));
             this.openRecent.add(item);
         }
+        this.updateRecentList();
     }
 
     /**
@@ -365,9 +379,68 @@ public class MpmToolbox {
         message.setPadding(0, 40, 0, 0);
         message.setFontSize(18);
         message.setForeground(Color.LIGHT_GRAY);
+        this.recentList = new WebPanel();
+        this.recentList.setLayout(new BoxLayout(this.recentList, BoxLayout.Y_AXIS));
+        this.recentList.setOpaque(false);
+        this.recentList.setAlignmentX(Component.LEFT_ALIGNMENT);
+        this.updateRecentList();
+
         Tools.addComponentToGridBagLayout(welcomeMessage, layout, message, 1, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.NONE, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(welcomeMessage, layout, this.recentList, 0, 1, 2, 1, 1.0, 1.0, 0, 0, GridBagConstraints.NONE, GridBagConstraints.PAGE_START);
 
         return welcomeMessage;
+    }
+
+    /**
+     * rebuild the list of recently opened projects in the welcome message
+     */
+    private void updateRecentList() {
+        if (this.recentList == null)
+            return;
+
+        this.recentList.removeAll();
+        if (!Settings.recentOpened.isEmpty()) {
+            WebLabel header = new WebLabel("Recently opened projects:");
+            header.setFontSize(18);
+            header.setForeground(Color.LIGHT_GRAY);
+            header.setPadding(28, 0, 7, 0);
+            header.setAlignmentX(Component.LEFT_ALIGNMENT);
+            this.recentList.add(header);
+
+            for (File recent : new ArrayList<>(Settings.recentOpened.getAll())) {
+                WebLabel item = new WebLabel(recent.getAbsolutePath());
+                item.setFontSize(16);
+                item.setForeground(Color.LIGHT_GRAY);
+                item.setPadding(3, 10, 3, 10);
+                item.setAlignmentX(Component.LEFT_ALIGNMENT);
+                item.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                item.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseEntered(MouseEvent e) {
+                        item.setForeground(Color.WHITE);
+                        item.setOpaque(true);
+                        item.setBackground(new Color(75, 75, 75));      // must be opaque, a translucent background on an opaque component causes painting artifacts
+                        item.repaint();
+                    }
+
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        item.setForeground(Color.LIGHT_GRAY);
+                        item.setOpaque(false);
+                        item.repaint();
+                    }
+
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        if (SwingUtilities.isLeftMouseButton(e))
+                            MpmToolbox.this.loadFile(recent);
+                    }
+                });
+                this.recentList.add(item);
+            }
+        }
+        this.recentList.revalidate();
+        this.recentList.repaint();
     }
 
     /**
@@ -407,6 +480,53 @@ public class MpmToolbox {
      * @return success of opening the project
      */
     public boolean loadFile(File file) {
+        return this.runWithBusyDialog("Loading", "Loading Project", () -> this.loadFileImpl(file));
+    }
+
+    /**
+     * Run a (blocking) task while a modal "please wait" dialog is displayed. The dialog disappears when the task is done.
+     * The task runs on the event dispatch thread, after the dialog has been painted.
+     * @param message the text to display
+     * @param work the task
+     * @return the result of the task
+     */
+    private boolean runWithBusyDialog(String title, String message, java.util.function.BooleanSupplier work) {
+        if ((this.frame == null) || !SwingUtilities.isEventDispatchThread())
+            return work.getAsBoolean();
+
+        JDialog dialog = new JDialog(this.frame, title, Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+        dialog.setResizable(false);
+        WebLabel label = new WebLabel(message, WebLabel.CENTER);
+        label.setFontSize(16);
+        label.setPadding(45, 30, 50, 30);
+        dialog.add(label);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this.frame);
+
+        final boolean[] result = {false};
+        final Throwable[] error = {null};
+        Timer starter = new Timer(100, e -> {       // the delay gives the dialog time to get painted before the EDT is blocked by the task
+            try {
+                result[0] = work.getAsBoolean();
+            } catch (Throwable t) {
+                error[0] = t;
+            } finally {
+                dialog.dispose();
+            }
+        });
+        starter.setRepeats(false);
+        starter.start();
+        dialog.setVisible(true);                    // blocks (modal) until the dialog is disposed
+
+        if (error[0] instanceof RuntimeException)
+            throw (RuntimeException) error[0];
+        if (error[0] instanceof Error)
+            throw (Error) error[0];
+        return result[0];
+    }
+
+    private boolean loadFileImpl(File file) {
         System.out.println("Loading file " + file.getAbsolutePath());
 
         int index = file.getName().lastIndexOf(".");
@@ -551,6 +671,7 @@ public class MpmToolbox {
      * the closing procedure for an open project
      */
     public void closeProject() {
+        this.projectPane.saveUserConfig();
         this.getMidiPlayerSyncPlayer().stop();
         this.getProjectPane().getSyncPlayer().getAudioPlayer().stop();
         this.getProjectPane().getSyncPlayer().getMidiPlayer().stop();
@@ -594,6 +715,7 @@ public class MpmToolbox {
 
         // open the new project
         this.projectPane = project;
+        this.projectPane.loadUserConfig();                          // restore the last view before the first rendering
         this.frame.remove(this.welcomeMessage);
         this.frame.add(this.projectPane);
         this.frame.setTitle(this.projectPane.getMsm().getTitle() + " - " + MpmToolbox.baseTitle);
@@ -654,9 +776,10 @@ public class MpmToolbox {
         if (this.projectPane == null)
             return false;
 
-        if (!this.projectPane.saveProject()) {
+        if (!this.runWithBusyDialog("Saving", "Saving Project", () -> this.projectPane.saveProject())) {
             return this.saveProjectAs();
         } else {
+            this.projectPane.saveUserConfig();
             Settings.recentOpened.add(this.projectPane.getFile());
             this.updateOpenRecent();
         }
@@ -685,7 +808,9 @@ public class MpmToolbox {
             if (!filename.endsWith(".mpr"))                                 // make sure that the filename ends with .mpr
                 filename += ".mpr";
 
-            if (this.projectPane.saveProjectAs(new File(filename))) {        // if save procedure succeeded
+            final File target = new File(filename);
+            if (this.runWithBusyDialog("Saving", "Saving Project As", () -> this.projectPane.saveProjectAs(target))) {        // if save procedure succeeded
+                this.projectPane.saveUserConfig();
                 Settings.recentOpened.add(this.projectPane.getFile());
                 this.updateOpenRecent();
                 return true;

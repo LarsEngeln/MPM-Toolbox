@@ -337,6 +337,48 @@ public class SyncPlayer extends WebPanel {
     }
 
     /**
+     * @return the name of the selected performance entry (also for the special entries) or null
+     */
+    public String getSelectedPerformanceName() {
+        Object item = this.performanceChooser.getSelectedItem();
+        return (item == null) ? null : item.toString();
+    }
+
+    /**
+     * select the performance entry with the given name; no effect if there is none
+     * @param name
+     */
+    public void selectPerformanceByName(String name) {
+        for (int i = 0; i < this.performanceChooser.getItemCount(); ++i) {
+            if (this.performanceChooser.getItemAt(i).toString().equals(name)) {
+                this.performanceChooser.setSelectedIndex(i);
+                return;
+            }
+        }
+    }
+
+    /**
+     * @return the name of the selected MIDI output port or null
+     */
+    public String getSelectedMidiPortName() {
+        MidiDevice.Info info = (MidiDevice.Info) this.midiPortChooser.getSelectedItem();
+        return (info == null) ? null : info.getName();
+    }
+
+    /**
+     * select the MIDI output port with the given name; no effect if there is none
+     * @param name
+     */
+    public void selectMidiPortByName(String name) {
+        for (int i = 0; i < this.midiPortChooser.getItemCount(); ++i) {
+            if (((MidiDevice.Info) this.midiPortChooser.getItemAt(i)).getName().equals(name)) {
+                this.midiPortChooser.setSelectedIndex(i);
+                return;
+            }
+        }
+    }
+
+    /**
      * select an audio programmatically
      * @param audio
      */
