@@ -38,6 +38,11 @@ public final class SelectEditInteractionMode extends AbstractInteractionMode {
         this.noteMultiselect = new ScoreNoteMultiselectHelper(panel.getScoreDocumentData().getProjectPane().getMsmTree());
     }
 
+    @Override
+    public AnchorNodeHelper getAnchorNodeHelper() {
+        return this.anchorNodeHelper;
+    }
+
     /**
      * Refreshes the hover anchor when the pointer enters the panel.
      * @param mouseEvent the enter event

@@ -37,6 +37,11 @@ public final class EditPerformanceInteractionMode extends AbstractInteractionMod
         this.noteMultiselect = new ScoreNoteMultiselectHelper(panel.getScoreDocumentData().getProjectPane().getMsmTree());
     }
 
+    @Override
+    public AnchorNodeHelper getAnchorNodeHelper() {
+        return this.anchorNodeHelper;
+    }
+
     /**
      * Switches to performance-edit cursors and refreshes the anchor preview.
      * @param mouseEvent the enter event

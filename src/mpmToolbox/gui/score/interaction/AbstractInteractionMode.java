@@ -57,6 +57,14 @@ public abstract class AbstractInteractionMode implements MouseInput, KeyInput {
     }
 
     /**
+     * Gets the anchor helper used by this mode, if any.
+     * @return the mode's anchor helper, or null when the mode has none
+     */
+    public AnchorNodeHelper getAnchorNodeHelper() {
+        return null;
+    }
+
+    /**
      * Handles a mouse click when a mode does not need special click logic.
      * @param mouseEvent the click event
      */

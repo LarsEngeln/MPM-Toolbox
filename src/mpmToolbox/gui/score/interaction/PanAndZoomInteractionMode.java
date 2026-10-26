@@ -25,6 +25,11 @@ public final class PanAndZoomInteractionMode extends AbstractInteractionMode {
         this.anchorNodeHelper.setTreeSelectionEnabled(false);
     }
 
+    @Override
+    public AnchorNodeHelper getAnchorNodeHelper() {
+        return this.anchorNodeHelper;
+    }
+
     /**
      * Keeps the default cursor when entering the panel in pan mode.
      * @param mouseEvent the enter event

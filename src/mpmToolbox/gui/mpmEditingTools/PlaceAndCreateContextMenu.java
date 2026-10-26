@@ -452,16 +452,21 @@ public class PlaceAndCreateContextMenu extends WebPopupMenu {
 
     /**
      * Gets the note that should seed the editor dialog.
-     * @return the selected note node, or the hover anchor if nothing is selected
+     * @return the current hover anchor, or the first selected note if there is no hover anchor
      */
     private ScoreNode getEditorAnchor() {
+        ScoreNode anchorNode = this.parent.getAnchorNode();
+        if (anchorNode != null) {
+            return anchorNode;
+        }
+
         if (!this.selectedMsmNotes.isEmpty()) {
             ScoreNode selectedNode = this.parent.getScorePage().getNode(this.selectedMsmNotes.get(0));
             if (selectedNode != null) {
                 return selectedNode;
             }
         }
-        return this.parent.getAnchorNode();
+        return null;
     }
 
     /**

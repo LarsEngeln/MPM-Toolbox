@@ -163,12 +163,13 @@ public class InteractionModeManager implements MouseInput, KeyInput {
     }
 
     /**
-     * Gets the AnchorNodeHelper managed by this manager.
+     * Gets the AnchorNodeHelper used by the current mode.
      *
-     * @return the AnchorNodeHelper
+     * @return the current mode's AnchorNodeHelper, or the manager helper if the mode has none
      */
     public AnchorNodeHelper getAnchorNodeHelper() {
-        return anchorNodeHelper;
+        AnchorNodeHelper currentModeHelper = (this.currentMode == null) ? null : this.currentMode.getAnchorNodeHelper();
+        return (currentModeHelper != null) ? currentModeHelper : this.anchorNodeHelper;
     }
 
     /**
