@@ -49,12 +49,12 @@ public class SpectrogramPanel extends PianoRollPanel {
 
         Graphics2D g2 = (Graphics2D) g;     // make g a Graphics2D object so we can use its extended drawing features
 
-        if (this.updateZoom) {
+        if (this.updateZoom && (this.getWidth() > 0)) {     // with width 0 (not yet laid out) the metrics would be invalid; keep the flag until the panel has a size
             this.samplesPerPixel = (double) (this.parent.getRightmostSample() - this.parent.getLeftmostSample() + 1) / this.getWidth();
             this.imageWidth = (int) Math.round((double) this.parent.getAudio().getNumberOfSamples() / this.samplesPerPixel);
             this.updateZoom = false;
         }
-        if (this.updateScroll) {
+        if (this.updateScroll && (this.samplesPerPixel > 0.0) && !Double.isInfinite(this.samplesPerPixel)) {
 //            this.horizontalOffset = (int) Math.round((double) -this.parent.getLeftmostSample() / this.samplesPerPixel);
 //            this.horizontalOffset += spectrogramImage.getWindowFunction().getLength() / (this.samplesPerPixel * 2.0);
             this.horizontalOffset = (int) Math.round(((0.5 * spectrogramImage.getWindowFunction().getLength()) - this.parent.getLeftmostSample()) / this.samplesPerPixel);  // same as the above two lines just in one line
@@ -106,6 +106,7 @@ public class SpectrogramPanel extends PianoRollPanel {
         }
 
         this.remove(this.noData);
+        this.updateZoom();                              // the audio (and thus the view metrics) may have changed
         if (this.parent.getSpectrogramImage() == null)
             this.add(this.spectrogramSpecs);
         else

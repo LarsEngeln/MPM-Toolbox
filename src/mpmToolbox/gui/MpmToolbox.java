@@ -293,28 +293,79 @@ public class MpmToolbox {
         });
         edit.add(this.playStop);
 
-        WebMenuItem settingsItem = new WebMenuItem("Measure Display Option", 'm');
-        settingsItem.addActionListener(actionEvent -> new MeasureDisplayDialog(this.getFrame(), this.getProjectPane()));
-        edit.add(settingsItem);
-
         // view menu
         WebMenu view = new WebMenu("View");
         view.setMnemonic('v');
+
+        WebMenu tabs = new WebMenu("Tabs");
         WebMenuItem tabsTabbed = new WebMenuItem("Tabs in One Frame");
         tabsTabbed.addActionListener(actionEvent -> {
             if (this.getProjectPane() != null) this.getProjectPane().arrangeTabs(null);
         });
-        view.add(tabsTabbed);
+        tabs.add(tabsTabbed);
         WebMenuItem tabsSideBySide = new WebMenuItem("Tabs Side by Side");
         tabsSideBySide.addActionListener(actionEvent -> {
             if (this.getProjectPane() != null) this.getProjectPane().arrangeTabs(javax.swing.SwingConstants.RIGHT);
         });
-        view.add(tabsSideBySide);
+        tabs.add(tabsSideBySide);
         WebMenuItem tabsAbove = new WebMenuItem("Tabs Above Each Other");
         tabsAbove.addActionListener(actionEvent -> {
             if (this.getProjectPane() != null) this.getProjectPane().arrangeTabs(javax.swing.SwingConstants.BOTTOM);
         });
-        view.add(tabsAbove);
+        tabs.add(tabsAbove);
+        view.add(tabs);
+
+        WebMenuItem measureDisplay = new WebMenuItem("Measure Display", 'm');
+        measureDisplay.addActionListener(actionEvent -> new MeasureDisplayDialog(this.getFrame(), this.getProjectPane()));
+        view.add(measureDisplay);
+
+        // the SVG and Annotation submenus are rebuilt each time they are opened, as they depend on the current project state
+        WebMenu svgMenu = new WebMenu("SVG");
+        svgMenu.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                svgMenu.removeAll();
+                mpmToolbox.gui.svgTree.SvgTree svgTree = (getProjectPane() == null) ? null : getProjectPane().getSvgDockableFrame().getSvgTree();
+                if (svgTree != null)
+                    for (WebMenuItem item : svgTree.createSvgMenuItems())
+                        svgMenu.add(item);
+                if (svgTree == null)
+                    svgMenu.add(disabledItem());
+            }
+            @Override
+            public void menuDeselected(javax.swing.event.MenuEvent e) {}
+            @Override
+            public void menuCanceled(javax.swing.event.MenuEvent e) {}
+        });
+        svgMenu.add(new WebMenuItem("pick Color"));     // placeholder so the menu is non-empty until first opened
+        view.add(svgMenu);
+
+        WebMenu annotationMenu = new WebMenu("Annotation");
+        annotationMenu.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                annotationMenu.removeAll();
+                ProjectPane pane = getProjectPane();
+                if (pane == null) {
+                    annotationMenu.add(disabledItem());
+                    return;
+                }
+
+                WebMenuItem toggleVisibility = new WebMenuItem(pane.getAnnotationManager().isOverlayVisible() ? "Hide Annotation Overlay" : "Show Annotation Overlay");
+                toggleVisibility.addActionListener(actionEvent -> pane.getAnnotationManager().setOverlayVisible(!pane.getAnnotationManager().isOverlayVisible()));
+                annotationMenu.add(toggleVisibility);
+
+                WebMenuItem toggleZoom = new WebMenuItem(pane.getAnnotationManager().isOverlayZoomEnabled() ? "Don't Zoom Annotations with Score" : "Zoom Annotations with Score");
+                toggleZoom.addActionListener(actionEvent -> pane.getAnnotationManager().setOverlayZoomEnabled(!pane.getAnnotationManager().isOverlayZoomEnabled()));
+                annotationMenu.add(toggleZoom);
+            }
+            @Override
+            public void menuDeselected(javax.swing.event.MenuEvent e) {}
+            @Override
+            public void menuCanceled(javax.swing.event.MenuEvent e) {}
+        });
+        annotationMenu.add(new WebMenuItem("Hide Annotation Overlay"));  // placeholder so the menu is non-empty until first opened
+        view.add(annotationMenu);
 
         // help menu
         WebMenu help = new WebMenu("Help");
@@ -342,6 +393,12 @@ public class MpmToolbox {
 
         // put them all together
         return (new WebMenuBar()).add(file, edit, view, help);
+    }
+
+    private static WebMenuItem disabledItem() {
+        WebMenuItem item = new WebMenuItem("(no project loaded)");
+        item.setEnabled(false);
+        return item;
     }
 
     /**

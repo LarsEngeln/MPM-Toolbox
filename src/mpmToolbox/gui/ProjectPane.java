@@ -721,13 +721,13 @@ public class ProjectPane extends WebDockablePane {
                 System.err.println("Could not restore the frame layout: " + e.getMessage());
             }
 
-            Element syncElt = root.getFirstChildElement("syncPlayer");
-            if (syncElt != null) {
+            final Element syncElt = root.getFirstChildElement("syncPlayer");
+            if (syncElt != null) javax.swing.SwingUtilities.invokeLater(() -> {     // applied after the project has been displayed, so that the sync player settings take the same path as user interactions
                 // each step is isolated so that a failure in one (e.g. a listener throwing) cannot prevent the others
                 String skip = syncElt.getAttributeValue("skip");
                 if (skip != null) {
                     try {
-                        this.syncPlayer.getOffsetSpinner().setValue((long) Double.parseDouble(skip));
+                        this.syncPlayer.getOffsetSpinner().setValue(Double.parseDouble(skip));      // the spinner model holds Double values
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -758,7 +758,7 @@ public class ProjectPane extends WebDockablePane {
                         e.printStackTrace();
                     }
                 }
-            }
+            });
         } catch (Exception e) {
             System.err.println("Could not load the user config: " + e);
             e.printStackTrace();

@@ -158,24 +158,16 @@ public class AnnotationDockableFrame extends WebDockableFrame {
             }
 
             WebPopupMenu menu = new WebPopupMenu();
-            WebMenuItem toggleVisibility = new WebMenuItem(parent.getAnnotationManager().isOverlayVisible() ? "Hide Annotation Overlay" : "Show Annotation Overlay");
-            toggleVisibility.addActionListener(actionEvent -> parent.getAnnotationManager().setOverlayVisible(!parent.getAnnotationManager().isOverlayVisible()));
-            menu.add(toggleVisibility);
+            if ((path != null) && (path.getPathCount() > 1)) {      // not for the root node
+                WebMenuItem addAnnotation = new WebMenuItem("Add Annotation");
+                addAnnotation.addActionListener(actionEvent -> {
+                    ScorePage page = parent.getCurrentScorePage();
+                    if (page != null) {
+                        parent.getAnnotationManager().create(AnnotationPlacement.TabType.SCORE, page.getImage().getWidth() * 0.5, page.getImage().getHeight() * 0.5, page.getFile().getAbsolutePath());
+                    }
+                });
+                menu.add(addAnnotation);
 
-            WebMenuItem toggleZoom = new WebMenuItem(parent.getAnnotationManager().isOverlayZoomEnabled() ? "Don't Zoom Annotations with Score" : "Zoom Annotations with Score");
-            toggleZoom.addActionListener(actionEvent -> parent.getAnnotationManager().setOverlayZoomEnabled(!parent.getAnnotationManager().isOverlayZoomEnabled()));
-            menu.add(toggleZoom);
-
-            WebMenuItem addAnnotation = new WebMenuItem("Add Annotation");
-            addAnnotation.addActionListener(actionEvent -> {
-                ScorePage page = parent.getCurrentScorePage();
-                if (page != null) {
-                    parent.getAnnotationManager().create(AnnotationPlacement.TabType.SCORE, page.getImage().getWidth() * 0.5, page.getImage().getHeight() * 0.5, page.getFile().getAbsolutePath());
-                }
-            });
-            menu.add(addAnnotation);
-
-            if (path != null) {
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
                 Object userObject = node.getUserObject();
                 if (userObject instanceof AnnotationData) {
@@ -202,7 +194,8 @@ public class AnnotationDockableFrame extends WebDockableFrame {
                 }
             }
 
-            menu.show(tree, event.getX(), event.getY());
+            if (menu.getComponentCount() > 0)
+                menu.show(tree, event.getX(), event.getY());
         }
     }
 }

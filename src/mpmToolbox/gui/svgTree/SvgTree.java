@@ -4,7 +4,6 @@ import com.alee.api.annotations.NotNull;
 import com.alee.api.annotations.Nullable;
 import com.alee.extended.tree.WebExTree;
 import com.alee.laf.menu.WebMenuItem;
-import com.alee.laf.menu.WebPopupMenu;
 import mpmToolbox.gui.ProjectPane;
 import mpmToolbox.projectData.SvgData;
 import nu.xom.Element;
@@ -88,17 +87,6 @@ public class SvgTree extends WebExTree<SvgTreeNode> {
             }
         });
 
-        this.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) {
-                showContextMenuIfRequested(e);
-            }
-
-            @Override
-            public void mouseReleased(MouseEvent e) {
-                showContextMenuIfRequested(e);
-            }
-        });
     }
 
     /**
@@ -153,85 +141,42 @@ public class SvgTree extends WebExTree<SvgTreeNode> {
     }
 
     /**
-     * shows the ContextMenu at mouseEvent
-     * @param mouseEvent
-     */
-    private void showContextMenuIfRequested(@NotNull MouseEvent mouseEvent) {
-        if (!mouseEvent.isPopupTrigger())
-            return;
-
-        int row = this.getRowForLocation(mouseEvent.getX(), mouseEvent.getY());
-        if (row < 0)
-            return;
-
-        TreePath clickedPath = this.getPathForRow(row);
-        if ((clickedPath != null) && !this.isPathSelected(clickedPath))
-            this.setSelectionPath(clickedPath);
-
-        SvgTreeNode node = this.getNodeForRow(row);
-        if (node == null || !(node.getUserObject() instanceof Element))
-            return;
-
-        Element element = (Element) node.getUserObject();
-        WebPopupMenu menu = this.createContextMenu(node, element);
-        if (menu.getComponentCount() == 0)
-            return;
-        menu.show(this, mouseEvent.getX() - 25, mouseEvent.getY());
-    }
-
-    /**
-     * creates the ContextMenu
-     * @param node
-     * @param element
-     * @return the ContextMenu as WebPopupMenu
+     * Creates the items for the SVG menu in the main menu's View menu.
+     * @return the menu items
      */
     @NotNull
-    private WebPopupMenu createContextMenu(@NotNull SvgTreeNode node, @NotNull Element element) {
-        WebPopupMenu menu = new WebPopupMenu();
+    public java.util.List<WebMenuItem> createSvgMenuItems() {
+        java.util.List<WebMenuItem> items = new java.util.ArrayList<>();
 
-        if (this.isSvgRootNode(node, element)) {
-            WebMenuItem pickColorItem = new WebMenuItem("pick Color");
-            pickColorItem.addActionListener(actionEvent -> {
-                Color pickedColor = JColorChooser.showDialog(
-                        this,
-                        "Pick SVG Color",
-                        (this.scoreColor != null) ? this.scoreColor : Color.decode("#C9B791")
-                );
-                if (pickedColor != null) {
-                    this.scoreColor = pickedColor;
-                    this.svgData.setScoreColor(pickedColor);
-                    this.projectPane.repaintScoreDisplay();
-                }
-            });
-            menu.add(pickColorItem);
-
-            WebMenuItem useOriginalColorItem = new WebMenuItem("use original Color");
-            useOriginalColorItem.addActionListener(actionEvent -> {
-                //this.scoreColor = null;
-                this.svgData.useOriginalSVGColor();
+        WebMenuItem pickColorItem = new WebMenuItem("pick Color");
+        pickColorItem.addActionListener(actionEvent -> {
+            Color pickedColor = JColorChooser.showDialog(
+                    this,
+                    "Pick SVG Color",
+                    (this.scoreColor != null) ? this.scoreColor : Color.decode("#C9B791")
+            );
+            if (pickedColor != null) {
+                this.scoreColor = pickedColor;
+                this.svgData.setScoreColor(pickedColor);
                 this.projectPane.repaintScoreDisplay();
-            });
-            menu.add(useOriginalColorItem);
+            }
+        });
+        items.add(pickColorItem);
 
-            WebMenuItem useHiddenColorItem = new WebMenuItem("use hidden Color");
-            useHiddenColorItem.addActionListener(actionEvent -> {
-                //this.scoreColor = null;
-                this.svgData.useHiddenSVGColor();
-                this.projectPane.repaintScoreDisplay();
-            });
-            menu.add(useHiddenColorItem);
-        }
+        WebMenuItem useOriginalColorItem = new WebMenuItem("use original Color");
+        useOriginalColorItem.addActionListener(actionEvent -> {
+            this.svgData.useOriginalSVGColor();
+            this.projectPane.repaintScoreDisplay();
+        });
+        items.add(useOriginalColorItem);
 
-        return menu;
-    }
+        WebMenuItem useHiddenColorItem = new WebMenuItem("use hidden Color");
+        useHiddenColorItem.addActionListener(actionEvent -> {
+            this.svgData.useHiddenSVGColor();
+            this.projectPane.repaintScoreDisplay();
+        });
+        items.add(useHiddenColorItem);
 
-    /**
-     * Checks if the given node is the root SVG node (i.e., the <svg> element with no parent).
-     * @param node SvgTreeNode to check
-     * @param element corresponding Element
-     * @return true if it is the rootNode, false otherwise
-     */
-    private boolean isSvgRootNode(@NotNull SvgTreeNode node, @NotNull Element element) {
-        return "svg".equals(element.getLocalName()) && (node.getParent() == null);
+        return items;
     }
 }
