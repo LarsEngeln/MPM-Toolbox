@@ -159,6 +159,28 @@ public class PanZoomHelper {
     }
 
     /**
+     * Restores a previously saved pan/zoom state.
+     * @param zoomFactor the zoom factor
+     * @param offsetX the pan offset x
+     * @param offsetY the pan offset y
+     */
+    public void setState(double zoomFactor, double offsetX, double offsetY) {
+        this.zoomFactor = zoomFactor;
+        this.offset.setLocation(offsetX, offsetY);
+        this.diff.setLocation(0, 0);
+        this.dragStartPoint = null;
+        this.affineTransform.setToIdentity();
+        this.affineTransform.translate(offsetX, offsetY);
+        this.affineTransform.scale(zoomFactor, zoomFactor);
+        try {
+            this.inverseAffineTransform = this.affineTransform.createInverse();
+        } catch (NoninvertibleTransformException e) {
+            e.printStackTrace();
+        }
+        this.panel.repaint();
+    }
+
+    /**
      * Gets the pan offset.
      * @return the offset as Point2D.Double
      */

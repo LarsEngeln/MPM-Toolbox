@@ -257,6 +257,14 @@ public class AnalyticsDocumentData extends DocumentData<WebPanel> {
         this.updatePerformanceList();
     }
 
+    public String getSplitState() {
+        return mpmToolbox.gui.SplitPaneStateHelper.capture(this.splitPane);
+    }
+
+    public void setSplitState(String fractions) {
+        mpmToolbox.gui.SplitPaneStateHelper.apply(this.splitPane, fractions);
+    }
+
     private void draw() {
         this.splitPane.setOneTouchExpandable(true);   // dividers have buttons for maximizing/minimizing a section (the accordion behavior)
         this.splitPane.setContinuousLayout(true);      // when the divider is moved the content is continuously redrawn

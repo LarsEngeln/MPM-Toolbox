@@ -30,6 +30,7 @@ import mpmToolbox.gui.msmTree.MsmTreeNode;
 import mpmToolbox.gui.svgTree.SvgDockableFrame;
 import mpmToolbox.projectData.SvgData;
 import mpmToolbox.projectData.score.Score;
+import mpmToolbox.gui.score.ScoreDisplayPanel;
 import mpmToolbox.gui.score.ScoreDocumentData;
 import mpmToolbox.projectData.score.ScorePage;
 import mpmToolbox.gui.syncPlayer.SyncPlayer;
@@ -677,6 +678,36 @@ public class ProjectPane extends WebDockablePane {
             tabsElt.appendChild(XmlUtils.toXML(this.tabs.getDocumentPaneState()));
             root.appendChild(tabsElt);
 
+            try {
+                if (this.audioFrame != null) {
+                    String s = this.audioFrame.getSplitState();
+                    if (s != null) {
+                        Element e = new Element("audioSplit");
+                        e.addAttribute(new Attribute("fractions", s));
+                        root.appendChild(e);
+                    }
+                }
+                if (this.analyticsFrame != null) {
+                    String s = this.analyticsFrame.getSplitState();
+                    if (s != null) {
+                        Element e = new Element("analyticsSplit");
+                        e.addAttribute(new Attribute("fractions", s));
+                        root.appendChild(e);
+                    }
+                }
+                ScoreDisplayPanel sd = (this.scoreFrame == null) ? null : this.scoreFrame.getScoreDisplay();
+                if ((sd != null) && (sd.getPanZoomHelper().getZoomFactor() != null)) {
+                    Element e = new Element("score");
+                    e.addAttribute(new Attribute("zoom", String.valueOf(sd.getPanZoomHelper().getZoomFactor())));
+                    e.addAttribute(new Attribute("offsetX", String.valueOf(sd.getPanZoomHelper().getOffset().getX())));
+                    e.addAttribute(new Attribute("offsetY", String.valueOf(sd.getPanZoomHelper().getOffset().getY())));
+                    e.addAttribute(new Attribute("page", String.valueOf(sd.getPageIndex())));
+                    root.appendChild(e);
+                }
+            } catch (Exception e) {
+                System.err.println("Could not save split/score state: " + e);
+            }
+
             try (FileOutputStream out = new FileOutputStream(getUserConfigFile(projectFile))) {
                 Serializer serializer = new Serializer(out, "UTF-8");
                 serializer.setIndent(2);
@@ -720,6 +751,33 @@ public class ProjectPane extends WebDockablePane {
             } catch (Exception e) {
                 System.err.println("Could not restore the frame layout: " + e.getMessage());
             }
+
+            final Element audioSplitElt = root.getFirstChildElement("audioSplit");
+            final Element analyticsSplitElt = root.getFirstChildElement("analyticsSplit");
+            final Element scoreElt = root.getFirstChildElement("score");
+            javax.swing.SwingUtilities.invokeLater(() -> javax.swing.SwingUtilities.invokeLater(() -> {    // after the first layout pass, so sizes exist
+                try {
+                    if ((audioSplitElt != null) && (this.audioFrame != null))
+                        this.audioFrame.setSplitState(audioSplitElt.getAttributeValue("fractions"));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                try {
+                    if ((analyticsSplitElt != null) && (this.analyticsFrame != null))
+                        this.analyticsFrame.setSplitState(analyticsSplitElt.getAttributeValue("fractions"));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                try {
+                    ScoreDisplayPanel sd = (this.scoreFrame == null) ? null : this.scoreFrame.getScoreDisplay();
+                    if ((scoreElt != null) && (sd != null)) {
+                        sd.showPage(Integer.parseInt(scoreElt.getAttributeValue("page")));
+                        sd.getPanZoomHelper().setState(Double.parseDouble(scoreElt.getAttributeValue("zoom")), Double.parseDouble(scoreElt.getAttributeValue("offsetX")), Double.parseDouble(scoreElt.getAttributeValue("offsetY")));
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }));
 
             final Element syncElt = root.getFirstChildElement("syncPlayer");
             if (syncElt != null) javax.swing.SwingUtilities.invokeLater(() -> {     // applied after the project has been displayed, so that the sync player settings take the same path as user interactions

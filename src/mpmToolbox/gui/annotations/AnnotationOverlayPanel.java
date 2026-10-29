@@ -54,6 +54,7 @@ import java.awt.geom.RoundRectangle2D;
 /**
  * Presents one placement of an annotation: a multi-line, scrollable text with a fixed, user-adjustable size.
  * The size is stored in the placement (right and bottom edge can be dragged).
+ * @author Lars Engeln
  */
 public class AnnotationOverlayPanel extends WebPanel {
     private static final int OVERLAY_MIN_WIDTH_PX = 80;
@@ -67,10 +68,9 @@ public class AnnotationOverlayPanel extends WebPanel {
     private static final int RESIZE_ZONE_PX = 5;                // the grabbable area at the right and bottom edge (border + padding)
     private static final int BORDER_WIDTH_PX = 2;
     private static final Color OVERLAY_FILL = new Color(220, 215, 215, 190);
+    private static final int OVERLAY_HOVER_ALPHA = 245;
     private static final Color OVERLAY_BORDER = new Color(130, 130, 120, 230);
-    private static final Color OVERLAY_BORDER_ACTIVE = new Color(240, 210, 70, 230);
     private static final Color OVERLAY_TEXT = new Color(20, 20, 20, 255);
-    private static final Color OVERLAY_COLLAPSED_FILL = new Color(255, 220, 90, 190);
     private static final String OVERLAY_TITLE = "Annotation";
 
     private static class MeasureInputFilter extends DocumentFilter {
@@ -158,7 +158,7 @@ public class AnnotationOverlayPanel extends WebPanel {
 
     private void initializeUi() {
         this.setLayout(new BorderLayout());
-        this.setOpaque(true);
+        this.setOpaque(false);
         this.setBackground(OVERLAY_FILL);
 
         this.textArea.setEditable(false);
@@ -255,7 +255,6 @@ public class AnnotationOverlayPanel extends WebPanel {
         this.setToolTipText(collapsed
                 ? ((this.annotation == null) ? OVERLAY_TITLE : this.annotation.getDisplayTitle())
                 : null);
-        this.setOpaque(!collapsed);
         this.applyDisplayBounds();
         this.revalidate();
         this.repaint();
@@ -288,6 +287,13 @@ public class AnnotationOverlayPanel extends WebPanel {
         return this.contains(p);
     }
 
+    /**
+     * @return the point all link lines start at: the center of the collapsed panel, which stays fixed relative to the top left corner when expanded
+     */
+    public java.awt.geom.Point2D getLinkAnchor() {
+        return new java.awt.geom.Point2D.Double(this.getX() + COLLAPSED_WIDTH_PX / 2.0, this.getY() + COLLAPSED_HEIGHT_PX / 2.0);
+    }
+
     private void applyDisplayBounds() {
         if (this.expandedBounds == null) {
             return;
@@ -305,9 +311,9 @@ public class AnnotationOverlayPanel extends WebPanel {
         if (this.collapsed) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(OVERLAY_COLLAPSED_FILL);
+            g2.setColor(Settings.annotationCollapsedColor);
             g2.fill(new RoundRectangle2D.Double(0, 0, this.getWidth() - 1, this.getHeight() - 1, 10, 10));
-            g2.setColor(this.isActive() ? OVERLAY_BORDER_ACTIVE : OVERLAY_BORDER);
+            g2.setColor(this.isActive() ? Settings.annotationActiveBorderColor : OVERLAY_BORDER);
             g2.draw(new RoundRectangle2D.Double(0, 0, this.getWidth() - 1, this.getHeight() - 1, 10, 10));
             g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
             g2.setColor(Color.WHITE);
@@ -318,7 +324,15 @@ public class AnnotationOverlayPanel extends WebPanel {
             g2.dispose();
             return;
         }
-        super.paintComponent(g);
+        // translucent fill must be painted on a non-opaque panel, otherwise Swing skips clearing what is behind it
+        Graphics2D g2 = (Graphics2D) g.create();
+        Color fill = this.getBackground();
+        if (this.manager.getHovered() == this.annotation) {
+            fill = new Color(fill.getRed(), fill.getGreen(), fill.getBlue(), OVERLAY_HOVER_ALPHA);
+        }
+        g2.setColor(fill);
+        g2.fillRect(0, 0, this.getWidth(), this.getHeight());
+        g2.dispose();
     }
 
     private void refreshVisuals() {
@@ -445,7 +459,7 @@ public class AnnotationOverlayPanel extends WebPanel {
         int line = active ? BORDER_WIDTH_PX + 1 : BORDER_WIDTH_PX;
         int pad = RESIZE_ZONE_PX - line;
         return BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(active ? OVERLAY_BORDER_ACTIVE : OVERLAY_BORDER, line, true),
+                BorderFactory.createLineBorder(active ? Settings.annotationActiveBorderColor : OVERLAY_BORDER, line, true),
                 BorderFactory.createEmptyBorder(Math.max(0, (int) Math.round(OVERLAY_PADDING_Y_PX * this.contentScale) - line), pad, pad, pad));
     }
 
@@ -728,8 +742,27 @@ public class AnnotationOverlayPanel extends WebPanel {
                 }
             }
 
+            /**
+             * While another annotation is adding a link, a click on this annotation is the link target.
+             */
+            private boolean consumedByLinking(MouseEvent e, boolean finish) {
+                AnnotationData linking = manager.getLinkingAnnotation();
+                if ((linking == null) || (linking == annotation)) {
+                    return false;
+                }
+                if (finish && SwingUtilities.isLeftMouseButton(e)) {
+                    manager.finishLinking(new AnnotationLink(AnnotationLink.LinkType.ANNOTATION, annotation.getId()));
+                } else if (finish && SwingUtilities.isRightMouseButton(e)) {
+                    manager.cancelLinking();
+                }
+                return true;
+            }
+
             @Override
             public void mousePressed(MouseEvent e) {
+                if (this.consumedByLinking(e, false)) {
+                    return;
+                }
                 if (!SwingUtilities.isLeftMouseButton(e)) {
                     layer.forwardToOwner(e, AnnotationOverlayPanel.this);
                     return;
@@ -786,6 +819,9 @@ public class AnnotationOverlayPanel extends WebPanel {
 
             @Override
             public void mouseClicked(MouseEvent e) {
+                if (this.consumedByLinking(e, true)) {
+                    return;
+                }
                 if (!SwingUtilities.isLeftMouseButton(e)) {
                     layer.forwardToOwner(e, AnnotationOverlayPanel.this);
                     return;

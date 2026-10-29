@@ -2,15 +2,14 @@ package mpmToolbox.gui.annotations;
 
 import com.alee.api.data.CompassDirection;
 import com.alee.extended.dock.WebDockableFrame;
-import com.alee.laf.menu.WebMenu;
 import com.alee.laf.menu.WebMenuItem;
 import com.alee.laf.menu.WebPopupMenu;
 import com.alee.laf.scroll.WebScrollPane;
 import com.alee.managers.icon.Icons;
 import com.alee.managers.style.StyleId;
 import mpmToolbox.gui.ProjectPane;
+import mpmToolbox.gui.Settings;
 import mpmToolbox.projectData.annotations.AnnotationData;
-import mpmToolbox.projectData.annotations.AnnotationLink;
 import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import mpmToolbox.projectData.score.ScorePage;
 
@@ -18,23 +17,37 @@ import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
+import java.awt.Color;
 import java.awt.dnd.DnDConstants;
 import java.awt.dnd.DragSource;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 
 /**
- * Dockable frame listing project-wide annotations grouped by score page, audio file and analytics.
+ * Dockable frame listing project-wide annotations, each with its placements as sub nodes.
+ * @author Lars Engeln
  */
 public class AnnotationDockableFrame extends WebDockableFrame {
-    private static final String UNPLACED_LABEL = "Without Placement";
-
     private final ProjectPane parent;
-    private final JTree tree = new JTree();
+    private final JTree tree = new JTree() {
+        @Override
+        public String convertValueToText(Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+            Object userObject = (value instanceof DefaultMutableTreeNode) ? ((DefaultMutableTreeNode) value).getUserObject() : null;
+            if (userObject instanceof AnnotationData) {
+                AnnotationData annotation = (AnnotationData) userObject;
+                String title = annotation.getDisplayTitle();
+                if (title.isEmpty()) {
+                    title = userObject.toString();
+                }
+                if (!annotation.getPlacements().isEmpty()) {
+                    return "<html>" + escapeHtml(title) + "&nbsp;<font color=\"" + toHtmlColor(Settings.annotationCollapsedColor) + "\">&#9679;</font></html>";
+                }
+                return title;     // the same label as the tooltip of the collapsed overlay
+            }
+            return super.convertValueToText(value, selected, expanded, leaf, row, hasFocus);
+        }
+    };
     private final DefaultTreeModel treeModel = new DefaultTreeModel(new DefaultMutableTreeNode("Annotations"));
 
     public AnnotationDockableFrame(ProjectPane parent) {
@@ -48,6 +61,14 @@ public class AnnotationDockableFrame extends WebDockableFrame {
         this.setPosition(CompassDirection.west);
 
         this.tree.setModel(this.treeModel);
+        javax.swing.tree.DefaultTreeCellRenderer renderer = new javax.swing.tree.DefaultTreeCellRenderer();
+        renderer.setLeafIcon(null);
+        renderer.setOpenIcon(null);
+        renderer.setClosedIcon(null);
+        renderer.setTextNonSelectionColor(java.awt.Color.WHITE);
+        renderer.setTextSelectionColor(java.awt.Color.WHITE);
+        renderer.setBackgroundNonSelectionColor(new java.awt.Color(0, 0, 0, 0));
+        this.tree.setCellRenderer(renderer);
         this.tree.setRootVisible(true);
         this.tree.addMouseListener(new AnnotationTreeMouseAdapter());
         DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(this.tree, DnDConstants.ACTION_COPY, dragGestureEvent -> {
@@ -55,10 +76,10 @@ public class AnnotationDockableFrame extends WebDockableFrame {
             if (path == null) {
                 return;
             }
-            Object userObject = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
-            if (userObject instanceof AnnotationData) {
+            AnnotationData annotation = annotationOf(((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject());
+            if (annotation != null) {
                 this.tree.setSelectionPath(path);
-                dragGestureEvent.startDrag(DragSource.DefaultCopyDrop, new AnnotationTransferable((AnnotationData) userObject));
+                dragGestureEvent.startDrag(DragSource.DefaultCopyDrop, new AnnotationTransferable(annotation));
             }
         });
 
@@ -72,137 +93,95 @@ public class AnnotationDockableFrame extends WebDockableFrame {
 
     public synchronized void refreshTree() {
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("Annotations");
-        LinkedHashMap<String, DefaultMutableTreeNode> scoreGroups = new LinkedHashMap<>();
-        LinkedHashMap<String, DefaultMutableTreeNode> audioGroups = new LinkedHashMap<>();
-        DefaultMutableTreeNode analyticsGroup = new DefaultMutableTreeNode(new PlacementGroup(AnnotationPlacement.TabType.ANALYTICS, "", "Analytics"));
-        DefaultMutableTreeNode unplacedGroup = new DefaultMutableTreeNode(new PlacementGroup(null, "", UNPLACED_LABEL));
-
-        for (ScorePage page : this.parent.getScore().getAllPages()) {       // this defines the order of the pages
-            scoreGroups.put(page.getFile().getAbsolutePath(), new DefaultMutableTreeNode(new PlacementGroup(AnnotationPlacement.TabType.SCORE, page.getFile().getAbsolutePath(), page.getFile().getName())));
-        }
-
         for (AnnotationData annotation : this.parent.getAnnotationManager().getAnnotations()) {
-            LinkedHashSet<DefaultMutableTreeNode> targetGroups = new LinkedHashSet<>();
+            DefaultMutableTreeNode annotationNode = new DefaultMutableTreeNode(annotation);
             for (AnnotationPlacement placement : annotation.getPlacements()) {
-                switch (placement.getTabType()) {
-                    case ANALYTICS:
-                        targetGroups.add(analyticsGroup);
-                        break;
-                    case AUDIO:
-                        targetGroups.add(audioGroups.computeIfAbsent(placement.getPagePath(), path -> new DefaultMutableTreeNode(new PlacementGroup(AnnotationPlacement.TabType.AUDIO, path, path.isEmpty() ? "Audio" : new File(path).getName()))));
-                        break;
-                    default:
-                        targetGroups.add(scoreGroups.computeIfAbsent(placement.getPagePath(), path -> new DefaultMutableTreeNode(new PlacementGroup(AnnotationPlacement.TabType.SCORE, path, path.isEmpty() ? "Score" : new File(path).getName()))));
-                }
+                annotationNode.add(new DefaultMutableTreeNode(new PlacementEntry(annotation, placement)));
             }
-            if (targetGroups.isEmpty()) {
-                targetGroups.add(unplacedGroup);
-            }
-            for (DefaultMutableTreeNode group : targetGroups) {
-                group.add(new DefaultMutableTreeNode(annotation));
-            }
+            root.add(annotationNode);
         }
 
-        ArrayList<DefaultMutableTreeNode> groups = new ArrayList<>(scoreGroups.values());
-        groups.addAll(audioGroups.values());
-        groups.add(analyticsGroup);
-        groups.add(unplacedGroup);
-        for (DefaultMutableTreeNode group : groups) {
-            if (group.getChildCount() > 0) {        // only groups with annotations are shown
-                root.add(group);
+        // remember which annotations the user has expanded, everything else stays collapsed
+        java.util.Set<AnnotationData> expanded = new java.util.HashSet<>();
+        DefaultMutableTreeNode oldRoot = (DefaultMutableTreeNode) this.treeModel.getRoot();
+        for (int i = 0; i < oldRoot.getChildCount(); ++i) {
+            DefaultMutableTreeNode child = (DefaultMutableTreeNode) oldRoot.getChildAt(i);
+            if (this.tree.isExpanded(new TreePath(child.getPath())) && (child.getUserObject() instanceof AnnotationData)) {
+                expanded.add((AnnotationData) child.getUserObject());
             }
         }
 
         this.treeModel.setRoot(root);
-        for (int i = 0; i < this.tree.getRowCount(); ++i) {
-            this.tree.expandRow(i);
+        this.tree.expandRow(0);
+        for (int i = 0; i < root.getChildCount(); ++i) {
+            DefaultMutableTreeNode child = (DefaultMutableTreeNode) root.getChildAt(i);
+            if (expanded.contains(child.getUserObject())) {
+                this.tree.expandPath(new TreePath(child.getPath()));
+            }
         }
         this.tree.revalidate();
         this.tree.repaint();
     }
 
     /**
-     * A group in the tree: a score page, an audio file, the analytics tab, or (tabType null) the annotations without placement.
+     * A placement below its annotation in the tree; its text names the place where the annotation is shown.
      */
-    private static class PlacementGroup {
-        private final AnnotationPlacement.TabType tabType;
-        private final String path;
-        private final String label;
+    private static class PlacementEntry {
+        private final AnnotationData annotation;
+        private final AnnotationPlacement placement;
 
-        private PlacementGroup(AnnotationPlacement.TabType tabType, String path, String label) {
-            this.tabType = tabType;
-            this.path = path;
-            this.label = label;
-        }
-
-        private boolean contains(AnnotationPlacement placement) {
-            if (placement.getTabType() != this.tabType) {
-                return false;
-            }
-            return (this.tabType == AnnotationPlacement.TabType.ANALYTICS) || placement.getPagePath().equals(this.path);
+        private PlacementEntry(AnnotationData annotation, AnnotationPlacement placement) {
+            this.annotation = annotation;
+            this.placement = placement;
         }
 
         @Override
         public String toString() {
-            return this.label;
+            String source = this.placement.getSource();
+            String name = source.isEmpty() ? "" : new File(source).getName();
+            switch (this.placement.getTabType()) {
+                case ANALYTICS:
+                    return "[Analytics] Analytics";
+                case AUDIO:
+                    String pane = this.placement.getPane();
+                    String audio = name.isEmpty() ? "Audio" : name;
+                    return "[Audio] " + (pane.isEmpty() ? audio : (audio + " (" + pane + ")"));
+                default:
+                    return "[Score] " + (name.isEmpty() ? "Score" : name);
+            }
         }
     }
 
     /**
-     * @param groupNode the tree group in which the annotation is listed
-     * @return the indices of the annotation's placements that belong to the group
+     * @return the annotation that a tree node represents (an annotation node or one of its placement nodes), or null
      */
-    private ArrayList<Integer> placementIndicesInGroup(AnnotationData annotation, DefaultMutableTreeNode groupNode) {
-        Object group = (groupNode == null) ? null : groupNode.getUserObject();
-        ArrayList<Integer> indices = new ArrayList<>();
-        if (!(group instanceof PlacementGroup)) {
-            return indices;
+    private static AnnotationData annotationOf(Object userObject) {
+        if (userObject instanceof AnnotationData) {
+            return (AnnotationData) userObject;
         }
-        for (int i = 0; i < annotation.getPlacements().size(); ++i) {
-            if (((PlacementGroup) group).contains(annotation.getPlacements().get(i))) {
-                indices.add(i);
-            }
-        }
-        return indices;
+        return (userObject instanceof PlacementEntry) ? ((PlacementEntry) userObject).annotation : null;
     }
 
-    private void removePlacements(AnnotationData annotation, ArrayList<Integer> indices) {
-        for (int i = indices.size() - 1; i >= 0; --i) {
-            annotation.removePlacement(indices.get(i));
-        }
-        this.parent.getAnnotationManager().notifyChanged();
+    private static String escapeHtml(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
-    private void editAnnotationText(AnnotationData annotation) {
-        String current = annotation.getText();
-        String updated = JOptionPane.showInputDialog(this, "Annotation text:", current);
-        if (updated == null) {
-            return;
-        }
-        annotation.setText(updated);
-        this.parent.getAnnotationManager().notifyChanged();
+    private static String toHtmlColor(Color color) {
+        return String.format("#%02x%02x%02x", color.getRed(), color.getGreen(), color.getBlue());
     }
 
-    private void addLink(AnnotationData annotation) {
-        this.parent.getAnnotationManager().startLinking(annotation);        // the next click in a tab defines the link
+    private void removePlacement(PlacementEntry entry) {
+        int index = entry.annotation.getPlacements().indexOf(entry.placement);
+        if (index >= 0) {
+            entry.annotation.removePlacement(index);
+            this.parent.getAnnotationManager().notifyChanged();
+        }
     }
 
-    private void removeLink(AnnotationData annotation) {
-        if (annotation.getLinks().isEmpty()) {
-            return;
+    private void editAnnotation(AnnotationData annotation) {
+        if (AnnotationOverlayPanel.editText(this, annotation)) {
+            this.parent.getAnnotationManager().notifyChanged();
         }
-        String[] options = new String[annotation.getLinks().size()];
-        for (int i = 0; i < annotation.getLinks().size(); ++i) {
-            AnnotationLink link = annotation.getLinks().get(i);
-            options[i] = i + ": " + link.getType() + " -> " + link.getTarget();
-        }
-        String selected = (String) JOptionPane.showInputDialog(this, "Remove which link?", "Remove Link", JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
-        if (selected == null) {
-            return;
-        }
-        int index = Integer.parseInt(selected.substring(0, selected.indexOf(':')));
-        annotation.removeLink(index);
-        this.parent.getAnnotationManager().notifyChanged();
     }
 
     private class AnnotationTreeMouseAdapter extends MouseAdapter {
@@ -215,8 +194,8 @@ public class AnnotationDockableFrame extends WebDockableFrame {
             tree.setSelectionPath(path);
             DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
             Object userObject = node.getUserObject();
-            if ((event.getClickCount() > 1) && SwingUtilities.isLeftMouseButton(event) && (userObject instanceof AnnotationData)) {
-                editAnnotationText((AnnotationData) userObject);
+            if ((event.getClickCount() > 1) && SwingUtilities.isLeftMouseButton(event) && (annotationOf(userObject) != null)) {
+                editAnnotation(annotationOf(userObject));
             }
         }
 
@@ -253,28 +232,13 @@ public class AnnotationDockableFrame extends WebDockableFrame {
 
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
                 Object userObject = node.getUserObject();
-                if (userObject instanceof AnnotationData) {
-                    AnnotationData annotation = (AnnotationData) userObject;
+                AnnotationData annotation = annotationOf(userObject);
+                if (annotation != null) {
                     menu.addSeparator();
 
-                    WebMenuItem editText = new WebMenuItem("Edit Text");
-                    editText.addActionListener(actionEvent -> editAnnotationText(annotation));
-                    menu.add(editText);
-
-                    WebMenu linksMenu = new WebMenu("Links");
-                    WebMenuItem addLinkItem = new WebMenuItem("Add Link (click on target)");
-                    addLinkItem.addActionListener(actionEvent -> addLink(annotation));
-                    linksMenu.add(addLinkItem);
-                    WebMenuItem removeLinkItem = new WebMenuItem("Remove Link");
-                    removeLinkItem.setEnabled(!annotation.getLinks().isEmpty());
-                    removeLinkItem.addActionListener(actionEvent -> removeLink(annotation));
-                    linksMenu.add(removeLinkItem);
-                    menu.add(linksMenu);
-
-                    ArrayList<Integer> groupPlacements = placementIndicesInGroup(annotation, (DefaultMutableTreeNode) node.getParent());
-                    if (!groupPlacements.isEmpty()) {
+                    if (userObject instanceof PlacementEntry) {
                         WebMenuItem removePlacement = new WebMenuItem("Remove Placement");
-                        removePlacement.addActionListener(actionEvent -> removePlacements(annotation, groupPlacements));
+                        removePlacement.addActionListener(actionEvent -> removePlacement((PlacementEntry) userObject));
                         menu.add(removePlacement);
                     }
 
@@ -289,4 +253,3 @@ public class AnnotationDockableFrame extends WebDockableFrame {
         }
     }
 }
-

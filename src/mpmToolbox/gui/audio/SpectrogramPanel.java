@@ -32,6 +32,17 @@ public class SpectrogramPanel extends PianoRollPanel {
         this.spectrogramSpecs = new SpectrogramSpecs(this);
     }
 
+    /**
+     * annotations are only rendered while the spectrogram itself is visible
+     */
+    @Override
+    protected boolean isContentVisible() {
+        return super.isContentVisible()
+                && (this.parent.getSpectrogramImage() != null)
+                && !this.noData.isShowing()
+                && ((this.spectrogramSpecs == null) || !this.spectrogramSpecs.isShowing());
+    }
+
     @Override
     protected String getAnnotationPaneId() {
         return "spectrogram";

@@ -13,6 +13,12 @@ import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.dnd.DropTargetEvent;
+import java.awt.dnd.DropTargetListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
@@ -26,6 +32,7 @@ import java.util.function.Supplier;
 /**
  * Hosts the annotation overlays for one tab. The manager owns the overlay panels and presentation state;
  * this layer only forwards configuration and input events.
+ * @author Lars Engeln
  */
 public class AnnotationOverlayLayer extends WebPanel {
     /**
@@ -125,6 +132,77 @@ public class AnnotationOverlayLayer extends WebPanel {
                 }
             }
         });
+        this.delegateOtherDropsToAncestors();
+    }
+
+    /**
+     * The transfer handler's drop target covers the whole tab and would reject everything but annotations, which breaks the file drop (e.g. CSV).
+     * Therefore, drags that do not carry an annotation are handed to the drop target of the closest ancestor.
+     */
+    private void delegateOtherDropsToAncestors() {
+        final DropTarget swingTarget = this.getDropTarget();
+        if (swingTarget == null) {
+            return;
+        }
+        new DropTarget(this, DnDConstants.ACTION_COPY_OR_MOVE, new DropTargetListener() {
+            private DropTarget current = null;
+
+            private DropTarget ancestorTarget() {
+                for (Component c = getParent(); c != null; c = c.getParent()) {
+                    if (c.getDropTarget() != null) {
+                        return c.getDropTarget();
+                    }
+                }
+                return null;
+            }
+
+            private DropTarget choose(boolean annotation) {
+                return annotation ? swingTarget : this.ancestorTarget();
+            }
+
+            @Override
+            public void dragEnter(DropTargetDragEvent e) {
+                this.current = this.choose(e.isDataFlavorSupported(AnnotationTransferable.FLAVOR));
+                if (this.current != null) {
+                    this.current.dragEnter(e);
+                } else {
+                    e.rejectDrag();
+                }
+            }
+
+            @Override
+            public void dragOver(DropTargetDragEvent e) {
+                if (this.current != null) {
+                    this.current.dragOver(e);
+                }
+            }
+
+            @Override
+            public void dropActionChanged(DropTargetDragEvent e) {
+                if (this.current != null) {
+                    this.current.dropActionChanged(e);
+                }
+            }
+
+            @Override
+            public void dragExit(DropTargetEvent e) {
+                if (this.current != null) {
+                    this.current.dragExit(e);
+                }
+                this.current = null;
+            }
+
+            @Override
+            public void drop(DropTargetDropEvent e) {
+                DropTarget target = (this.current != null) ? this.current : this.choose(e.isDataFlavorSupported(AnnotationTransferable.FLAVOR));
+                this.current = null;
+                if (target != null) {
+                    target.drop(e);
+                } else {
+                    e.rejectDrop();
+                }
+            }
+        });
     }
 
     public AnnotationManager getManager() {
@@ -142,10 +220,20 @@ public class AnnotationOverlayLayer extends WebPanel {
         this.parent.repaint();
     }
 
+    /**
+     * While the layer is not supposed to show annotations it must not swallow mouse events,
+     * so that components underneath (e.g. the spectrogram specification menu) receive them.
+     */
+    @Override
+    public boolean contains(int x, int y) {
+        return this.manager.canDropInto(this) && super.contains(x, y);
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         this.sync();
         super.paintComponent(g);
+        this.manager.drawAnnotationConnections(this, (java.awt.Graphics2D) g);
     }
 
     public void sync() {

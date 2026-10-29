@@ -363,6 +363,14 @@ public class AudioDocumentData extends DocumentData<WebPanel> {
         return ((PartChooserItem) this.partChooser.getSelectedItem()).getValue();
     }
 
+    public String getSplitState() {
+        return mpmToolbox.gui.SplitPaneStateHelper.capture(this.splitPane);
+    }
+
+    public void setSplitState(String fractions) {
+        mpmToolbox.gui.SplitPaneStateHelper.apply(this.splitPane, fractions);
+    }
+
     /**
      * this draws the content of the audio analysis frame
      */

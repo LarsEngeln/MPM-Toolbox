@@ -46,12 +46,14 @@ import java.util.function.Supplier;
  * Manages the project's annotations: the data (add, remove, create), the visibility of the overlays,
  * the hover/selection state that is shared by all tabs, and the overlay panels that render each placement.
  * Views (tabs, overlay layers, the annotation tree) only register as listeners and display what is managed here.
+ * @author Lars Engeln
  */
 public class AnnotationManager {
     private static final double DEFAULT_SCORE_WIDTH = 0.3;      // relative to the page image size
     private static final double DEFAULT_SCORE_HEIGHT = 0.15;
     private static final double DEFAULT_RELATIVE_WIDTH = 0.3;
     private static final double DEFAULT_RELATIVE_HEIGHT = 0.2;
+    private static final Color ANNOTATION_CONNECTION_COLOR = new Color(255, 210, 0);
 
     private final ProjectPane projectPane;
     private final CopyOnWriteArrayList<Runnable> changeListeners = new CopyOnWriteArrayList<>();
@@ -187,7 +189,7 @@ public class AnnotationManager {
         for (AnnotationData annotation : annotations) {
             long updatedAt = annotation.getUpdatedAt();
             for (AnnotationPlacement placement : annotation.getPlacements()) {
-                ScorePage page = pages.get(placement.getPagePath());
+                ScorePage page = pages.get(placement.getSource());
                 if ((placement.getTabType() != AnnotationPlacement.TabType.SCORE) || (page == null)) {
                     continue;
                 }
@@ -270,6 +272,12 @@ public class AnnotationManager {
     public boolean remove(AnnotationData annotation) {
         boolean removed = this.projectPane.getProjectData().removeAnnotation(annotation);
         if (removed) {
+            for (AnnotationData other : this.getAnnotations()) {
+                other.getLinks().removeIf(link -> (link.getType() == AnnotationLink.LinkType.ANNOTATION) && link.getTarget().equals(annotation.getId()));
+            }
+            if (this.hoveredLink != null && this.hoveredLink.getType() == AnnotationLink.LinkType.ANNOTATION && this.hoveredLink.getTarget().equals(annotation.getId())) {
+                this.hoveredLink = null;
+            }
             if (this.hoveredAnnotation == annotation) {
                 this.hoveredAnnotation = null;
             }
@@ -362,7 +370,7 @@ public class AnnotationManager {
     }
 
     /**
-     * Drop an annotation into the pane of the given layer. If the annotation is already shown there, nothing is created and it is just selected.
+     * Drop an annotation into the pane of the given layer. An existing placement in that pane is moved to the drop position.
      * @param point the drop position in the coordinates of the layer
      * @return true if the drop was accepted
      */
@@ -373,13 +381,15 @@ public class AnnotationManager {
         }
         for (AnnotationPlacement placement : annotation.getPlacements()) {
             if (this.isShownIn(state, placement)) {
+                state.projection.moveTo(placement, point);
+                this.notifyChanged();
                 this.setSelected(annotation);
                 return true;
             }
         }
 
         boolean score = state.tabType == AnnotationPlacement.TabType.SCORE;
-        AnnotationPlacement placement = AnnotationPlacement.rect(state.tabType, 0.0, 0.0, score ? DEFAULT_SCORE_WIDTH : DEFAULT_RELATIVE_WIDTH, score ? DEFAULT_SCORE_HEIGHT : DEFAULT_RELATIVE_HEIGHT, "");
+        AnnotationPlacement placement = new AnnotationPlacement(state.tabType, 0.0, 0.0, score ? DEFAULT_SCORE_WIDTH : DEFAULT_RELATIVE_WIDTH, score ? DEFAULT_SCORE_HEIGHT : DEFAULT_RELATIVE_HEIGHT, "");
         placement.setPane((state.paneId == null) ? "" : state.paneId);
         state.placementInitializer.accept(placement);
         state.projection.moveTo(placement, point);
@@ -480,9 +490,9 @@ public class AnnotationManager {
         AnnotationData annotation = new AnnotationData("");
         AnnotationPlacement placement;
         if (tab == AnnotationPlacement.TabType.SCORE) {
-            placement = AnnotationPlacement.rect(tab, x, y, DEFAULT_SCORE_WIDTH, DEFAULT_SCORE_HEIGHT, pagePath);
+            placement = new AnnotationPlacement(tab, x, y, DEFAULT_SCORE_WIDTH, DEFAULT_SCORE_HEIGHT, pagePath);
         } else {
-            placement = AnnotationPlacement.rect(tab, x, y, DEFAULT_RELATIVE_WIDTH, DEFAULT_RELATIVE_HEIGHT, (tab == AnnotationPlacement.TabType.AUDIO) ? pagePath : "");
+            placement = new AnnotationPlacement(tab, x, y, DEFAULT_RELATIVE_WIDTH, DEFAULT_RELATIVE_HEIGHT, (tab == AnnotationPlacement.TabType.AUDIO) ? pagePath : "");
         }
         placement.setPane(pane);
         annotation.addPlacement(placement);
@@ -539,7 +549,81 @@ public class AnnotationManager {
     }
 
     public boolean isActive(AnnotationData annotation) {
-        return (annotation != null) && ((annotation == this.hoveredAnnotation) || (annotation == this.selectedAnnotation));
+        return (annotation != null) && ((annotation == this.hoveredAnnotation) || (annotation == this.selectedAnnotation) || this.isLinkedFromActive(annotation));
+    }
+
+    public AnnotationData findAnnotation(String id) {
+        for (AnnotationData annotation : this.getAnnotations()) {
+            if (annotation.getId().equals(id)) {
+                return annotation;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @return the annotations that are linked by the hovered annotation, or by the hovered link
+     */
+    public ArrayList<AnnotationData> getLinkedFromActive() {
+        ArrayList<AnnotationLink> links = new ArrayList<>();
+        AnnotationData active = this.hoveredAnnotation;
+        if (active != null) {
+            links.addAll(active.getLinks());
+        }
+        if (this.hoveredLink != null) {
+            links.add(this.hoveredLink);
+        }
+        ArrayList<AnnotationData> linked = new ArrayList<>();
+        for (AnnotationLink link : links) {
+            if (link.getType() == AnnotationLink.LinkType.ANNOTATION) {
+                AnnotationData target = this.findAnnotation(link.getTarget());
+                if ((target != null) && (target != active) && !linked.contains(target)) {
+                    linked.add(target);
+                }
+            }
+        }
+        return linked;
+    }
+
+    public boolean isLinkedFromActive(AnnotationData annotation) {
+        return this.getLinkedFromActive().contains(annotation);
+    }
+
+    /**
+     * Draw yellow lines from the hovered annotation to the annotations it links, as far as both are shown in the layer.
+     * The lines connect the link anchors of the overlay panels; they are translucent unless their link is hovered.
+     */
+    public void drawAnnotationConnections(AnnotationOverlayLayer layer, Graphics2D g2) {
+        AnnotationData hovered = this.hoveredAnnotation;
+        if (hovered == null) {
+            return;
+        }
+        Graphics2D g = (Graphics2D) g2.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (AnnotationLink link : hovered.getLinks()) {
+            AnnotationData target = (link.getType() == AnnotationLink.LinkType.ANNOTATION) ? this.findAnnotation(link.getTarget()) : null;
+            if ((target == null) || (target == hovered)) {
+                continue;
+            }
+            Color base = ANNOTATION_CONNECTION_COLOR;
+            g.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), (link == this.hoveredLink) ? 255 : 100));
+            for (AnnotationPlacement fromPlacement : hovered.getPlacements()) {
+                AnnotationOverlayPanel from = this.getOverlayPanel(layer, fromPlacement);
+                if ((from == null) || !from.isShowing()) {
+                    continue;
+                }
+                Point2D fromAnchor = from.getLinkAnchor();
+                for (AnnotationPlacement toPlacement : target.getPlacements()) {
+                    AnnotationOverlayPanel to = this.getOverlayPanel(layer, toPlacement);
+                    if ((to == null) || !to.isShowing()) {
+                        continue;
+                    }
+                    g.draw(new Line2D.Double(fromAnchor, to.getLinkAnchor()));
+                }
+            }
+        }
+        g.dispose();
     }
 
     public void setHovered(AnnotationData annotation) {
@@ -581,8 +665,6 @@ public class AnnotationManager {
 
     // ---- rendering ----
 
-    public static final Color TIMESTAMP_COLOR = new Color(255, 105, 180);       // hot pink
-
     /**
      * Collect the timestamps of the hovered or selected annotation's links and of the hovered link.
      * @param audioPath the audio file the timestamps must belong to; null to accept all timestamps (for tabs that do not distinguish audio files)
@@ -618,7 +700,7 @@ public class AnnotationManager {
     public static void drawTimestampLine(Graphics2D g2, int x, int top, int bottom) {
         Stroke oldStroke = g2.getStroke();
         Color oldColor = g2.getColor();
-        g2.setColor(TIMESTAMP_COLOR);
+        g2.setColor(Settings.timestampColor);
         g2.setStroke(new BasicStroke(2f));
         g2.drawLine(x, top, x, bottom);
         g2.setStroke(oldStroke);
@@ -646,20 +728,20 @@ public class AnnotationManager {
             if ((overlayPanel == null) || !overlayPanel.isShowing()) {
                 continue;
             }
-            Rectangle2D box;
+            Point2D anchor;
             try {
-                box = viewTransform.createInverse().createTransformedShape(overlayPanel.getBounds()).getBounds2D();
+                anchor = viewTransform.createInverse().transform(overlayPanel.getLinkAnchor(), null);
             } catch (NoninvertibleTransformException e) {
                 continue;
             }
-            this.drawAnnotationLinkLines(g2, page, activeAnnotation, box);
+            this.drawAnnotationLinkLines(g2, page, activeAnnotation, anchor);
         }
     }
 
     /**
-     * @param box the annotation box in image coordinates
+     * @param anchor the point of the annotation box the lines start at, in image coordinates
      */
-    public void drawAnnotationLinkLines(Graphics2D g2, ScorePage page, AnnotationData annotation, Rectangle2D box) {
+    public void drawAnnotationLinkLines(Graphics2D g2, ScorePage page, AnnotationData annotation, Point2D anchor) {
         Stroke oldStroke = g2.getStroke();
         Object oldAntialiasing = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -684,8 +766,7 @@ public class AnnotationManager {
             g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), hovered ? 255 : 220));
             g2.setStroke(new BasicStroke(hovered ? 9f : 5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 
-            Point2D from = new Point2D.Double(box.getX(), box.getY());
-            g2.draw(new Line2D.Double(from, new Point2D.Double(linkedNode.getX(), linkedNode.getY())));
+            g2.draw(new Line2D.Double(anchor, new Point2D.Double(linkedNode.getX(), linkedNode.getY())));
         }
 
         g2.setStroke(oldStroke);
@@ -697,6 +778,10 @@ public class AnnotationManager {
      */
     public String getLinkText(AnnotationLink link) {
         String text = link.getType() + ": ";
+        if (link.getType() == AnnotationLink.LinkType.ANNOTATION) {
+            AnnotationData target = this.findAnnotation(link.getTarget());
+            return text + ((target != null) ? target.getDisplayTitle() : link.getTarget());
+        }
         if (link.getType() == AnnotationLink.LinkType.SVG) {
             String target = link.getTarget();
             int fragmentIndex = target.indexOf('#');

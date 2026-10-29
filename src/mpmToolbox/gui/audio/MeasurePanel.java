@@ -52,14 +52,14 @@ public class MeasurePanel extends WebPanel {
         super();
         this.parent = parent;
         this.annotationOverlayLayer = new AnnotationOverlayLayer(this, parent.getParent().getAnnotationManager(), AnnotationPlacement.TabType.AUDIO);
-        this.annotationOverlayLayer.setVisibleWhen(() -> this.parent.getAudio() != null);
+        this.annotationOverlayLayer.setVisibleWhen(this::isContentVisible);
         this.annotationOverlayLayer.setPaneId(this.getAnnotationPaneId());
         this.annotationOverlayLayer.setPlacementInitializer(placement -> {
             if (this.parent.getAudio() != null) {
-                placement.setPagePath(this.parent.getAudio().getFile().getAbsolutePath());
+                placement.setSource(this.parent.getAudio().getFile().getAbsolutePath());
             }
         });
-        this.annotationOverlayLayer.setFilter(placement -> (this.parent.getAudio() != null) && this.parent.getAudio().getFile().getAbsolutePath().equals(placement.getPagePath()));
+        this.annotationOverlayLayer.setFilter(placement -> (this.parent.getAudio() != null) && this.parent.getAudio().getFile().getAbsolutePath().equals(placement.getSource()));
         this.annotationOverlayLayer.setLinkResolver(e -> {
             if (this.parent.getAudio() == null) {
                 return null;
@@ -102,6 +102,13 @@ public class MeasurePanel extends WebPanel {
         this.add(this.annotationPlaceholder);
         this.add(this.annotationOverlayLayer);
         this.updateAnnotationPlaceholder();
+    }
+
+    /**
+     * @return true if the panel currently shows its actual content, so annotations should be rendered
+     */
+    protected boolean isContentVisible() {
+        return this.parent.getAudio() != null;
     }
 
     /**
@@ -174,12 +181,16 @@ public class MeasurePanel extends WebPanel {
     }
 
     /**
-     * The timestamps of the hovered/selected annotation and the hovered link are drawn on top of the panel's content.
+     * The timestamps of the hovered/selected annotation and the hovered link are drawn on top of the panel's content, but below the annotations.
      */
     @Override
     protected void paintChildren(Graphics g) {
+        this.paintActiveTimestamps(g);
         super.paintChildren(g);
-        if (this.parent.getAudio() == null) {
+    }
+
+    private void paintActiveTimestamps(Graphics g) {
+        if (!this.isContentVisible()) {
             return;
         }
         AnnotationManager manager = this.parent.getParent().getAnnotationManager();
@@ -604,14 +615,14 @@ public class MeasurePanel extends WebPanel {
     }
 
     /**
-     * Append an "Annotations" submenu to the given context menu, allowing to toggle visibility and edit each dataset.
+     * Append a "Measurements" submenu to the given context menu, allowing to toggle visibility and edit each dataset.
      * @param menu the context menu to append to
      */
     protected void appendAnnotationMenu(WebPopupMenu menu) {
         ArrayList<MeasurementData> all = this.parent.getAnnotations();
         if (all.isEmpty())
             return;
-        WebMenu annotationMenu = new WebMenu("Annotations");
+        WebMenu annotationMenu = new WebMenu("Measurements");
         for (MeasurementData data : all) {
             WebMenu dataMenu = new WebMenu(data.getName());
 

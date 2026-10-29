@@ -116,7 +116,11 @@ public class VolumePanel extends WebPanel {
 
     @Override
     protected void paintChildren(Graphics g) {
+        this.paintActiveTimestamps(g);
         super.paintChildren(g);
+    }
+
+    private void paintActiveTimestamps(Graphics g) {
         ArrayList<SourceEntry> sources = this.parent.getVisibleSources();
         double maxDuration = sources.isEmpty() ? 0.0 : this.getMaxDuration(sources);
         AnnotationManager manager = this.parent.getProjectPane().getAnnotationManager();

@@ -3,6 +3,7 @@ package mpmToolbox.projectData.annotations;
 
 /**
  * One visual placement of an annotation in a specific main tab.
+ * @author Lars Engeln
  */
 public class AnnotationPlacement {
     public enum TabType {
@@ -16,7 +17,7 @@ public class AnnotationPlacement {
             this.xmlValue = xmlValue;
         }
 
-        public String getXmlValue() {
+        public String toXmlValue() {
             return this.xmlValue;
         }
 
@@ -33,76 +34,23 @@ public class AnnotationPlacement {
         }
     }
 
-    public enum PlacementType {
-        POINT("point"),
-        RECT("rect"),
-        RANGE("range");
-
-        private final String xmlValue;
-
-        PlacementType(String xmlValue) {
-            this.xmlValue = xmlValue;
-        }
-
-        public String getXmlValue() {
-            return this.xmlValue;
-        }
-
-        public static PlacementType fromXmlValue(String value) {
-            if (value == null) {
-                return POINT;
-            }
-            for (PlacementType kind : values()) {
-                if (kind.xmlValue.equals(value)) {
-                    return kind;
-                }
-            }
-            return POINT;
-        }
-    }
-
     private TabType tabType;
-    private PlacementType placementType;
 
     /** Generic geometry fields. */
     private double x;
     private double y;
     private double width;
     private double height;
-    private double start;
-    private double end;
-    private String pagePath;
-    private String pane = "";       // identifies the pane within the tab (e.g. "spectrogram"); empty means all panes of the tab
+    private String source;
+    private String pane = "";       // identifies the pane within the tab (e.g. "spectrogram")
 
-    public AnnotationPlacement(TabType tabType, PlacementType placementType) {
+    public AnnotationPlacement(TabType tabType, double x, double y, double width, double height, String source) {
         this.tabType = (tabType == null) ? TabType.SCORE : tabType;
-        this.placementType = (placementType == null) ? PlacementType.POINT : placementType;
-    }
-
-    public static AnnotationPlacement point(TabType tabType, double x, double y, String pagePath) {
-        AnnotationPlacement placement = new AnnotationPlacement(tabType, PlacementType.POINT);
-        placement.x = x;
-        placement.y = y;
-        placement.pagePath = (pagePath == null) ? "" : pagePath;
-        return placement;
-    }
-
-    public static AnnotationPlacement rect(TabType tabType, double x, double y, double width, double height, String pagePath) {
-        AnnotationPlacement placement = new AnnotationPlacement(tabType, PlacementType.RECT);
-        placement.x = x;
-        placement.y = y;
-        placement.width = width;
-        placement.height = height;
-        placement.pagePath = (pagePath == null) ? "" : pagePath;
-        return placement;
-    }
-
-    public static AnnotationPlacement range(TabType tabType, double start, double end) {
-        AnnotationPlacement placement = new AnnotationPlacement(tabType, PlacementType.RANGE);
-        placement.start = start;
-        placement.end = end;
-        placement.pagePath = "";
-        return placement;
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.source = (source == null) ? "" : source;
     }
 
     public TabType getTabType() {
@@ -112,16 +60,6 @@ public class AnnotationPlacement {
     public void setTabType(TabType tabType) {
         if (tabType != null) {
             this.tabType = tabType;
-        }
-    }
-
-    public PlacementType getPlacementType() {
-        return this.placementType;
-    }
-
-    public void setPlacementType(PlacementType placementType) {
-        if (placementType != null) {
-            this.placementType = placementType;
         }
     }
 
@@ -157,28 +95,12 @@ public class AnnotationPlacement {
         this.height = height;
     }
 
-    public double getStart() {
-        return this.start;
+    public String getSource() {
+        return this.source;
     }
 
-    public void setStart(double start) {
-        this.start = start;
-    }
-
-    public double getEnd() {
-        return this.end;
-    }
-
-    public void setEnd(double end) {
-        this.end = end;
-    }
-
-    public String getPagePath() {
-        return this.pagePath;
-    }
-
-    public void setPagePath(String pagePath) {
-        this.pagePath = (pagePath == null) ? "" : pagePath;
+    public void setSource(String source) {
+        this.source = (source == null) ? "" : source;
     }
 
     public String getPane() {

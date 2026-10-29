@@ -33,26 +33,15 @@ import java.util.regex.Pattern;
  * <code>&lt;placement id="annot-id" tab="score" source="page.svg" x="-0.2" y="0.4" w="0.1" h="0.2"/&gt;</code>
  * (relative values, except x of the audio tab, which is a time in milliseconds; start and end instead of x, y, w, h denote a range, x and y only a point; source is the score page or audio file).
  * Times (when, clip) are written into one <code>recording</code> per audio file, which names the file in an <code>avFile</code>.
- * <p>
+ *
  * Mapping:
- * <ul>
- * <li>id, title, text, category, part: annot/@xml:id, annot/@label, annot/p, annot/@type, annot/locus</li>
- * <li>createdAt, updatedAt: annot/date[@type='created'|'updated']/@isodate</li>
- * <li>measureFrom, measureTo: annot/@tstamp and annot/@tstamp2, written as "{measure}m+0"</li>
- * <li>links: annot/@plist, in their original order; the first and the last MSM/MPM link are also annot/@startid and annot/@endid
- *     <ul>
- *     <li>MSM, MPM: "#id" (there is exactly one MSM and one MPM per MPR, so no file is stored)</li>
- *     <li>SVG: "file.svg#id" (target of the link has the same form)</li>
- *     <li>TIMESTAMP: "#id" of a when (abstype "smil", absolute "{ms}ms")</li>
- *     <li>TIME_RANGE: "#id" of a clip (betype "smil", begin/end "{ms}ms"); the link target is "begin,end" in milliseconds</li>
- *     <li>SCORE_AREA: "#id" of a zone type="annotationReference" in a surface type="scorePage";
- *         the link target is "x,y,width,height,pagePath" with relative coordinates</li>
- *     <li>SPECTROGRAM_AREA: "#id" of a zone type="annotationReference" in a surface type="audioSpectrogram";
- *         the link target is "x,y,width,height" with relative coordinates</li>
- *     </ul></li>
- * </ul>
+ * - id, title, text, category, part: annot/@xml:id, annot/title, annot/p, annot/@type, annot/locus
+ * - >createdAt, updatedAt: annot/date[@type='created'|'updated']/@isodate
+ * - measureFrom, measureTo: annot/@tstamp and annot/@tstamp2, written as "{measure}m+0"
+ * - links: annot/@plist, in their original order; the first and the last MSM/MPM link are also annot/@startid and annot/@endid
  * Area coordinates (0..1) are mapped to integers 0..{@value #COORDINATE_RANGE} (rounded, clamped to the page).
  * IDs of generated helper elements are opaque; the meaning of a reference is always determined by the referenced element.
+ * @author Lars Engeln
  */
 public class MeiAnnotationConverter {
     public static final String MEI_NS = "http://www.music-encoding.org/ns/mei";
@@ -82,8 +71,8 @@ public class MeiAnnotationConverter {
     public static Element toXML(Collection<? extends AnnotationData> annotations) {
         Objects.requireNonNull(annotations, "annotations");
         Element root = new Element("annotations");
-        Element score = mei("score");
-        Element facsimile = mei("facsimile");
+        Element score = createMeiElement("score");
+        Element facsimile = createMeiElement("facsimile");
 
         Set<String> usedIds = new HashSet<>();
         for (AnnotationData annotation : annotations) {
@@ -116,9 +105,8 @@ public class MeiAnnotationConverter {
     }
 
     private static Element annotationToXml(AnnotationData data, Map<String, Element> recordings, Map<String, Element> surfaces, Set<String> usedIds) {
-        Element annot = mei("annot");
+        Element annot = createMeiElement("annot");
         setXmlId(annot, data.getId());
-        annot.addAttribute(new Attribute("label", data.getTitle()));
         if (!data.getCategory().isEmpty()) {
             annot.addAttribute(new Attribute("type", data.getCategory()));
         }
@@ -144,11 +132,14 @@ public class MeiAnnotationConverter {
         }
 
         if (!data.getPart().isEmpty()) {
-            Element locus = mei("locus");
+            Element locus = createMeiElement("locus");
             locus.appendChild(data.getPart());
             annot.appendChild(locus);
         }
-        Element p = mei("p");
+        Element title = createMeiElement("title");
+        title.appendChild(data.getTitle());
+        annot.appendChild(title);
+        Element p = createMeiElement("p");
         p.appendChild(data.getText());
         annot.appendChild(p);
         annot.appendChild(dateToXml("created", data.getCreatedAt()));
@@ -157,7 +148,7 @@ public class MeiAnnotationConverter {
     }
 
     private static Element dateToXml(String type, long epochMillis) {
-        Element date = mei("date");
+        Element date = createMeiElement("date");
         date.addAttribute(new Attribute("type", type));
         date.addAttribute(new Attribute("isodate", Instant.ofEpochMilli(epochMillis).toString()));
         return date;
@@ -188,6 +179,9 @@ public class MeiAnnotationConverter {
                 return "#" + timestampToWhen(target, getRecording(recordings, link.getSource(), usedIds), usedIds);
             case TIME_RANGE:
                 return "#" + timeRangeToClip(target, getRecording(recordings, link.getSource(), usedIds), usedIds);
+            case ANNOTATION:
+                requireXmlId(target, "annotation id");
+                return "#" + target;
             case SCORE_AREA:
             case SPECTROGRAM_AREA:
                 return "#" + areaToZone(link, surfaces, usedIds);
@@ -202,10 +196,10 @@ public class MeiAnnotationConverter {
     private static Element getRecording(Map<String, Element> recordings, String source, Set<String> usedIds) {
         Element recording = recordings.get(source);
         if (recording == null) {
-            recording = mei("recording");
+            recording = createMeiElement("recording");
             setXmlId(recording, newId("recording", usedIds));
             if (!source.isEmpty()) {
-                Element avFile = mei("avFile");
+                Element avFile = createMeiElement("avFile");
                 avFile.addAttribute(new Attribute("target", source));
                 String mimeType = mimeTypeOf(source);
                 if (mimeType != null) {
@@ -230,7 +224,7 @@ public class MeiAnnotationConverter {
 
     private static String timestampToWhen(String target, Element recording, Set<String> usedIds) {
         double ms = parseMillis(target);
-        Element when = mei("when");
+        Element when = createMeiElement("when");
         String id = newId("time", usedIds);
         setXmlId(when, id);
         when.addAttribute(new Attribute("absolute", millisToSmil(ms)));
@@ -249,7 +243,7 @@ public class MeiAnnotationConverter {
         if (begin >= end) {
             throw new IllegalArgumentException("invalid clip, begin must be less than end: " + target);
         }
-        Element clip = mei("clip");
+        Element clip = createMeiElement("clip");
         String id = newId("clip", usedIds);
         setXmlId(clip, id);
         clip.addAttribute(new Attribute("begin", millisToSmil(begin)));
@@ -281,29 +275,19 @@ public class MeiAnnotationConverter {
     private static Element placementToXml(String annotationId, AnnotationPlacement placement) {
         Element e = new Element("placement");
         e.addAttribute(new Attribute("id", annotationId));
-        e.addAttribute(new Attribute("tab", placement.getTabType().getXmlValue()));
-        if (!placement.getPagePath().isEmpty()) {
-            e.addAttribute(new Attribute("source", placement.getPagePath()));
+        e.addAttribute(new Attribute("tab", placement.getTabType().toXmlValue()));
+        if (!placement.getSource().isEmpty()) {
+            e.addAttribute(new Attribute("source", placement.getSource()));
         }
         if (!placement.getPane().isEmpty()) {
             e.addAttribute(new Attribute("pane", placement.getPane()));
         }
-        switch (placement.getPlacementType()) {
-            case RANGE:
-                e.addAttribute(new Attribute("start", finite(placement.getStart())));
-                e.addAttribute(new Attribute("end", finite(placement.getEnd())));
-                break;
-            case RECT:
-                e.addAttribute(new Attribute("x", finite(placement.getX())));
-                e.addAttribute(new Attribute("y", finite(placement.getY())));
-                e.addAttribute(new Attribute("w", finite(placement.getWidth())));
-                e.addAttribute(new Attribute("h", finite(placement.getHeight())));
-                break;
-            case POINT:
-            default:
-                e.addAttribute(new Attribute("x", finite(placement.getX())));
-                e.addAttribute(new Attribute("y", finite(placement.getY())));
-        }
+
+        e.addAttribute(new Attribute("x", finite(placement.getX())));
+        e.addAttribute(new Attribute("y", finite(placement.getY())));
+        e.addAttribute(new Attribute("w", finite(placement.getWidth())));
+        e.addAttribute(new Attribute("h", finite(placement.getHeight())));
+
         return e;
     }
 
@@ -318,7 +302,7 @@ public class MeiAnnotationConverter {
         String key = type + "\u0000" + page;
         Element surface = surfaces.get(key);
         if (surface == null) {
-            surface = mei("surface");
+            surface = createMeiElement("surface");
             setXmlId(surface, "surface-" + UUID.randomUUID());
             surface.addAttribute(new Attribute("type", type));
             surface.addAttribute(new Attribute("ulx", "0"));
@@ -326,7 +310,7 @@ public class MeiAnnotationConverter {
             surface.addAttribute(new Attribute("lrx", Integer.toString(COORDINATE_RANGE)));
             surface.addAttribute(new Attribute("lry", Integer.toString(COORDINATE_RANGE)));
             if (!page.isEmpty()) {
-                Element graphic = mei("graphic");
+                Element graphic = createMeiElement("graphic");
                 graphic.addAttribute(new Attribute("target", page));
                 surface.appendChild(graphic);
             }
@@ -336,7 +320,7 @@ public class MeiAnnotationConverter {
     }
 
     private static Element newZone(Element surface, String type, Set<String> usedIds) {
-        Element zone = mei("zone");
+        Element zone = createMeiElement("zone");
         setXmlId(zone, newId("zone", usedIds));
         zone.addAttribute(new Attribute("type", type));
         surface.appendChild(zone);
@@ -395,31 +379,16 @@ public class MeiAnnotationConverter {
 
     private static AnnotationPlacement placementFromXml(Element e) {
         AnnotationPlacement.TabType tab = AnnotationPlacement.TabType.fromXmlValue(e.getAttributeValue("tab"));
-        AnnotationPlacement.PlacementType kind;
-        if (e.getAttribute("start") != null) {
-            kind = AnnotationPlacement.PlacementType.RANGE;
-        } else if (e.getAttribute("w") != null) {
-            kind = AnnotationPlacement.PlacementType.RECT;
-        } else {
-            kind = AnnotationPlacement.PlacementType.POINT;
-        }
-        AnnotationPlacement placement = new AnnotationPlacement(tab, kind);
-        switch (kind) {
-            case RANGE:
-                placement.setStart(parseDouble(e.getAttributeValue("start"), "placement start"));
-                placement.setEnd(parseDouble(e.getAttributeValue("end"), "placement end"));
-                break;
-            case RECT:
-                placement.setWidth(parseDouble(e.getAttributeValue("w"), "placement w"));
-                placement.setHeight(parseDouble(e.getAttributeValue("h"), "placement h"));
-                placement.setX(parseDouble(e.getAttributeValue("x"), "placement x"));
-                placement.setY(parseDouble(e.getAttributeValue("y"), "placement y"));
-                break;
-            default:
-                placement.setX(parseDouble(e.getAttributeValue("x"), "placement x"));
-                placement.setY(parseDouble(e.getAttributeValue("y"), "placement y"));
-        }
-        placement.setPagePath(e.getAttributeValue("source"));
+
+        AnnotationPlacement placement = new AnnotationPlacement(
+            tab,
+            parseDouble(e.getAttributeValue("x"), "placement x"),
+            parseDouble(e.getAttributeValue("y"), "placement y"),
+            parseDouble(e.getAttributeValue("w"), "placement w"),
+            parseDouble(e.getAttributeValue("h"), "placement h"),
+            e.getAttributeValue("source")
+        );
+
         placement.setPane(e.getAttributeValue("pane"));
         return placement;
     }
@@ -458,7 +427,10 @@ public class MeiAnnotationConverter {
 
         AnnotationData data = new AnnotationData(text.toString());
         data.setId(id);
-        data.setTitle(attributeOrEmpty(annot, "label"));
+        Element title = annot.getFirstChildElement("title", MEI_NS);
+        if (title != null) {
+            data.setTitle(title.getValue());
+        }
         data.setCategory(attributeOrEmpty(annot, "type"));
 
         Element locus = annot.getFirstChildElement("locus", MEI_NS);
@@ -562,6 +534,8 @@ public class MeiAnnotationConverter {
                 return withSource(new AnnotationLink(AnnotationLink.LinkType.TIME_RANGE, clipToTarget(element)), element);
             case "zone":
                 return zoneToAreaLink(element, zoneSurfaces.get(element));
+            case "annot":
+                return new AnnotationLink(AnnotationLink.LinkType.ANNOTATION, id);
             default:
                 throw new IllegalArgumentException("unknown local resource " + token + " (" + element.getLocalName() + ")");
         }
@@ -842,7 +816,7 @@ public class MeiAnnotationConverter {
 
     // ---------------------------------------------------------------- xml helpers
 
-    private static Element mei(String name) {
+    private static Element createMeiElement(String name) {
         return new Element(name, MEI_NS);
     }
 

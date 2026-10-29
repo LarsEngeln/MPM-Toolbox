@@ -7,6 +7,7 @@ import java.util.UUID;
 
 /**
  * Project-wide annotation entity with links and visual placements.
+ * @author Lars Engeln
  */
 public class AnnotationData {
     private String id;
@@ -196,33 +197,24 @@ public class AnnotationData {
                 continue;
             }
             if (tabType == AnnotationPlacement.TabType.SCORE) {
-                String placementPage = placement.getPagePath();
+                String placementPage = placement.getSource();
                 String sought = (pagePath == null) ? "" : pagePath;
                 if (!placementPage.equals(sought)) {
                     continue;
                 }
             }
             double dist;
-            switch (placement.getPlacementType()) {
-                case RECT: {
-                    double width = Math.max(1.0, placement.getWidth());
-                    double height = Math.max(1.0, placement.getHeight());
-                    double dx = 0.0;
-                    if (x < placement.getX()) dx = placement.getX() - x;
-                    else if (x > (placement.getX() + width)) dx = x - (placement.getX() + width);
-                    double dy = 0.0;
-                    if (y < placement.getY()) dy = placement.getY() - y;
-                    else if (y > (placement.getY() + height)) dy = y - (placement.getY() + height);
-                    dist = (dx * dx) + (dy * dy);
-                    break;
-                }
-                case POINT:
-                default: {
-                    double dx = placement.getX() - x;
-                    double dy = placement.getY() - y;
-                    dist = (dx * dx) + (dy * dy);
-                }
-            }
+
+            double width = Math.max(1.0, placement.getWidth());
+            double height = Math.max(1.0, placement.getHeight());
+            double dx = 0.0;
+            if (x < placement.getX()) dx = placement.getX() - x;
+            else if (x > (placement.getX() + width)) dx = x - (placement.getX() + width);
+            double dy = 0.0;
+            if (y < placement.getY()) dy = placement.getY() - y;
+            else if (y > (placement.getY() + height)) dy = y - (placement.getY() + height);
+            dist = (dx * dx) + (dy * dy);
+
             if (dist < nearestDist) {
                 nearestDist = dist;
                 nearest = placement;

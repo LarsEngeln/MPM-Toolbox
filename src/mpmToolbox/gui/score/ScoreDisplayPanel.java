@@ -489,11 +489,11 @@ public class ScoreDisplayPanel extends WebPanel implements MouseWheelListener, M
         this.annotationOverlayLayer.setVisibleWhen(() -> !this.isOverlayHidden() && (this.scorePage != null));
         this.annotationOverlayLayer.setPlacementInitializer(placement -> {
             if (this.scorePage != null) {
-                placement.setPagePath(this.scorePage.getFile().getAbsolutePath());
+                placement.setSource(this.scorePage.getFile().getAbsolutePath());
             }
         });
         this.annotationOverlayLayer.setLinkResolver(this::resolveAnnotationLink);
-        this.annotationOverlayLayer.setFilter(placement -> (this.scorePage != null) && this.scorePage.getFile().getAbsolutePath().equals(placement.getPagePath()));
+        this.annotationOverlayLayer.setFilter(placement -> (this.scorePage != null) && this.scorePage.getFile().getAbsolutePath().equals(placement.getSource()));
         this.annotationOverlayLayer.setProjection(new AnnotationOverlayLayer.Projection() {
             @Override
             public Point anchor(AnnotationPlacement placement) {

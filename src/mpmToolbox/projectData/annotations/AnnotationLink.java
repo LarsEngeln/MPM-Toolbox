@@ -3,6 +3,7 @@ package mpmToolbox.projectData.annotations;
 
 /**
  * One typed ID-based link attached to an annotation.
+ * @author Lars Engeln
  */
 public class AnnotationLink {
     /**
@@ -22,7 +23,9 @@ public class AnnotationLink {
         /** a rectangle on a score page, target holds the relative "x,y,width,height,pagePath" */
         SCORE_AREA("scoreArea"),
         /** a rectangle in the spectrogram, target holds the relative "x,y,width,height" */
-        SPECTROGRAM_AREA("spectrogramArea");
+        SPECTROGRAM_AREA("spectrogramArea"),
+        /** another annotation, target holds its id */
+        ANNOTATION("annotation");
 
         private final String xmlValue;
 

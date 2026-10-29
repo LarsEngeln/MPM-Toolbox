@@ -101,13 +101,6 @@ public class MpmToolbox {
 
 //                Tools.initKeyboardShortcuts(self, self.frame);                                      // don't need this anymore as the keyboard shortcuts are implemented via the menubar
                 self.frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);                 // terminate everything, all windows
-                self.frame.addWindowListener(new java.awt.event.WindowAdapter() {
-                    @Override
-                    public void windowClosing(java.awt.event.WindowEvent e) {
-                        if (self.projectPane != null)
-                            self.projectPane.saveUserConfig();                                      // remember the user's view of the project
-                    }
-                });
 //                self.frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);             // close this window/frame, others remain open
                 Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdownHook()));             // what must be done on shutdown will be done via method shutdownHook()
 
@@ -261,8 +254,6 @@ public class MpmToolbox {
         WebMenuItem exit = new WebMenuItem("Exit", 'x');
         exit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, InputEvent.ALT_MASK));
         exit.addActionListener(actionEvent -> {
-            if (this.projectPane != null)
-                this.projectPane.saveUserConfig();
             this.frame.dispose();                                                        // close the window (if this is the only window, this will terminate the JVM)
             System.exit(0);                                                         // the program may still run, enforce exit
         });
@@ -439,13 +430,19 @@ public class MpmToolbox {
         this.recentList = new WebPanel();
         this.recentList.setLayout(new BoxLayout(this.recentList, BoxLayout.Y_AXIS));
         this.recentList.setOpaque(false);
+        this.recentList.setPadding(60, 0, 0, 0);
         this.recentList.setAlignmentX(Component.LEFT_ALIGNMENT);
         this.updateRecentList();
 
-        Tools.addComponentToGridBagLayout(welcomeMessage, layout, message, 1, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.NONE, GridBagConstraints.LINE_START);
-        Tools.addComponentToGridBagLayout(welcomeMessage, layout, this.recentList, 0, 1, 2, 1, 1.0, 1.0, 0, 0, GridBagConstraints.NONE, GridBagConstraints.PAGE_START);
+        Tools.addComponentToGridBagLayout(welcomeMessage, layout,         message, 1, 0, 1, 1, 0.0, 0.0, 0, 0, GridBagConstraints.NONE, GridBagConstraints.LINE_START);
+                Tools.addComponentToGridBagLayout(welcomeMessage, layout, this.recentList, 0, 1, 2, 1, 0.0, 0.0, 0, 0, GridBagConstraints.NONE, GridBagConstraints.PAGE_START);
 
-        return welcomeMessage;
+                // wrapper keeps the content centered while the gap between message and recent list stays static
+                GridBagLayout wrapperLayout = new GridBagLayout();
+                WebPanel wrapper = new WebPanel(wrapperLayout);
+                Tools.addComponentToGridBagLayout(wrapper, wrapperLayout, welcomeMessage, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.NONE, GridBagConstraints.CENTER);
+
+                return wrapper;
     }
 
     /**
@@ -460,7 +457,7 @@ public class MpmToolbox {
             WebLabel header = new WebLabel("Recently opened projects:");
             header.setFontSize(18);
             header.setForeground(Color.LIGHT_GRAY);
-            header.setPadding(28, 0, 7, 0);
+            header.setPadding(8, 0, 7, 0);
             header.setAlignmentX(Component.LEFT_ALIGNMENT);
             this.recentList.add(header);
 
@@ -728,7 +725,6 @@ public class MpmToolbox {
      * the closing procedure for an open project
      */
     public void closeProject() {
-        this.projectPane.saveUserConfig();
         this.getMidiPlayerSyncPlayer().stop();
         this.getProjectPane().getSyncPlayer().getAudioPlayer().stop();
         this.getProjectPane().getSyncPlayer().getMidiPlayer().stop();
