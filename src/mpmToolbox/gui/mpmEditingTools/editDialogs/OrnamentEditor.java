@@ -4,6 +4,11 @@ import com.alee.laf.button.WebToggleButton;
 import com.alee.laf.grouping.GroupPane;
 import com.alee.laf.label.WebLabel;
 import com.alee.laf.spinner.WebSpinner;
+import com.alee.laf.text.WebTextField;
+import com.alee.extended.button.WebSplitButton;
+import com.alee.laf.button.WebButton;
+import com.alee.laf.menu.WebMenuItem;
+import com.alee.laf.menu.WebPopupMenu;
 import meico.mei.Helper;
 import meico.mpm.Mpm;
 import meico.mpm.elements.Performance;
@@ -12,13 +17,14 @@ import meico.mpm.elements.maps.data.OrnamentData;
 import meico.msm.Msm;
 import mpmToolbox.gui.ProjectPane;
 import mpmToolbox.gui.Settings;
-import mpmToolbox.gui.mpmEditingTools.editDialogs.ornament.Note;
-import mpmToolbox.gui.mpmEditingTools.editDialogs.ornament.NoteOrderComponent;
-import mpmToolbox.gui.mpmEditingTools.editDialogs.ornamentDef.NotePoolComponent;
-import mpmToolbox.gui.mpmEditingTools.editDialogs.supplementary.EditDialogToggleButton;
+import meico.midi.EventMaker;
+import mpmToolbox.gui.mpmEditingTools.editDialogs.ornament.NoteMatrixComponent;
 import mpmToolbox.supplementary.Tools;
 import nu.xom.Element;
 
+import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.Sequence;
+import javax.sound.midi.Track;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -28,7 +34,7 @@ import java.util.ArrayList;
 
 /**
  * The ornament editor.
- * @author Axel Berndt
+ * @author Lars Engeln
  */
 public class OrnamentEditor extends EditDialog<OrnamentData> {
     private ProjectPane projectPane;
@@ -37,10 +43,12 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
     private WebToggleButton ascendingPitchToggle;
     private WebToggleButton descendingPitchToggle;
     private WebToggleButton noteOrderToggle;
-    private NoteOrderComponent noteOrderComponent;
-    private EditDialogToggleButton notePoolButton;
-    private NotePoolComponent notePoolComponent;
+    private NoteMatrixComponent noteMatrix;
+    private WebSpinner repetitions;
     private WebSpinner scale;
+    private WebTextField noteId;
+    private WebSplitButton noteIdChooser;
+    private ArrayList<String> noteIds = new ArrayList<>();
     private OrnamentData currentOrnamentData = null;
 
     /**
@@ -64,23 +72,82 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
             this.fullNameRefUpdate(Mpm.ORNAMENTATION_STYLE);
             this.updateMsmDate();
             this.updateNoteList();
-            this.syncNotePoolFromSelectedDefinition();
         });
 
         /////////////
 
-        this.addNameRef("Select Ornament:", 1, true);
-        this.installNameRefTracking();
+        WebLabel noteIdLabel = new WebLabel("Note ID (optional):");
+        noteIdLabel.setHorizontalAlignment(WebLabel.RIGHT);
+        noteIdLabel.setPadding(Settings.paddingInDialogs);
+        this.addToContentPanel(noteIdLabel, 0, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+
+        this.noteId = new WebTextField();
+        this.noteId.setMinimumWidth(getFontMetrics(this.noteId.getFont()).stringWidth("wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww"));
+        this.noteId.setHorizontalAlignment(WebTextField.LEFT);
+        this.noteId.setPadding(Settings.paddingInDialogs);
+        this.noteId.setToolTip("Assign this ornament to a specific note at the date.\nLeave blank to use the first note at the date.");
+        this.noteId.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {checkNoteId();}
+            @Override
+            public void removeUpdate(DocumentEvent e) {checkNoteId();}
+            @Override
+            public void changedUpdate(DocumentEvent e) {checkNoteId();}
+        });
+        this.addToContentPanel(this.noteId, 1, 1, 2, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+
+        this.noteIdChooser = new WebSplitButton("Choose");
+        this.noteIdChooser.setHorizontalAlignment(WebButton.CENTER);
+        this.noteIdChooser.setPadding(Settings.paddingInDialogs);
+        this.addToContentPanel(this.noteIdChooser, 3, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+
+        /////////////
+
+        this.addNameRef("Select Ornament:", 2, true);
 
         // note.order
         WebLabel noteOrderLabel = new WebLabel("Note Order:");
         noteOrderLabel.setHorizontalAlignment(WebLabel.RIGHT);
         noteOrderLabel.setPadding(Settings.paddingInDialogs);
         noteOrderLabel.setToolTip("The order in which the notes are processed by the ornament.");
-        this.addToContentPanel(noteOrderLabel, 0, 2, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.addToContentPanel(noteOrderLabel, 0, 3, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
 
-        this.noteOrderComponent = new NoteOrderComponent();
-        this.addToContentPanel(this.noteOrderComponent, 1, 3, 3, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.noteMatrix = new NoteMatrixComponent();
+        this.noteMatrix.setNotePlayer(this::playPitch);
+        JScrollPane noteMatrixScrollPane = new JScrollPane(this.noteMatrix, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED) {
+            private Dimension fittingSize = null;   // the size this pane had while no scrollbar was needed
+
+            @Override
+            public Dimension getMinimumSize() {     // a scroll pane's default minimum is tiny, so the GridBagLayout would squash the matrix as soon as the dialog is capped
+                if (!this.getVerticalScrollBar().isVisible() && !this.getHorizontalScrollBar().isVisible())
+                    this.fittingSize = new Dimension(this.getPreferredSize());      // keep the last size that showed everything
+                return (this.fittingSize != null) ? new Dimension(this.fittingSize) : this.getPreferredSize();
+            }
+        };
+        noteMatrixScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        noteMatrixScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        noteMatrixScrollPane.getHorizontalScrollBar().setUnitIncrement(16);
+        noteMatrixScrollPane.getViewport().setScrollMode(JViewport.SIMPLE_SCROLL_MODE);    // repaint fully, the note pool is drawn sticky at the left edge
+        this.addToContentPanel(noteMatrixScrollPane, 0, 4, 4, 1, 1.0, 100.0, 10, 0, GridBagConstraints.BOTH);   // high weighty: the matrix gets the space, other rows stay compact
+
+        // repetitions
+        WebLabel repetitionsLabel = new WebLabel("Repetitions:");
+        repetitionsLabel.setHorizontalAlignment(WebLabel.RIGHT);
+        repetitionsLabel.setPadding(Settings.paddingInDialogs * 2, Settings.paddingInDialogs, Settings.paddingInDialogs, Settings.paddingInDialogs);
+        String repetitionsTip = "How often the repetition region is repeated. -1: as often as fits into the principal note's length.";
+        repetitionsLabel.setToolTip(repetitionsTip);
+        this.addToContentPanel(repetitionsLabel, 0, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+
+        this.repetitions = new WebSpinner(new SpinnerNumberModel(1, -1, 999, 1));
+        this.repetitions.setToolTip(repetitionsTip);
+        this.repetitions.addChangeListener(e -> this.noteMatrix.setRepetitions((Integer) this.repetitions.getValue()));
+        int repWidth = getFontMetrics(this.repetitions.getFont()).stringWidth("99999");
+        this.repetitions.setMinimumWidth(repWidth);
+        this.repetitions.setMaximumWidth(repWidth);
+        this.addToContentPanel(this.repetitions, 1, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        GridBagConstraints repetitionsConstraints = this.contentPanelLayout.getConstraints(this.repetitions);
+        repetitionsConstraints.insets = new Insets(Settings.paddingInDialogs, 0, 0, 0);
+        this.contentPanelLayout.setConstraints(this.repetitions, repetitionsConstraints);
 
         this.ascendingPitchToggle = new WebToggleButton("Ascending Pitch");
         this.ascendingPitchToggle.setPadding(Settings.paddingInDialogs);
@@ -91,24 +158,19 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
         this.noteOrderToggle = new WebToggleButton("Specify Note Order");
         this.noteOrderToggle.setPadding(Settings.paddingInDialogs);
         this.noteOrderToggle.setToolTip("Activate the note(s) that take part in the ornament and adjust their order.");
-        this.noteOrderToggle.addChangeListener(e -> this.noteOrderComponent.setEnabled(this.noteOrderToggle.isSelected()));
+        this.noteOrderToggle.addChangeListener(e -> {
+            this.noteMatrix.setMatrixEnabled(this.noteOrderToggle.isSelected());
+            this.repetitions.setEnabled(this.noteOrderToggle.isSelected());
+        });
         GroupPane noteOrderMode = new GroupPane(this.ascendingPitchToggle, this.descendingPitchToggle, this.noteOrderToggle);
-        this.addToContentPanel(noteOrderMode, 1, 2, 2, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
-
-        // notePool
-        this.notePoolComponent = new NotePoolComponent();
-        this.addToContentPanel(this.notePoolComponent, 1, 4, 3, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
-        this.notePoolButton = new EditDialogToggleButton("Note Pool:", new JComponent[]{this.notePoolComponent}, false);
-        this.notePoolButton.addChangeListener(changeEvent -> this.notePoolComponent.setEnabled(this.notePoolButton.isSelected() && this.notePoolButton.isEnabled()));
-        this.addToContentPanel(this.notePoolButton, 0, 4, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
-        this.notePoolComponent.setEnabled(false);
+        this.addToContentPanel(noteOrderMode, 1, 3, 2, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
 
         // scale
         WebLabel scaleLabel = new WebLabel("Scale Dynamics Gradient:");
         scaleLabel.setHorizontalAlignment(WebLabel.RIGHT);
         scaleLabel.setPadding(Settings.paddingInDialogs);
         scaleLabel.setToolTip("The dynamics gradient is defined in [-1, 1] as part of the ornament's definition.\nHere it is scaled to actual loudness or MIDI velocity values.");
-        this.addToContentPanel(scaleLabel, 0, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.addToContentPanel(scaleLabel, 0, 6, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
 
         this.scale = new WebSpinner(new SpinnerNumberModel(0.0, -99999999999999999.9, 99999999999999999.9, 1.0));
         int width = getFontMetrics(this.scale.getFont()).stringWidth("999.999.999.999.999");
@@ -117,17 +179,19 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
         scaleEditor.getFormat().setRoundingMode(RoundingMode.HALF_UP);
         this.scale.setMinimumWidth(width);
         this.scale.setMaximumWidth(width);
-        this.addToContentPanel(this.scale, 1, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.addToContentPanel(this.scale, 1, 6, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
 
         WebLabel scaleComment = new WebLabel("for MIDI compatibility stay in [-127, 127]");
         scaleComment.setHorizontalAlignment(WebLabel.LEFT);
         scaleComment.setPadding(Settings.paddingInDialogs);
-        this.addToContentPanel(scaleComment, 2, 5, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
+        this.addToContentPanel(scaleComment, 2, 6, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH);
 
         /////////////
 
-        this.addIdInput(6);
+        this.addIdInput(7);
     }
+
+    private ArrayList<Element> msmNotesAtDate = new ArrayList<>();   // MSM notes at the current date, candidates for the principal note
 
     /**
      * execute the editor dialog
@@ -137,14 +201,36 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
     @Override
     public OrnamentData edit(OrnamentData input) {
         this.ascendingPitchToggle.setSelected(true);    // the default state of note.order may be changed when parsing input
-        boolean initNoteOrder = false;                  // this is set true when the note.order attribute of the input object contains a sequence of IDs, so we can later initialize the NoteOrderComponent
+        boolean initNoteOrder = false;                  // this is set true when the note.order attribute of the input object contains a sequence of IDs, so we can later initialize the note matrix
         this.currentOrnamentData = input;
+        this.noteMatrix.clear();
+        this.repetitions.setValue(1);
+        int repetitions = 0;
+        ArrayList<Element> inputNotes = new ArrayList<>();  // the additional notes of the ornament
 
         if (input != null) {
             this.date.setValue(input.date);
             this.nameRef.setText(input.ornamentDefName);
             this.scale.setValue(input.scale);
             this.id.setText(input.xmlId);
+            String noteId = input.correspondence;
+            this.noteId.setText((noteId != null && noteId.startsWith("#")) ? noteId.substring(1) : noteId);
+            repetitions = input.repetitions;
+
+            if (input.xml != null) {
+                for (Element child : input.xml.getChildElements())
+                    if (child.getLocalName().equals("note"))
+                        inputNotes.add(child);
+                String rep = Helper.getAttributeValue("repetitions", input.xml);
+                if (rep != null) {
+                    try {
+                        repetitions = Integer.parseInt(rep.trim());
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            } else if (input.notes != null) {
+                inputNotes.addAll(input.notes);
+            }
 
             // parse note.order
             if ((input.noteOrder != null) && (input.noteOrder.size() > 0)) {
@@ -157,21 +243,27 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
                         break;
                     default:
                         this.noteOrderToggle.setSelected(true);
-                        initNoteOrder = true;                           // signal to a later point in this method to read and set the order of notes in the NoteOrderComponent after it is initializes
+                        initNoteOrder = true;                           // signal to a later point in this method to read and set the order of notes in the note matrix after it is initialized
                 }
             }
+        } else {
+            this.noteId.setText("");
         }
 
         this.updateMsmDate();
         this.updateNoteList();
-        if (initNoteOrder)                                              // if note.order is a sequence of IDs
-            this.noteOrderComponent.setNoteOrder(input.noteOrder);      // communicate the sequence to the NoteOrderComponent
-        this.noteOrderComponent.setEnabled(this.noteOrderToggle.isSelected());  // if ascending or descending pitch is selected, deactivate all notes in the noteOrderComponent
+        this.noteMatrix.setExtraNotes(inputNotes);
+        if (initNoteOrder) {                                            // if note.order is a sequence of IDs
+            this.noteMatrix.setNoteOrder(input.noteOrder, repetitions); // communicate the sequence to the note matrix
+            this.repetitions.setValue(Math.max(-1, Math.min(999, repetitions)));
+        }
+        this.noteMatrix.setMatrixEnabled(this.noteOrderToggle.isSelected());    // if ascending or descending pitch is selected, deactivate the matrix
+        this.repetitions.setEnabled(this.noteOrderToggle.isSelected());
 
         if (this.nameRef.isEmpty())                                     // the user MUST choose an ornament; so, if the nameRef field is empty, write something in it that will be marked red
             this.nameRef.setText("Choose an ornament!");
         this.fullNameRefUpdate(Mpm.ORNAMENTATION_STYLE);
-        this.syncNotePoolFromSelectedDefinition();
+        this.pack();                                                    // resize the dialog so the matrix is visible
 //        this.nameRef.selectAll();
 
         this.setVisible(true);  // start the dialog
@@ -194,70 +286,50 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
 
         output.scale = Tools.round((double) this.scale.getValue(), 10);
         output.xmlId = id;
-        
-// Copy notes from currentOrnamentData if available
-if ((this.currentOrnamentData != null) && (this.currentOrnamentData.notes != null))
-    output.notes = new ArrayList<>(this.currentOrnamentData.notes);
+        String noteId = this.noteId.getText().trim();
+        if (!noteId.isEmpty())
+            output.correspondence = noteId.startsWith("#") ? noteId : "#" + noteId;
+        if ((output.correspondence == null) && !this.msmNotesAtDate.isEmpty()) {    // the renderer needs a principal note reference (noteid) to create the ornament notes
+            String firstNoteId = this.msmNotesAtDate.get(0).getAttributeValue("id", "http://www.w3.org/XML/1998/namespace");
+            if (firstNoteId != null)
+                output.correspondence = "#" + firstNoteId;
+        }
 
-// note.order
-if (this.descendingPitchToggle.isSelected()) {
-    output.noteOrder = new ArrayList<>();
-    output.noteOrder.add("descending pitch");
-} else if (this.noteOrderToggle.isSelected()) {
-    output.noteOrder = this.noteOrderComponent.getNoteOrder();
-} //else if (this.ascendingPitchToggle.isSelected()) {
-//            output.noteOrder = null;                          // unnecessary
-//        }
-
-return output;
-    }
-
-    private void installNameRefTracking() {
-        this.nameRef.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                syncNotePoolFromSelectedDefinition();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                syncNotePoolFromSelectedDefinition();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                syncNotePoolFromSelectedDefinition();
-            }
-        });
-    }
-
-    private void syncNotePoolFromSelectedDefinition() {
-        String ornamentName = this.nameRef.getText().trim();
-        
-        // Delegate to NotePoolComponent to sync from the alteration
-        this.notePoolComponent.syncFromOrnamentData(this.currentOrnamentData, ornamentName, this.projectPane);
-        
-        // Update UI state based on whether notePool is populated
-        boolean hasNotePool = !this.notePoolComponent.getNotePool().isEmpty();
-        this.notePoolButton.setEnabled(hasNotePool || (this.currentOrnamentData != null));
-        this.notePoolButton.setSelected(hasNotePool);
-        this.notePoolComponent.setEnabled(this.notePoolButton.isSelected());
-
-        // Update NoteOrder toggle state based on synced notes
-        if (hasNotePool) {
-            this.noteOrderToggle.setEnabled(true);
-            if (this.noteOrderToggle.isSelected() && (this.currentOrnamentData != null) && (this.currentOrnamentData.noteOrder != null) && (this.currentOrnamentData.noteOrder.size() > 0)) {
-                this.noteOrderComponent.setEnabled(true);
-                this.noteOrderComponent.setNoteOrder(this.currentOrnamentData.noteOrder);
-            }
+        // note.order, note pool, and repetitions
+        if (this.noteOrderToggle.isSelected()) {
+            output.noteOrder = this.noteMatrix.getNoteOrder();
+            output.notes = this.noteMatrix.getExtraNotes(true);
+            output.repetitions = this.noteMatrix.getRepetitions();
         } else {
-            this.noteOrderToggle.setEnabled(false);
-            this.noteOrderComponent.clear();
+            output.notes = this.noteMatrix.getExtraNotes(false);
+            if (this.descendingPitchToggle.isSelected()) {
+                output.noteOrder = new ArrayList<>();
+                output.noteOrder.add("descending pitch");
+            }
+        }
+
+        return output;
+    }
+
+    /**
+     * play a single note via MIDI
+     * @param pitch the MIDI pitch
+     */
+    private void playPitch(double pitch) {
+        try {
+            Sequence sequence = new Sequence(Sequence.PPQ, 720);
+            Track track = sequence.createTrack();
+            int p = Math.max(Math.min((int) Math.round(pitch), 127), 0);
+            track.add(EventMaker.createNoteOn(0, 0, p, 100));
+            track.add(EventMaker.createNoteOff(0, 720, p, 0));
+            this.projectPane.getParentMpmToolbox().getMidiPlayerForSingleNotes().play(sequence);
+        } catch (InvalidMidiDataException e) {
+            e.printStackTrace();
         }
     }
 
     /**
-     * make sure that the correct value is in the editor's msmDate, so the noteOrderComponent list is filled correctly
+     * make sure that the correct value is in the editor's msmDate, so the note pool is filled correctly
      */
     private void updateMsmDate() {
         double date = Tools.round((double) this.date.getValue(), 10);
@@ -328,24 +400,55 @@ return output;
             return;
 
         ArrayList<Element> scores = this.getMsmScores();
-        if (scores.isEmpty())
-            return;
+        ArrayList<Element> msmNotes = new ArrayList<>();
 
-        this.noteOrderComponent.clear();
-
-        for (Element score : scores) {      // collect all notes at the specified date and add them to the noteOrderComponent
+        for (Element score : scores) {      // collect all notes at the specified date
             for (Element noteElement : score.getChildElements("note")) {
                 double noteDate = Double.parseDouble(noteElement.getAttributeValue("date"));
                 if (noteDate < this.msmDate)
                     continue;
                 if (noteDate > this.msmDate)
                     break;
-                if ((noteDate == this.msmDate) && (noteElement.getAttribute("id", "http://www.w3.org/XML/1998/namespace") != null)) {   // if the note has no ID we cannot refer it
-                    Note note = new Note(noteElement, this.projectPane);
-                    this.noteOrderComponent.addNote(note);
-                }
+                if ((noteDate == this.msmDate) && (noteElement.getAttribute("id", "http://www.w3.org/XML/1998/namespace") != null))    // if the note has no ID we cannot refer it
+                    msmNotes.add(noteElement);
             }
         }
-        this.pack();                        // resize the dialog so all notes are visible
+        this.msmNotesAtDate = msmNotes;
+        this.fillNoteIdChooser();
+        this.noteMatrix.setMsmNotes(msmNotes);
+        this.pack();                         // resize the dialog so all notes are visible
+    }
+
+    private void checkNoteId() {
+        if (this.noteMatrix != null)
+            this.noteMatrix.setPrincipalNote(this.noteId.getText());
+        this.noteId.setForeground((this.noteIds.contains(this.noteId.getText().trim().replaceFirst("^#", ""))) ? Settings.foregroundColor : Settings.errorColor);
+        this.noteId.revalidate();
+        this.noteId.repaint();
+    }
+
+    private void fillNoteIdChooser() {
+        this.noteIds.clear();
+        for (Element note : this.msmNotesAtDate)
+            this.noteIds.add(note.getAttributeValue("id", "http://www.w3.org/XML/1998/namespace"));
+
+        if (this.noteIds.isEmpty()) {
+            this.noteIdChooser.setPopupMenu(null);
+            this.noteIdChooser.setEnabled(false);
+            this.noteIdChooser.setToolTip("No notes (with IDs) at the specified date.");
+            this.checkNoteId();
+            return;
+        }
+
+        WebPopupMenu noteIdsPopup = new WebPopupMenu();
+        for (String id : this.noteIds) {
+            WebMenuItem item = new WebMenuItem(id);
+            item.addActionListener(event -> this.noteId.setText(item.getText()));
+            noteIdsPopup.add(item);
+        }
+        this.noteIdChooser.setPopupMenu(noteIdsPopup);
+        this.noteIdChooser.setEnabled(true);
+        this.noteIdChooser.removeToolTips();
+        this.checkNoteId();
     }
 }

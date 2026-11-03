@@ -13,7 +13,7 @@ import java.io.IOException;
  * @author Axel Berndt
  */
 public class Main {
-    public static final String version = "0.1.43 (alpha) - annotat";
+    public static final String version = "0.1.43 (alpha) - ornamEditor";
 
     public static void main(String[] args) {
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
