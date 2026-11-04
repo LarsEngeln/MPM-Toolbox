@@ -1,8 +1,6 @@
 package mpmToolbox.gui.mpmEditingTools.editDialogs.ornament;
 
-import com.alee.laf.label.WebLabel;
 import com.alee.laf.panel.WebPanel;
-import com.alee.laf.spinner.WebSpinner;
 import meico.mei.Helper;
 import meico.mpm.Mpm;
 import mpmToolbox.gui.Settings;
@@ -35,7 +33,7 @@ public class NoteMatrixComponent extends WebPanel {
     private static final Color FLAG_COLOR = withAlpha(Settings.foregroundColor, 28);
     private static final String XML_NS = "http://www.w3.org/XML/1998/namespace";
     private static final int MIN_COLUMNS = 8;                // the minimal space reserved for the matrix
-    private static final int MIN_ROWS = 6;
+    private static final int MIN_ROWS = 2;
 
     private static final int ROW_H = Settings.paddingInDialogs*4;
     private static final int COL_W = Settings.paddingInDialogs*4;
