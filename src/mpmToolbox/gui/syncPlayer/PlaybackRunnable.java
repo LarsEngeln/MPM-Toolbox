@@ -1,6 +1,8 @@
 package mpmToolbox.gui.syncPlayer;
 
 import meico.midi.Midi;
+import meico.midi.MidiPlayer;
+import javax.sound.midi.Synthesizer;
 import meico.mpm.elements.Performance;
 import mpmToolbox.gui.syncPlayer.utilities.AudioChooserItem;
 import mpmToolbox.gui.syncPlayer.utilities.PerformanceChooserItem;
@@ -163,6 +165,15 @@ public class PlaybackRunnable implements Runnable {
     }
 
     /**
+     * the latency of the software synthesizer in microseconds
+     * @return
+     */
+    private long getSynthesizerLatency() {
+        Synthesizer synth = this.syncPlayer.getMidiPlayer().getSynthesizer();
+        return ((synth != null) && synth.isOpen()) ? Math.max(0L, synth.getLatency()) : 0L;
+    }
+
+    /**
      * indicates whether the playback ist still running
      * @return
      */
@@ -183,7 +194,13 @@ public class PlaybackRunnable implements Runnable {
             // update playbackSlider
             double relativePlaybackPosition;
             if (this.midiIsLonger) {
-                relativePlaybackPosition = this.syncPlayer.getMidiPlayer().getRelativePosition();
+                MidiPlayer player = this.syncPlayer.getMidiPlayer();
+                long length = player.getMicrosecondLength();
+                long audible = Math.max(0L, player.getMicrosecondPosition() - this.getSynthesizerLatency());
+                if (audible > 0) {   // the synthesizer renders the events with a delay, so the audible position is behind the sequencer's position
+                    relativePlaybackPosition = Math.min(1.0, (double) audible / (double) length);
+                } else
+                    relativePlaybackPosition = player.getRelativePosition();
             } else {
                 relativePlaybackPosition = (this.syncPlayer.getAudioPlayer().getMicrosecondLength() <= this.microsecAudioOffset) ? 1.0 : (double) (this.syncPlayer.getAudioPlayer().getMicrosecondPosition() - this.microsecAudioOffset) / (double) (this.syncPlayer.getAudioPlayer().getMicrosecondLength() - this.microsecAudioOffset);
             }
