@@ -146,6 +146,7 @@ public class AnnotationOverlayLayer extends WebPanel {
         }
         new DropTarget(this, DnDConstants.ACTION_COPY_OR_MOVE, new DropTargetListener() {
             private DropTarget current = null;
+            // Note: the target below is only active while an annotation is dragged, so all other drags (files, tab drags of the document pane) skip this layer entirely.
 
             private DropTarget ancestorTarget() {
                 for (Component c = getParent(); c != null; c = c.getParent()) {
@@ -202,7 +203,12 @@ public class AnnotationOverlayLayer extends WebPanel {
                     e.rejectDrop();
                 }
             }
-        });
+        }) {
+            @Override
+            public boolean isActive() {
+                return AnnotationTransferable.isDragging() && super.isActive();
+            }
+        };
     }
 
     public AnnotationManager getManager() {
