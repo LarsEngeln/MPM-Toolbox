@@ -12,6 +12,19 @@ import java.awt.datatransfer.Transferable;
 public class AnnotationTransferable implements Transferable {
     public static final DataFlavor FLAVOR = new DataFlavor(DataFlavor.javaJVMLocalObjectMimeType + ";class=" + AnnotationData.class.getName(), "Annotation");
 
+    private static volatile boolean dragging = false;
+
+    /**
+     * @return true while an annotation is being dragged from the annotation tree
+     */
+    public static boolean isDragging() {
+        return dragging;
+    }
+
+    public static void setDragging(boolean value) {
+        dragging = value;
+    }
+
     private final AnnotationData annotation;
 
     public AnnotationTransferable(AnnotationData annotation) {

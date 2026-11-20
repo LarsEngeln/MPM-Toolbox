@@ -79,7 +79,13 @@ public class AnnotationDockableFrame extends WebDockableFrame {
             AnnotationData annotation = annotationOf(((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject());
             if (annotation != null) {
                 this.tree.setSelectionPath(path);
-                dragGestureEvent.startDrag(DragSource.DefaultCopyDrop, new AnnotationTransferable(annotation));
+                AnnotationTransferable.setDragging(true);
+                dragGestureEvent.startDrag(DragSource.DefaultCopyDrop, new AnnotationTransferable(annotation), new java.awt.dnd.DragSourceAdapter() {
+                    @Override
+                    public void dragDropEnd(java.awt.dnd.DragSourceDropEvent dsde) {
+                        AnnotationTransferable.setDragging(false);
+                    }
+                });
             }
         });
 
