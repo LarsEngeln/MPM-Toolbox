@@ -85,7 +85,7 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
         this.noteId.setMinimumWidth(getFontMetrics(this.noteId.getFont()).stringWidth("wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww"));
         this.noteId.setHorizontalAlignment(WebTextField.LEFT);
         this.noteId.setPadding(Settings.paddingInDialogs);
-        this.noteId.setToolTip("Assign this ornament to a specific note at the date.\nLeave blank to use the first note at the date.");
+        this.noteId.setToolTip("Assign this ornament to a specific note.\nFor pitch order, use the whole chord at the note's date, or at the ornament date if left blank.");
         this.noteId.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {checkNoteId();}
@@ -289,11 +289,6 @@ public class OrnamentEditor extends EditDialog<OrnamentData> {
         String noteId = this.noteId.getText().trim();
         if (!noteId.isEmpty())
             output.correspondence = noteId.startsWith("#") ? noteId : "#" + noteId;
-        if ((output.correspondence == null) && !this.msmNotesAtDate.isEmpty()) {    // the renderer needs a principal note reference (noteid) to create the ornament notes
-            String firstNoteId = this.msmNotesAtDate.get(0).getAttributeValue("id", "http://www.w3.org/XML/1998/namespace");
-            if (firstNoteId != null)
-                output.correspondence = "#" + firstNoteId;
-        }
 
         // note.order, note pool, and repetitions
         if (this.noteOrderToggle.isSelected()) {
