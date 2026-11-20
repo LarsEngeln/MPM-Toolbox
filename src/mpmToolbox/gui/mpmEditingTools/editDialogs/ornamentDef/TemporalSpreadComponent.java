@@ -353,12 +353,12 @@ public class TemporalSpreadComponent extends WebPanel {
     }
 
     /**
-     * Items for the time.unit chooser.
+     * Items for the time-domain chooser.
      * @author Axel Berndt
      */
     private static class TimeDomainItem extends KeyValue<TemporalValue.Domain, String> {
         /**
-         * This constructor creates a time.unit chooser item (frame domain, String) pair out of a non-null frame domain.
+         * This constructor creates a time-domain chooser item (frame domain, String) pair out of a non-null frame domain.
          * @param frameDomain
          */
         public TimeDomainItem(@NotNull TemporalValue.Domain frameDomain) {

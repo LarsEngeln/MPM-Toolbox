@@ -97,7 +97,8 @@ public class MpmToolbox {
 //                frame.setPreferredSize(new Dimension(Toolkit.getDefaultToolkit().getScreenSize()));
                 self.frame.setResizable(true);
                 self.frame.setLocationRelativeTo(null);                                             // place window in the center of the screen
-                Settings.foregroundColor = self.frame.getForeground();                              // place the foreground color info in Settings so other classes can read it from there
+                Color foreground = self.frame.getForeground();
+                Settings.foregroundColor = (foreground != null) ? foreground : SystemColor.text;    // place the foreground color info in Settings so other classes can read it from there
 
 //                Tools.initKeyboardShortcuts(self, self.frame);                                      // don't need this anymore as the keyboard shortcuts are implemented via the menubar
                 self.frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);                 // terminate everything, all windows

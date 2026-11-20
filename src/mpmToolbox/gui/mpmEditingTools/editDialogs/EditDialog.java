@@ -106,7 +106,7 @@ public abstract class EditDialog<E> extends WebDialog<EditDialog<E>> {
         GridBagLayout layout = new GridBagLayout();
         this.setLayout(layout);
         Tools.addComponentToGridBagLayout(this, layout, this.contentPanel, 0, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
-        Tools.addComponentToGridBagLayout(this, layout, okPanel, 0, 1, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);
+        Tools.addComponentToGridBagLayout(this, layout, okPanel, 0, 1, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.BOTH, GridBagConstraints.LINE_START);   // weighty 0: the buttons keep their size when the dialog is squeezed
 
         this.pack();                                    // fit the size to the content
 
