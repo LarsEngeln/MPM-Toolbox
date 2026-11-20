@@ -830,14 +830,16 @@ public class MpmToolbox {
         if (this.projectPane == null)
             return false;
 
-        if (!this.runWithBusyDialog("Saving", "Saving Project", () -> this.projectPane.saveProject())) {
+        if (this.projectPane.getFile() == null) {
             return this.saveProjectAs();
-        } else {
+        }
+        if (this.runWithBusyDialog("Saving", "Saving Project", () -> this.projectPane.saveProject())) {
             this.projectPane.saveUserConfig();
             Settings.recentOpened.add(this.projectPane.getFile());
             this.updateOpenRecent();
+            return true;
         }
-        return true;
+        return false;
     }
 
     /**

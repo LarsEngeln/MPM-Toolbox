@@ -4,6 +4,7 @@ import com.alee.api.annotations.NotNull;
 import com.alee.api.annotations.Nullable;
 import com.alee.extended.tree.WebExTree;
 import com.alee.laf.menu.WebMenuItem;
+import com.alee.laf.menu.WebPopupMenu;
 import mpmToolbox.gui.ProjectPane;
 import mpmToolbox.projectData.SvgData;
 import nu.xom.Element;
@@ -87,6 +88,45 @@ public class SvgTree extends WebExTree<SvgTreeNode> {
             }
         });
 
+        this.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent event) {
+                showTitleMenu(event);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent event) {
+                showTitleMenu(event);
+            }
+        });
+    }
+
+    private void showTitleMenu(MouseEvent event) {
+        if (!event.isPopupTrigger()) {
+            return;
+        }
+        TreePath path = this.getPathForLocation(event.getX(), event.getY());
+        SvgTreeNode node = (path == null) ? null : this.getNodeForPath(path);
+        if (node == null || !(node.getUserObject() instanceof Element)) {
+            return;
+        }
+        this.setSelectionPath(path);
+        Element element = (Element) node.getUserObject();
+        WebPopupMenu menu = new WebPopupMenu();
+        WebMenuItem editTitle = new WebMenuItem("Add/Edit Title");
+        editTitle.addActionListener(actionEvent -> {
+            String title = new SvgTitleEditor().edit(this.svgData.getTitle(element));
+            if (title != null && this.svgData.setTitle(element, title)) {
+                this.updateNode(node);
+                this.reloadNode(node);
+                if (node.getParent() != null) {
+                    this.updateNode(node.getParent());
+                }
+                this.projectPane.getAnnotationManager().notifyChanged();
+            }
+        });
+        menu.add(editTitle);
+        menu.show(this, event.getX(), event.getY());
     }
 
     /**

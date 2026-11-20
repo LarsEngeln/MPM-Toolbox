@@ -10,13 +10,18 @@ import nu.xom.Builder;
 import nu.xom.Document;
 import nu.xom.Element;
 import nu.xom.ParsingException;
+import nu.xom.Serializer;
 import mpmToolbox.projectData.score.ScorePage;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -47,6 +52,7 @@ public class SvgData {
     private final java.util.Set<Element> linkedElements = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());   // elements linked by the hovered annotation
     private Color scoreColor = null;   // picked recolor for whole SVG overlay
     private SVGColorMode svgColorMode = SVGColorMode.HIDDEN;
+    private boolean modified = false;
 
     /**
      * Constructor – parses the given SVG file.
@@ -113,6 +119,75 @@ public class SvgData {
      */
     public String getName() {
         return this.file.getName();
+    }
+
+    /**
+     * Return the element's SVG title, or an empty string if it has none.
+     * When the selected element is itself a title, return its text.
+     */
+    public String getTitle(Element element) {
+        Element title = this.titleElement(element);
+        return (title == null) ? "" : title.getValue();
+    }
+
+    /**
+     * Add or update a title in the XML representation. Empty text clears an
+     * existing title, but does not create a new empty title.
+     */
+    public boolean setTitle(Element element, String text) {
+        if (element == null || element.getDocument() != this.xmlRoot.getDocument() || text == null) {
+            throw new IllegalArgumentException("The element and title must belong to this SVG.");
+        }
+        Element title = this.titleElement(element);
+        if (title == null) {
+            if (text.isEmpty()) {
+                return false;
+            }
+            title = new Element("title", element.getNamespaceURI());
+            String id;
+            do {
+                id = "svg_" + UUID.randomUUID().toString();
+            } while (this.hasElement(id));
+            title.addAttribute(new Attribute("id", id));
+            title.appendChild(text);
+            element.insertChild(title, 0);
+        } else {
+            if (title.getValue().equals(text)) {
+                return false;
+            }
+            title.removeChildren();
+            title.appendChild(text);
+        }
+        this.modified = true;
+        return true;
+    }
+
+    private Element titleElement(Element element) {
+        if ("title".equals(element.getLocalName())) {
+            return element;
+        }
+        return element.getFirstChildElement("title", element.getNamespaceURI());
+    }
+
+    /**
+     * Save edited XML back to the source SVG. Generated IDs are included so
+     * existing annotation links remain stable when title elements are added.
+     */
+    public void saveIfModified() throws IOException {
+        if (!this.modified) {
+            return;
+        }
+        Path target = this.file.toPath().toAbsolutePath();
+        Path temporary = Files.createTempFile(target.getParent(), ".mpm-svg-", ".tmp");
+        try {
+            try (OutputStream out = Files.newOutputStream(temporary)) {
+                new Serializer(out, "UTF-8").write(this.xmlRoot.getDocument());
+            }
+            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+            this.modified = false;
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
     }
 
     /**

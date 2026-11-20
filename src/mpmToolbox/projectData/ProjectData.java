@@ -25,6 +25,7 @@ import javax.xml.parsers.ParserConfigurationException;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -607,6 +608,11 @@ public class ProjectData {
             Element svgsElt = new Element("svgs");
             root.appendChild(svgsElt);
             for (SvgData svg : this.svgs) {
+                try {
+                    svg.saveIfModified();
+                } catch (IOException ex) {
+                    throw new UncheckedIOException("Could not save SVG " + svg.getFile(), ex);
+                }
                 Element svgElt = new Element("svg");
                 Path relativeSvgPath = Paths.get(file.getParent()).relativize(svg.getFile().toPath());
                 svgElt.addAttribute(new Attribute("file", relativeSvgPath.toString()));

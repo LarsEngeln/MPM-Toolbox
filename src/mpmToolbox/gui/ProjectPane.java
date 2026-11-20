@@ -46,6 +46,7 @@ import nu.xom.Serializer;
 import org.xml.sax.SAXException;
 
 import javax.sound.midi.MidiUnavailableException;
+import javax.swing.JOptionPane;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -622,7 +623,13 @@ public class ProjectPane extends WebDockablePane {
      * @return
      */
     public boolean saveProject() {
-        return this.data.saveProject();
+        try {
+            return this.data.saveProject();
+        } catch (java.io.UncheckedIOException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage() + "\n" + ex.getCause().getMessage(),
+                    "Save Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
     }
 
     /**
@@ -632,7 +639,13 @@ public class ProjectPane extends WebDockablePane {
      * @return
      */
     public boolean saveProjectAs(File file) {
-        return this.data.saveProjectAs(file);
+        try {
+            return this.data.saveProjectAs(file);
+        } catch (java.io.UncheckedIOException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage() + "\n" + ex.getCause().getMessage(),
+                    "Save Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
     }
     /**
      * the user config file that belongs to the given project file, i.e. "[project].mpr.user"
