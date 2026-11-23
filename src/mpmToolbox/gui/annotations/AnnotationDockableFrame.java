@@ -11,7 +11,6 @@ import mpmToolbox.gui.ProjectPane;
 import mpmToolbox.gui.Settings;
 import mpmToolbox.projectData.annotations.AnnotationData;
 import mpmToolbox.projectData.annotations.AnnotationPlacement;
-import mpmToolbox.projectData.score.ScorePage;
 
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -70,7 +69,8 @@ public class AnnotationDockableFrame extends WebDockableFrame {
         renderer.setBackgroundNonSelectionColor(new java.awt.Color(0, 0, 0, 0));
         this.tree.setCellRenderer(renderer);
         this.tree.setRootVisible(true);
-        this.tree.addMouseListener(new AnnotationTreeMouseAdapter());
+        AnnotationTreeMouseAdapter treeMouseAdapter = new AnnotationTreeMouseAdapter();
+        this.tree.addMouseListener(treeMouseAdapter);
         DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(this.tree, DnDConstants.ACTION_COPY, dragGestureEvent -> {
             TreePath path = this.tree.getPathForLocation(dragGestureEvent.getDragOrigin().x, dragGestureEvent.getDragOrigin().y);
             if (path == null) {
@@ -91,6 +91,17 @@ public class AnnotationDockableFrame extends WebDockableFrame {
 
         WebScrollPane scrollPane = new WebScrollPane(this.tree);
         scrollPane.setStyleId(StyleId.scrollpaneUndecoratedButtonless);
+        scrollPane.getViewport().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent event) {
+                treeMouseAdapter.showMenu(SwingUtilities.convertMouseEvent(event.getComponent(), event, tree));
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent event) {
+                treeMouseAdapter.showMenu(SwingUtilities.convertMouseEvent(event.getComponent(), event, tree));
+            }
+        });
         this.add(scrollPane);
 
         this.refreshTree();
@@ -228,16 +239,11 @@ public class AnnotationDockableFrame extends WebDockableFrame {
             }
 
             WebPopupMenu menu = new WebPopupMenu();
-            if ((path != null) && (path.getPathCount() > 1)) {      // not for the root node
-                WebMenuItem addAnnotation = new WebMenuItem("Add Annotation");
-                addAnnotation.addActionListener(actionEvent -> {
-                    ScorePage page = parent.getCurrentScorePage();
-                    if (page != null) {
-                        parent.getAnnotationManager().create(AnnotationPlacement.TabType.SCORE, page.getImage().getWidth() * 0.5, page.getImage().getHeight() * 0.5, page.getFile().getAbsolutePath());
-                    }
-                });
-                menu.add(addAnnotation);
+            WebMenuItem addAnnotation = new WebMenuItem("Add Annotation");
+            addAnnotation.addActionListener(actionEvent -> parent.getAnnotationManager().add(new AnnotationData("")));
+            menu.add(addAnnotation);
 
+            if ((path != null) && (path.getPathCount() > 1)) {
                 DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
                 Object userObject = node.getUserObject();
                 AnnotationData annotation = annotationOf(userObject);
