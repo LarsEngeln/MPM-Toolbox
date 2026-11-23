@@ -185,7 +185,9 @@ public class AnnotationDockableFrame extends WebDockableFrame {
     }
 
     private void editAnnotation(AnnotationData annotation) {
-        if (AnnotationOverlayPanel.editText(this, annotation)) {
+        AnnotationEditor editor = new AnnotationEditor(this);
+        editor.edit(annotation);
+        if (editor.isOk()) {
             this.parent.getAnnotationManager().notifyChanged();
         }
     }

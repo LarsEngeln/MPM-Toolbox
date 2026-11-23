@@ -5,7 +5,6 @@ import com.alee.laf.label.WebLabel;
 import com.alee.laf.panel.WebPanel;
 import com.alee.laf.scroll.WebScrollPane;
 import com.alee.laf.text.WebTextArea;
-import com.alee.laf.text.WebTextField;
 import com.alee.managers.style.StyleId;
 import mpmToolbox.gui.Settings;
 import mpmToolbox.projectData.annotations.AnnotationData;
@@ -15,9 +14,6 @@ import mpmToolbox.projectData.annotations.AnnotationPlacement;
 import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JViewport;
 import javax.swing.Scrollable;
@@ -25,12 +21,6 @@ import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
-import javax.swing.text.AbstractDocument;
-import javax.swing.text.AttributeSet;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.DocumentFilter;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -38,10 +28,8 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -72,25 +60,6 @@ public class AnnotationOverlayPanel extends WebPanel {
     private static final Color OVERLAY_BORDER = new Color(130, 130, 120, 230);
     private static final Color OVERLAY_TEXT = new Color(20, 20, 20, 255);
     private static final String OVERLAY_TITLE = "Annotation";
-
-    private static class MeasureInputFilter extends DocumentFilter {
-        @Override
-        public void insertString(FilterBypass fb, int offset, String text, AttributeSet attributes) throws BadLocationException {
-            this.replace(fb, offset, 0, text, attributes);
-        }
-
-        @Override
-        public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attributes) throws BadLocationException {
-            String current = fb.getDocument().getText(0, fb.getDocument().getLength());
-            String replacement = (text == null) ? "" : text;
-            String candidate = current.substring(0, offset) + replacement + current.substring(offset + length);
-            if (candidate.matches("-?[0-9]+|\\?|") || candidate.equals("-")) {
-                fb.replace(offset, length, replacement, attributes);
-            } else {
-                fb.replace(0, fb.getDocument().getLength(), "", attributes);
-            }
-        }
-    }
 
     /**
      * The scrolled view: text and links together, as wide as the viewport.
@@ -500,106 +469,6 @@ public class AnnotationOverlayPanel extends WebPanel {
         return new Rectangle(anchorX, anchorY, width, height);
     }
 
-    /**
-     * Let the user edit the (multi-line) text of an annotation.
-     * @return true if the text was changed
-     */
-    public static boolean editText(Component parent, AnnotationData annotation) {
-        WebTextArea editor = new WebTextArea(annotation.getText(), 8, 36);
-        editor.setLineWrap(true);
-        editor.setWrapStyleWord(true);
-        WebTextField title = new WebTextField(annotation.getTitle());
-        title.setPadding(Settings.paddingInDialogs);
-        WebTextField part = new WebTextField(annotation.getPart());
-        part.setPadding(Settings.paddingInDialogs);
-        WebTextField measureFrom = new WebTextField(annotation.getMeasureFrom());
-        WebTextField measureTo = new WebTextField(annotation.getMeasureTo());
-        measureFrom.setPadding(Settings.paddingInDialogs);
-        measureTo.setPadding(Settings.paddingInDialogs);
-        measureFrom.setColumns(5);
-        measureTo.setColumns(5);
-        ((AbstractDocument) measureFrom.getDocument()).setDocumentFilter(new MeasureInputFilter());
-        ((AbstractDocument) measureTo.getDocument()).setDocumentFilter(new MeasureInputFilter());
-        title.setToolTipText("Enter the annotation title.");
-        part.setToolTipText("Enter the locus or leave it empty.");
-        String measureHint = "Enter an integer, ? for unknown, or leave empty.";
-        measureFrom.setToolTipText(measureHint);
-        measureTo.setToolTipText(measureHint);
-        measureTo.setEnabled(!measureFrom.getText().isEmpty());
-        measureFrom.getDocument().addDocumentListener(new DocumentListener() {
-            private void updateMeasureToEnabled() {
-                measureTo.setEnabled(!measureFrom.getText().isEmpty());
-                if (!measureTo.isEnabled()) {
-                    SwingUtilities.invokeLater(() -> measureTo.setText(""));
-                }
-            }
-
-            @Override
-            public void insertUpdate(DocumentEvent event) {
-                this.updateMeasureToEnabled();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent event) {
-                this.updateMeasureToEnabled();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent event) {
-                this.updateMeasureToEnabled();
-            }
-        });
-        JPanel fields = new JPanel();
-        fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
-        JPanel titleRow = new JPanel(new BorderLayout(8, 0));
-        titleRow.add(new JLabel("Title"), BorderLayout.WEST);
-        titleRow.add(title, BorderLayout.CENTER);
-        JPanel partRow = new JPanel(new BorderLayout(8, 0));
-        partRow.add(new JLabel("Locus:"), BorderLayout.WEST);
-        partRow.add(part, BorderLayout.CENTER);
-        JPanel measureRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-        measureRow.add(new JLabel("Measure:"));
-        measureRow.add(measureFrom);
-        measureRow.add(new JLabel("-"));
-        measureRow.add(measureTo);
-
-        fields.add(titleRow);
-        fields.add(partRow);
-        fields.add(measureRow);
-        JPanel form = new JPanel(new BorderLayout(0, 8));
-        form.add(fields, BorderLayout.NORTH);
-        form.add(new WebScrollPane(editor), BorderLayout.CENTER);
-
-        WebButton ok = new WebButton("OK");
-        WebButton cancel = new WebButton("Cancel");
-        ok.setPadding(Settings.paddingInDialogs);
-        cancel.setPadding(Settings.paddingInDialogs);
-
-        while (true) {
-            JOptionPane pane = new JOptionPane(form, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION, null, new Object[]{ok, cancel}, ok);
-            for (java.awt.event.ActionListener listener : ok.getActionListeners()) {
-                ok.removeActionListener(listener);
-            }
-            for (java.awt.event.ActionListener listener : cancel.getActionListeners()) {
-                cancel.removeActionListener(listener);
-            }
-            ok.addActionListener(e -> pane.setValue(JOptionPane.OK_OPTION));
-            cancel.addActionListener(e -> pane.setValue(JOptionPane.CANCEL_OPTION));
-            javax.swing.JDialog dialog = pane.createDialog(parent, "Edit annotation");
-            dialog.setVisible(true);
-            dialog.dispose();
-            if (!Integer.valueOf(JOptionPane.OK_OPTION).equals(pane.getValue())) {
-                return false;
-            }
-            annotation.setTitle(title.getText());
-            annotation.setPart(part.getText());
-            annotation.setMeasureFrom(measureFrom.getText());
-            annotation.setMeasureTo(measureTo.getText());
-            annotation.setText(editor.getText());
-            return true;
-        }
-    }
-
     private void resizeTo(int width, int height) {
         if (this.placement == null) {
             return;
@@ -833,7 +702,9 @@ public class AnnotationOverlayPanel extends WebPanel {
                 if (e.getClickCount() < 2) {
                     return;
                 }
-                if (editText(layer.getOwner(), annotation)) {
+                AnnotationEditor editor = new AnnotationEditor(layer.getOwner());
+                editor.edit(annotation);
+                if (editor.isOk()) {
                     manager.notifyChanged();
                 }
             }

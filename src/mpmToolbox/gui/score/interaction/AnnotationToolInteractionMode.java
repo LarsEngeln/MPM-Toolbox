@@ -1,7 +1,7 @@
 package mpmToolbox.gui.score.interaction;
 
+import mpmToolbox.gui.annotations.AnnotationEditor;
 import mpmToolbox.gui.annotations.AnnotationManager;
-import mpmToolbox.gui.annotations.AnnotationOverlayPanel;
 import mpmToolbox.gui.score.ScoreDisplayPanel;
 import mpmToolbox.projectData.annotations.AnnotationData;
 import mpmToolbox.projectData.annotations.AnnotationPlacement;
@@ -114,7 +114,9 @@ public class AnnotationToolInteractionMode extends AbstractInteractionMode {
         if (annotation == null) {
             return;
         }
-        if (AnnotationOverlayPanel.editText(this.panel, annotation)) {
+        AnnotationEditor editor = new AnnotationEditor(this.panel);
+        editor.edit(annotation);
+        if (editor.isOk()) {
             this.annotations().notifyChanged();
             this.annotations().setSelected(annotation);
         }
