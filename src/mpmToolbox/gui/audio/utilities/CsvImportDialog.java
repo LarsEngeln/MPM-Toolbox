@@ -28,18 +28,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 /**
- * A modal dialog for configuring CSV annotation import, and for editing existing AnnotationData objects.
- * Parses the CSV file into an AnnotationData object and lets the user configure column types and units.
- * Can also receive an existing AnnotationData to edit its column metadata.
+ * A modal dialog for configuring CSV measurement import, and for editing existing MeasurementData objects.
+ * Parses the CSV file into an MeasurementData object and lets the user configure column types and units.
+ * Can also receive an existing MeasurementData to edit its column metadata.
  * @author Lars Engeln
  */
 public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     private boolean ok = false;
 
-    // the current AnnotationData, either parsed from CSV or an existing one passed in for editing
+    // the current MeasurementData, either parsed from CSV or an existing one passed in for editing
     private MeasurementData measurementData;
 
-    // per-column UI controls (indices match annotationData lines)
+    // per-column UI controls (indices match measurementData lines)
     private WebComboBox[]  typeChoosers;
     private WebComboBox[]  unitChoosers;
     private WebTextField[] nameFields;
@@ -58,7 +58,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     // preview table model, updated when columns are deleted
     private DefaultTableModel tableModel;
 
-    private static final String NEW_ENTRY = "<New annotation>";
+    private static final String NEW_ENTRY = "<New measurement dataset>";
 
     // UI representations of the type enum (for combo boxes)
     private static final MeasurementDataLine.Type[] TYPES = MeasurementDataLine.Type.values();
@@ -66,7 +66,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     /**
      * Constructor for CSV import: parse the file and let the user configure columns.
      * @param file         the CSV file to import
-     * @param existingData existing AnnotationData objects the user may choose to replace
+     * @param existingData existing MeasurementData objects the user may choose to replace
      */
     public CsvImportDialog(File file, ArrayList<MeasurementData> existingData) {
         super();
@@ -77,15 +77,15 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     }
 
     /**
-     * Constructor for editing an existing AnnotationData (column types/units/name only – rows are unchanged).
-     * @param data         the AnnotationData to edit
-     * @param existingData all known AnnotationData objects (for the target chooser)
+     * Constructor for editing an existing MeasurementData (column types/units/name only – rows are unchanged).
+     * @param data         the MeasurementData to edit
+     * @param existingData all known MeasurementData objects (for the target chooser)
      */
     public CsvImportDialog(MeasurementData data, ArrayList<MeasurementData> existingData) {
         super();
         this.existingData = (existingData != null) ? existingData : new ArrayList<>();
         this.measurementData = data;
-        this.setTitle("Edit Annotation: " + data.getName());
+        this.setTitle("Edit Measurement: " + data.getName());
         this.init();
     }
 
@@ -108,10 +108,10 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     }
 
     /**
-     * Parse a CSV file into an AnnotationData object.
+     * Parse a CSV file into an MeasurementData object.
      * Applies smart defaults for column types and units.
      * @param file the CSV file
-     * @return the parsed AnnotationData (rows + columns with defaults)
+     * @return the parsed MeasurementData (rows + columns with defaults)
      */
     public static MeasurementData parseFile(File file) {
         ArrayList<String> rawLines = new ArrayList<>();
@@ -153,7 +153,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
                 headerRow[i] = headerRow[i].trim();
         }
 
-        // build AnnotationData
+        // build MeasurementData
         String name = file.getName();
         if (name.contains(".csv"))
             name = name.substring(0, name.lastIndexOf('.')); // strip file extension for default name
@@ -177,7 +177,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
             data.addLine(new MeasurementDataLine(colName, type, unit));
         }
 
-        // add rows, distribute each cell value into its column's AnnotationLine
+        // add rows, distribute each cell value into its column's MeasurementDataLine
         int maxRowCount = 0;
         for (String[] row : parsed) {
             double[] values = new double[colCount];
@@ -264,7 +264,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         Tools.addComponentToGridBagLayout(targetPanel, targetLayout, this.targetChooser, 1, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
 
         this.newNameField = new WebTextField(this.measurementData.getName());
-        this.newNameField.setToolTipText("Name for the new annotation dataset");
+        this.newNameField.setToolTipText("Name for the new measurement dataset");
         this.newNameField.setVisible(this.targetChooser.getSelectedIndex() == 0);
         Tools.addComponentToGridBagLayout(targetPanel, targetLayout, this.newNameField, 2, 0, 1, 1, 1.0, 1.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.CENTER);
 
@@ -286,14 +286,14 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         this.rebuildConfigPanel();
         Tools.addComponentToGridBagLayout(this, mainLayout, this.configPanel, 0, row++, 1, 1, 1.0, 0.0, 0, 0, GridBagConstraints.HORIZONTAL, GridBagConstraints.LINE_START);
 
-        // targetChooser: when an existing AnnotationData is selected, mirror its lines into the config
+        // targetChooser: when an existing MeasurementData is selected, mirror its lines into the config
         this.targetChooser.addActionListener(e -> {
             this.newNameField.setVisible(this.targetChooser.getSelectedIndex() == 0);
             int idx = this.targetChooser.getSelectedIndex();
             if (idx > 0) {
-                // clone lines from the selected existing AnnotationData into annotationData
+                // clone lines from the selected existing MeasurementData into measurementData
                 MeasurementData selected = this.existingData.get(idx - 1);
-                // keep the raw values of annotationData but adopt the line metadata
+                // keep the raw values of measurementData but adopt the line metadata
                 for (int c = 0; c < Math.min(this.measurementData.getLineCount(), selected.getLineCount()); c++) {
                     MeasurementDataLine src = selected.getLine(c);
                     MeasurementDataLine dst = this.measurementData.getLine(c);
@@ -421,7 +421,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     }
 
     /**
-     * Write current UI name/type/unit values back into the AnnotationData lines.
+     * Write current UI name/type/unit values back into the MeasurementData lines.
      * Called before structural changes (delete) so no edits are lost.
      */
     private void applyNamesTypesUnits() {
@@ -440,7 +440,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         }
     }
 
-    /** Build the column-name array for the preview table from the current annotationData lines. */
+    /** Build the column-name array for the preview table from the current measurementData lines. */
     private String[] buildTableColumnNames() {
         int colCount = this.measurementData.getLineCount();
         String[] names = new String[colCount];
@@ -449,7 +449,7 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         return names;
     }
 
-    /** Fill (or refill) the preview table model from the current annotationData. */
+    /** Fill (or refill) the preview table model from the current measurementData. */
     private void fillPreviewRows() {
         this.tableModel.setRowCount(0);
         int colCount = this.measurementData.getLineCount();
@@ -504,34 +504,34 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
     }
 
     /**
-     * Returns the existing AnnotationData to replace, or null if a new one should be created.
+     * Returns the existing MeasurementData to replace, or null if a new one should be created.
      * @return target or null
      */
-    public MeasurementData getTargetAnnotationData() {
+    public MeasurementData getTargetMeasurementData() {
         int idx = this.targetChooser.getSelectedIndex();
         return (idx == 0) ? null : this.existingData.get(idx - 1);
     }
 
     /**
-     * Returns the name for a new annotation dataset.
+     * Returns the name for a new measurement dataset.
      * @return name string
      */
-    public String getNewAnnotationName() {
+    public String getNewMeasurementName() {
         String name = this.newNameField.getText().trim();
-        return name.isEmpty() ? "Annotation" : name;
+        return name.isEmpty() ? "Measurement" : name;
     }
 
     /**
-     * Build the final AnnotationData from the parsed CSV and the user's column configuration.
+     * Build the final MeasurementData from the parsed CSV and the user's column configuration.
      * Column type and unit are taken from the combo boxes; rows are unchanged.
      * If replacing an existing object, the rows of that object are replaced.
-     * @return the configured AnnotationData, or null if no rows could be parsed
+     * @return the configured MeasurementData, or null if no rows could be parsed
      */
-    public MeasurementData buildAnnotationData() {
+    public MeasurementData buildMeasurementData() {
         if (this.measurementData.isEmpty())
             return null;
 
-        // apply current UI state (names, types, units) back onto the AnnotationData lines
+        // apply current UI state (names, types, units) back onto the MeasurementData lines
         this.applyNamesTypesUnits();
 
         // apply time offset (parsed from seconds, stored internally as milliseconds)
@@ -543,8 +543,8 @@ public class CsvImportDialog extends WebDialog<CsvImportDialog> {
         }
 
         // determine name
-        MeasurementData target = this.getTargetAnnotationData();
-        String name = (target != null) ? target.getName() : this.getNewAnnotationName();
+        MeasurementData target = this.getTargetMeasurementData();
+        String name = (target != null) ? target.getName() : this.getNewMeasurementName();
         this.measurementData.setName(name);
 
         return this.measurementData;

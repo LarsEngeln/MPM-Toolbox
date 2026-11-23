@@ -646,9 +646,9 @@ public class MeasurePanel extends WebPanel {
             editItem.addActionListener(ae -> {
                 CsvImportDialog dialog = new CsvImportDialog(data, this.parent.getAnnotations());
                 if (!dialog.showDialog()) return;
-                MeasurementData built = dialog.buildAnnotationData();
+                MeasurementData built = dialog.buildMeasurementData();
                 if (built == null) return;
-                MeasurementData target = dialog.getTargetAnnotationData();
+                MeasurementData target = dialog.getTargetMeasurementData();
                 if (target != null && target != data)
                     this.parent.replaceAnnotation(target, built);
                 this.updateAnnotationPlaceholder();

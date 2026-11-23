@@ -601,7 +601,7 @@ public class ProjectPane extends WebDockablePane {
         if (!dialog.showDialog())
             return;
 
-        MeasurementData built = dialog.buildAnnotationData();
+        MeasurementData built = dialog.buildMeasurementData();
         if (built == null) {
             System.err.println("No valid annotation data found in " + file.getAbsolutePath());
             return;
@@ -609,7 +609,7 @@ public class ProjectPane extends WebDockablePane {
 
         System.out.println("Loaded " + built.getRowCount() + " rows from " + file.getAbsolutePath());
 
-        MeasurementData target = dialog.getTargetAnnotationData();
+        MeasurementData target = dialog.getTargetMeasurementData();
         if (target != null)
             this.audioFrame.replaceAnnotation(target, built);
         else
